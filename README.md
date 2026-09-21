@@ -53,11 +53,21 @@ La simulation visuelle validée est jointe à cette issue.
 - mini-web supprimé en fin de chantier ;
 - aucun port interne HESTIA/Gateway exposé par facilité.
 
-## État du dépôt
+## État du dépôt au 21 septembre 2026
 
-Le dépôt contient actuellement le **socle d'architecture** du futur installateur.
+Le dépôt contient le socle exécutable non destructif du futur installateur :
 
-Le code présent est volontairement non destructif. Les mutations système seront ajoutées progressivement dans le cadre de l'issue #1, avec tests et validation dédiés.
+- CLI Python et preflight en lecture seule ;
+- validation FQDN / CIDR ;
+- modèle d'état transactionnel `PLANNED / RUNNING / DONE / ROLLED_BACK / FAILED / MANUAL_ACTION_REQUIRED` ;
+- journal d'état non secret écrit atomiquement ;
+- maquette locale du mini-web conforme à la direction UX validée ;
+- aucun endpoint privilégié ni mutation système active ;
+- aucune GitHub Action lourde à ce stade.
+
+La Quality locale canonique `compileall + unittest` passe sur le HEAD courant avec 6 tests.
+
+Le chantier est piloté par l'issue #1 et ses sous-issues #2 à #7. Les contrats applicatifs liés sont Web #135, Gateway #4 et APK #5.
 
 ## Développement local
 
