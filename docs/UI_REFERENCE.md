@@ -59,7 +59,7 @@ La page contient un préambule puis cinq étapes visuelles de démonstration afi
 4. Plan
 5. Installation
 
-L'étape 1 matérialise le prérequis d'accès aux dépôts privés HESTIA. Dans l'implémentation fonctionnelle, elle collectera un credential GitHub de lecture seule, validera l'accès aux dépôts requis et déclenchera leur acquisition locale dans le staging privé. Le secret restera éphémère et ne sera pas persisté.
+L'étape 1 matérialise le prérequis d'accès aux dépôts privés HESTIA. Dans l'implémentation fonctionnelle, elle collectera un credential GitHub de lecture seule et validera l'accès aux trois dépôts applicatifs WEB, GATEWAY et APK. Le téléchargement effectif sera différé jusqu'à la sélection des modules afin de ne copier localement que les sources nécessaires. Le secret restera éphémère et ne sera pas persisté.
 
 Les boutons et les points de progression modifient uniquement l'état local du navigateur. Le bouton Annuler ouvre une boîte de dialogue locale. Aucun appel backend n'est effectué.
 
