@@ -50,13 +50,16 @@ L'illustration est embarquée localement. L'interface n'effectue aucun chargemen
 
 ## Interaction de prévisualisation
 
-La page contient cinq étapes visuelles de démonstration afin de valider le comportement du futur wizard :
+La page contient un préambule puis cinq étapes visuelles de démonstration afin de valider le comportement du futur wizard :
 
-1. Bienvenue
+0. Bienvenue
+1. Accès GitHub
 2. Préflight
 3. Modules
 4. Plan
 5. Installation
+
+L'étape 1 matérialise le prérequis d'accès aux dépôts privés HESTIA. Dans l'implémentation fonctionnelle, elle collectera un credential GitHub de lecture seule, validera l'accès aux dépôts requis et déclenchera leur acquisition locale dans le staging privé. Le secret restera éphémère et ne sera pas persisté.
 
 Les boutons et les points de progression modifient uniquement l'état local du navigateur. Le bouton Annuler ouvre une boîte de dialogue locale. Aucun appel backend n'est effectué.
 
