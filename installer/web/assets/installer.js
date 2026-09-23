@@ -8,6 +8,12 @@ const steps = [
     lead: "Cet assistant va vous guider pas à pas pour installer et configurer votre environnement HESTIA."
   },
   {
+    name: "Accès GitHub",
+    eyebrow: "Accès aux sources",
+    title: "Autorisez l'accès aux\nsources HESTIA",
+    lead: "Saisissez un jeton GitHub disposant uniquement des droits de lecture nécessaires. Il servira à récupérer localement les composants sélectionnés et ne sera jamais conservé."
+  },
+  {
     name: "Préflight",
     eyebrow: "Préflight machine",
     title: "Préparons un environnement\npropre et fiable",
@@ -63,7 +69,9 @@ function renderStep(index, { animate = true } = {}) {
     eyebrow.textContent = step.eyebrow;
     title.textContent = step.title;
     lead.textContent = step.lead;
-    stepLabel.textContent = `Étape ${currentStep + 1} sur ${steps.length}`;
+    stepLabel.textContent = currentStep === 0
+      ? "Préambule"
+      : `Étape ${currentStep} sur ${steps.length - 1}`;
     stepName.textContent = step.name;
     progressTrack.setAttribute("aria-valuenow", String(currentStep + 1));
 
