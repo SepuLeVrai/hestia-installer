@@ -4,42 +4,121 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>HESTIA Installer</title>
+  <meta name="theme-color" content="#efe6dc">
+  <title>Installation de HESTIA</title>
   <link rel="stylesheet" href="assets/installer.css">
 </head>
 <body>
-  <main class="shell" aria-labelledby="title">
-    <section class="art" aria-label="HESTIA">
-      <div class="brand-mark" aria-hidden="true">H</div>
-      <p class="eyebrow">HESTIA</p>
-      <p class="quote">Plus qu'un logiciel, un foyer pour votre environnement avant-vente.</p>
-    </section>
-
-    <section class="content">
-      <p class="eyebrow">Installation clé en main</p>
-      <h1 id="title">Bienvenue dans l'installation de HESTIA</h1>
-      <p class="lead">
-        Cet écran fixe la direction visuelle du futur assistant local.
-        Aucune mutation système n'est déclenchée par cette maquette.
-      </p>
-
-      <div class="cards">
-        <article><strong>Sûr et fiable</strong><span>Plan, validation et rollback.</span></article>
-        <article><strong>Simple et guidé</strong><span>Une étape à la fois.</span></article>
-        <article><strong>One-shot</strong><span>Web, Gateway, Mobile et HTTPS.</span></article>
+  <main class="installer-window" aria-labelledby="wizard-title">
+    <header class="window-bar">
+      <div class="window-identity">
+        <span class="traffic-lights" aria-hidden="true">
+          <span class="traffic-light traffic-light-red"></span>
+          <span class="traffic-light traffic-light-amber"></span>
+          <span class="traffic-light traffic-light-green"></span>
+        </span>
+        <span class="window-title">Installation de HESTIA</span>
       </div>
+      <p class="window-tagline"><span aria-hidden="true"></span>Plus qu'un logiciel, un foyer.</p>
+    </header>
 
-      <div class="progress" aria-label="Progression">
-        <span class="active"></span><span></span><span></span><span></span><span></span>
-      </div>
+    <div class="installer-grid">
+      <section class="hero-panel" aria-label="Univers visuel HESTIA">
+        <img
+          class="hero-image"
+          src="assets/hestia-hero.webp"
+          alt="Illustration chaleureuse de Hestia tenant le feu du foyer"
+          width="1060"
+          height="1510"
+        >
+        <div class="hero-vignette" aria-hidden="true"></div>
+        <div class="hero-glow" aria-hidden="true"></div>
+        <span class="sr-only">Un espace plus serein pour de plus grands possibles.</span>
+      </section>
 
-      <footer>
-        <button type="button" class="secondary" disabled>Précédent</button>
-        <button type="button" class="primary" disabled>Suivant</button>
-        <button type="button" class="ghost" disabled>Annuler</button>
-      </footer>
-    </section>
+      <section class="content-panel" aria-live="polite">
+        <div class="brand-block" aria-label="HESTIA - Harmonie, Création, Équilibre">
+          <svg class="brand-emblem" viewBox="0 0 126 112" role="img" aria-label="Flamme HESTIA">
+            <path class="brand-arc" d="M12 86A52 52 0 1 1 114 86" fill="none" pathLength="100" />
+            <path class="brand-flame" d="M63 21c3 15-5 19-5 30 0 5 3 9 6 12-1-9 7-14 10-23 8 12 11 21 7 30-3 7-10 12-18 12-13 0-23-10-23-23 0-11 7-19 15-28-1 8 2 13 8 17 3-9-1-17 0-27Z" />
+            <path class="brand-bowl" d="M39 78h48c-2 12-12 20-24 20S41 90 39 78Zm7 23h34v6H46z" />
+          </svg>
+          <div class="brand-name">HESTIA</div>
+          <div class="brand-values">HARMONIE <b>•</b> CRÉATION <b>•</b> ÉQUILIBRE</div>
+          <div class="brand-ornament" aria-hidden="true"><span></span><i></i><span></span></div>
+        </div>
+
+        <div class="wizard-content" id="wizard-content">
+          <p class="eyebrow" id="wizard-eyebrow">Installation clé en main</p>
+          <h1 id="wizard-title">Bienvenue dans l'installation<br>de HESTIA</h1>
+          <p class="lead" id="wizard-lead">Cet assistant va vous guider pas à pas pour installer et configurer votre environnement HESTIA.</p>
+
+          <div class="feature-grid" aria-label="Principes de l'installation">
+            <article class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32"><path d="M16 3 27 7v8c0 7-4.5 11.6-11 14-6.5-2.4-11-7-11-14V7l11-4Z"/><path d="m11.5 16 3 3 6.5-7" class="icon-detail"/></svg>
+              </div>
+              <div><strong>Sûr et fiable</strong><span>Une installation sécurisée</span></div>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32"><path d="M27 5C16 5 8 10 7 22c5-4 9-6 15-8-5 3-8 6-11 11l3 2c3-7 7-10 13-13V5Z"/></svg>
+              </div>
+              <div><strong>Simple et guidé</strong><span>Une expérience pas à pas</span></div>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32"><circle cx="16" cy="10" r="5"/><path d="M7 27c0-6 3-10 9-10s9 4 9 10"/><circle cx="6.5" cy="13" r="3"/><circle cx="25.5" cy="13" r="3"/><path d="M1.5 26c0-4 1.8-7 5-8M30.5 26c0-4-1.8-7-5-8"/></svg>
+              </div>
+              <div><strong>Pensé pour vous</strong><span>Un environnement plus harmonieux</span></div>
+            </article>
+          </div>
+        </div>
+
+        <div class="wizard-bottom">
+          <div class="progress-row">
+            <div class="progress-main">
+              <div class="progress-meta">
+                <span id="step-label">Étape 1 sur 5</span>
+                <span id="step-name">Bienvenue</span>
+              </div>
+              <div class="progress-track" id="progress-track" role="progressbar" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1" aria-label="Progression de l'installation">
+                <button type="button" class="progress-dot is-active" data-step="0" aria-label="Étape 1 - Bienvenue"></button>
+                <span></span>
+                <button type="button" class="progress-dot" data-step="1" aria-label="Étape 2 - Préflight"></button>
+                <span></span>
+                <button type="button" class="progress-dot" data-step="2" aria-label="Étape 3 - Modules"></button>
+                <span></span>
+                <button type="button" class="progress-dot" data-step="3" aria-label="Étape 4 - Plan"></button>
+                <span></span>
+                <button type="button" class="progress-dot" data-step="4" aria-label="Étape 5 - Installation"></button>
+              </div>
+            </div>
+            <p class="micro-tagline">ENSEMBLE,<br>POUR UN QUOTIDIEN PLUS SEREIN.</p>
+          </div>
+
+          <footer class="wizard-actions">
+            <button type="button" class="action-button action-secondary" id="previous-button" disabled>Précédent</button>
+            <button type="button" class="action-button action-primary" id="next-button">Suivant <span aria-hidden="true">›</span></button>
+            <button type="button" class="action-button action-ghost" id="cancel-button">Annuler</button>
+          </footer>
+        </div>
+      </section>
+    </div>
   </main>
+
+  <dialog class="cancel-dialog" id="cancel-dialog" aria-labelledby="cancel-title">
+    <form method="dialog">
+      <div class="dialog-mark" aria-hidden="true">H</div>
+      <h2 id="cancel-title">Quitter l'installation ?</h2>
+      <p>Cette maquette ne modifie rien sur le système. Vous pouvez reprendre là où vous étiez.</p>
+      <div class="dialog-actions">
+        <button value="resume" class="action-button action-primary">Reprendre</button>
+        <button value="reset" class="action-button action-secondary">Revenir au début</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="assets/installer.js"></script>
 </body>
 </html>
