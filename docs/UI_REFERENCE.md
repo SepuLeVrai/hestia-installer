@@ -8,16 +8,18 @@ Cette étape reste une maquette fonctionnelle non destructive : elle ne déclenc
 
 ## Direction retenue
 
-- fenêtre centrale premium et sobre ;
+- fenêtre centrale premium et sobre, cadre aminci et ombre adoucie ;
 - illustration HESTIA locale à gauche ;
 - contenu fonctionnel à droite ;
 - palette ivoire, crème, brun, bordeaux et cuivre ;
 - barre supérieure translucide ;
+- arrière-plan reprenant l’illustration HESTIA locale, fortement floutée pour créer une profondeur visuelle sans ressource distante ;
 - identité HESTIA et emblème du foyer ;
 - progression visible ;
 - boutons Précédent, Suivant et Annuler ;
 - micro-interactions courtes ;
 - responsive laptop, tablette et mobile ;
+- footer et commandes toujours contenus dans la fenêtre à 100 % de zoom sur les hauteurs desktop/laptop usuelles ;
 - navigation clavier et focus visibles ;
 - prise en charge de `prefers-reduced-motion` ;
 - aucun CDN ;
@@ -33,6 +35,18 @@ installer/web/assets/hestia-hero.webp
 ```
 
 L'illustration est embarquée localement. L'interface n'effectue aucun chargement réseau pour son rendu.
+
+## Ajustements UX 2026-09-23
+
+À la suite de la validation visuelle :
+
+- le footer est désormais ancré dans la grille du panneau droit et ne peut plus déborder du cadre ;
+- le mode compact desktop s'active jusqu'à 920 px de hauteur afin de conserver le rendu complet à 100 % de zoom ;
+- les dimensions verticales du logo, du titre, des cartes et des actions ont été resserrées sans modifier la hiérarchie ;
+- le cadre utilise une bordure unique et une ombre plus douce ;
+- le fond reprend l’illustration HESTIA locale déjà embarquée et lui applique un flou gaussien fort, ce qui reste plus proche de la simulation validée ;
+- aucune ressource réseau supplémentaire n'est requise ;
+- les titres dynamiques du wizard sont injectés par `textContent`, sans `innerHTML`.
 
 ## Interaction de prévisualisation
 
