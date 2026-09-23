@@ -4,31 +4,31 @@ const steps = [
   {
     name: "Bienvenue",
     eyebrow: "Installation clé en main",
-    title: "Bienvenue dans l'installation<br>de HESTIA",
+    title: "Bienvenue dans l'installation\nde HESTIA",
     lead: "Cet assistant va vous guider pas à pas pour installer et configurer votre environnement HESTIA."
   },
   {
     name: "Préflight",
     eyebrow: "Préflight machine",
-    title: "Préparons un environnement<br>propre et fiable",
+    title: "Préparons un environnement\npropre et fiable",
     lead: "HESTIA vérifiera les prérequis essentiels avant toute modification : système, services, réseau et espace disponible."
   },
   {
     name: "Modules",
     eyebrow: "Composition HESTIA",
-    title: "Choisissez les composants<br>à installer",
+    title: "Choisissez les composants\nà installer",
     lead: "Web, Gateway et Mobile pourront être combinés selon votre besoin, avec les options avancées repliées par défaut."
   },
   {
     name: "Plan",
     eyebrow: "Validation avant action",
-    title: "Relisez le plan avant<br>de l'appliquer",
+    title: "Relisez le plan avant\nde l'appliquer",
     lead: "L'installateur présentera les changements prévus et les contrôles de sécurité avant la première mutation système."
   },
   {
     name: "Installation",
     eyebrow: "Prêt à commencer",
-    title: "Tout est prêt pour<br>installer HESTIA",
+    title: "Tout est prêt pour\ninstaller HESTIA",
     lead: "Une fois lancé, le chantier restera traçable, reprenable et validé étape par étape jusqu'au rapport final."
   }
 ];
@@ -43,6 +43,7 @@ const progressTrack = document.getElementById("progress-track");
 const progressDots = Array.from(document.querySelectorAll(".progress-dot"));
 const previousButton = document.getElementById("previous-button");
 const nextButton = document.getElementById("next-button");
+const nextButtonLabel = document.getElementById("next-button-label");
 const cancelButton = document.getElementById("cancel-button");
 const cancelDialog = document.getElementById("cancel-dialog");
 
@@ -60,7 +61,7 @@ function renderStep(index, { animate = true } = {}) {
   const applyContent = () => {
     currentStep = safeIndex;
     eyebrow.textContent = step.eyebrow;
-    title.innerHTML = step.title;
+    title.textContent = step.title;
     lead.textContent = step.lead;
     stepLabel.textContent = `Étape ${currentStep + 1} sur ${steps.length}`;
     stepName.textContent = step.name;
@@ -73,9 +74,7 @@ function renderStep(index, { animate = true } = {}) {
     });
 
     previousButton.disabled = currentStep === 0;
-    nextButton.innerHTML = currentStep === steps.length - 1
-      ? "Commencer <span aria-hidden=\"true\">›</span>"
-      : "Suivant <span aria-hidden=\"true\">›</span>";
+    nextButtonLabel.textContent = currentStep === steps.length - 1 ? "Commencer" : "Suivant";
 
     content.classList.remove("is-changing");
   };
