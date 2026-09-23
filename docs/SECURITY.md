@@ -98,7 +98,7 @@ Règles obligatoires :
 - effacement dès que les téléchargements nécessaires sont terminés ;
 - en cas de resume nécessitant un nouvel accès GitHub, demander à nouveau le credential.
 
-La Phase 1 fournit le canal HTTPS, la session et la protection CSRF nécessaires. L'acquisition GitHub est traitée dans une phase ultérieure.
+La Phase 1 fournit le canal HTTPS, la session et la protection CSRF. La Phase 3 ajoute l'acquisition décrite ci-dessous et dans GITHUB_ACQUISITION.md.
 
 ## Limites assumées
 
@@ -166,3 +166,42 @@ et altération du code ou du journal par root ne font pas partie des garanties.
 Après coupure brutale, un ancien temporaire privé non secret peut subsister ; il
 n'est jamais adopté comme état valide. Le staging TLS conserve les limites de
 nettoyage de la Phase 1, distinctes de la persistance du journal.
+
+## Acquisition GitHub : contrôle des sorties et des archives
+
+Les seules destinations réseau de cet adaptateur sont `api.github.com` et
+`codeload.github.com`, port HTTPS standard, pour les trois dépôts HESTIA figés
+côté serveur. TLS et le nom d'hôte sont vérifiés ; les proxies d'environnement,
+cookies amont et redirections automatiques ne sont pas utilisés. Aucun binaire,
+URL libre ou commande n'est reçu du navigateur.
+
+La redirection API d'archive doit désigner exactement le dépôt et le SHA approuvés
+sur codeload. Sa query signée éventuelle est abandonnée. L'URL est reconstruite
+sans query et un header Authorization est créé explicitement pour cette seule
+seconde destination GitHub autorisée. Il ne s'agit pas d'une propagation automatique
+vers une autre origine. Toute autre redirection est refusée, sans lire son corps.
+Aucun credential ne figure dans les URL demandées ni dans les preuves.
+
+Le credential expire logiquement après 15 minutes ; l'expiration est contrôlée à
+l'usage ou à la consultation du statut. Il est retiré du magasin en mémoire à la
+fin de l'acquisition, sur échec terminal, clear, logout ou arrêt. Une opération
+en cours garde sa référence locale jusqu'à sa fin bornée. Python ne garantit pas
+l'effacement physique de toutes les copies mémoire ; aucun effacement sécurisé
+universel n'est revendiqué. Le serveur n'accepte aucun stockage navigateur du
+credential. Le futur formulaire devra rester sans persistance et vider sa saisie.
+
+Metadata + résolution SHA vérifient la lecture effective des trois dépôts. Cela
+ne prouve pas que le PAT ne possède aucun droit supplémentaire : sa restriction
+fine-grained Metadata/Contents Read doit être faite lors de sa création.
+
+L'extracteur n'utilise ni extractall ni extraction permissive : il refuse liens,
+fichiers spéciaux, traversées, noms ambigus, collisions et archives hors limites.
+Les fichiers sont 0600, ou 0700 si exécutables dans Git, les dossiers 0700 ; aucun
+suid, propriétaire ou droit amont n'est conservé. Les sources ne sont pas exécutées.
+Le credential connu est aussi recherché dans les noms et contenus extraits ; une
+archive qui le recopie est rejetée et les données partielles possédées sont retirées.
+
+Un root hostile ou un stockage défaillant reste hors de la garantie. Un état local
+ambigu, une preuve manquante ou une dérive ne justifie jamais un écrasement : arrêt
+conservateur. Une suppression interrompue au milieu de son arborescence peut exiger
+une action manuelle si la preuve de propriété a disparu.

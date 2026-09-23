@@ -1,11 +1,12 @@
-# Moteur transactionnel - Phase 2 / issue #4
+# Moteur transactionnel - Phases 2 et 3 / issues #4 et #8
 
 ## Périmètre réellement implémenté
 
 Cette phase fournit le moteur générique, le format de plan et de journal, les
 primitives de reprise, de retry et de rollback, la façade HTTPS et les options
 CLI. Elle ne déploie pas encore Web, Gateway, APK, SQL, proxy ou certificats finaux.
-Le seul adaptateur enregistré en production est `preflight.run`, module `core`.
+La Phase 2 enregistrait uniquement `preflight.run`, module `core`. La Phase 3
+ajoute `github.acquire`, décrit en fin de document.
 Un résultat `DONE` pour ce plan signifie que les contrôles core ont réussi.
 
 Les boutons du wizard ne sont pas branchés sur ces nouvelles routes dans cette
@@ -188,7 +189,8 @@ Toutes ces routes sont sous le bootstrap HTTPS authentifié existant :
 
 Les POST exigent le cookie de session et `X-Hestia-CSRF`, obtenu depuis
 `GET /api/session`. Lorsque Origin est envoyé, il doit correspondre exactement
-au bootstrap. Tout autre module de production ou paramètre est refusé.
+au bootstrap. Les acquisitions utilisent les routes GitHub dédiées ci-dessous ;
+aucun paramètre ou adaptateur libre ne peut être fourni.
 
 Les réponses réussies sont `{"installation": <journal>}` ; avant planification,
 les GET renvoient `{"installation": null}`. Un échec métier d'une opération peut
@@ -213,9 +215,10 @@ sudo ./install-hestia.sh --resume
 ```
 
 `--check` conserve son comportement Phase 1, non destructif et possible sans root.
-`--dry-run` affiche un plan core indicatif sans journal ni mutation. Son UUID/date
-sont nouveaux ; ce plan de simulation ne remplace pas un plan approuvé persistant.
-Pour relire un plan effectivement créé, utiliser `--report` ou les GET HTTPS.
+`--dry-run` relit le plan existant avec son digest original, sans réseau ni écriture.
+Sans journal, il affiche un contrôle core indicatif avec nouvel UUID/date ; cette
+simulation ne remplace pas un plan approuvé persistant. `--report` et les GET HTTPS
+restent disponibles pour consulter le journal.
 
 `--report` lit uniquement le journal et ne démarre pas TLS. `--resume` exige un
 journal existant compatible, crée un nouveau bootstrap et une nouvelle session,
@@ -239,3 +242,35 @@ La matrice Quality et les limites d'environnement sont dans
 [QUALITY_PHASE2.md](QUALITY_PHASE2.md). Ajouter un adaptateur futur exige ses tests
 fresh/upgrade réels, sa preuve d'idempotence, ses limites d'effets externes et la
 mise à jour des schémas SQL/installateurs applicatifs lorsque nécessaire.
+
+## Adaptateur github.acquire (Phase 3)
+
+Le `StepSpec` peut porter un `source` fermé : repository, ref, commit_sha. Ce champ
+est absent des plans historiques, et non ajouté avec une valeur null : les digests
+Phase 2 restent identiques. Le schéma journal reste en version 1. L'ancien plan
+preflight adapter_version 1 est reconstruit à l'identique ; les nouveaux contrôles
+core utilisent la version 2, dont l'avertissement reflète l'acquisition disponible.
+
+Les plans GitHub sont produits côté serveur par `GitHubAcquisition`. Un journal
+ne peut pas changer un chemin de destination, un dépôt ou un adaptateur arbitraire.
+Chaque module constitue une frontière `github-web`, `github-gateway` ou `github-apk`.
+La preuve locale contient propriétaire d'installation, archive SHA-256, empreinte
+d'arborescence et marqueur de commit. Le credential ne fait pas partie de la preuve.
+
+Un crash avant preuve complète permet un retry après réauthentification GitHub.
+Une preuve valide après apply ou commit permet de finir hors ligne. Les étapes
+DONE ne sont pas rejouées ; avant une action forward, leurs sources sont vérifiées.
+Une dérive donne SOURCE_DRIFT et n'entraîne pas de téléchargement de remplacement.
+Le rapport est le journal historique : le GET ne transforme pas un DONE historique
+en vérification live de chaque fichier. L'action forward effectue ce contrôle.
+
+Routes ajoutées : GET `/api/github/status`, POST `/api/github/validate`,
+POST `/api/github/plan`, POST `/api/github/clear`. Les protections bootstrap et CSRF
+restent obligatoires. La façade sérialise les mutations/credentials et renvoie BUSY
+plutôt que de changer le credential pendant une acquisition. Un logout occupé peut
+donc être refusé. Les GET du journal restent disponibles pendant l'opération.
+
+Un journal core de Phase 2 n'est jamais remplacé silencieusement par un plan
+GitHub : PLAN_EXISTS. Pour un chantier indépendant, utiliser un autre state-dir
+privé ; ne pas supprimer un journal actif pour contourner ce contrôle.
+Voir [GITHUB_ACQUISITION.md](GITHUB_ACQUISITION.md) pour les contrats de requêtes.

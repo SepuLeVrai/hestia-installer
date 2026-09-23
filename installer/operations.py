@@ -59,6 +59,10 @@ class SecretVault:
         with self._lock:
             visit(payload)
 
+    def delete(self, name: str) -> None:
+        with self._lock:
+            self._values.pop(name, None)
+
     def clear(self) -> None:
         with self._lock:
             self._values.clear()
@@ -156,13 +160,15 @@ class OperationRegistry:
 
 
 class PreflightOperation(Operation):
-    """Only production adapter in Phase 2. DONE means core check, not deployment."""
+    """Read-only core check. Legacy contract is retained for Phase 2 journals."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, legacy: bool = False) -> None:
         super().__init__(StepSpec(
             name="preflight", operation="preflight.run", module="core", boundary="preflight",
             action="Vérifier les prérequis locaux sans déployer HESTIA", rollback_supported=True,
-            warnings=("Les adaptateurs Web, Gateway, APK et acquisition GitHub ne sont pas encore livrés.",),
+            warnings=(("Les adaptateurs Web, Gateway, APK et acquisition GitHub ne sont pas encore livrés.",)
+                      if legacy else ("Contrôle core uniquement : aucun composant HESTIA n'est déployé.",)),
+            adapter_version=1 if legacy else 2,
         ))
 
     def prepare(self, context: OperationContext) -> None:

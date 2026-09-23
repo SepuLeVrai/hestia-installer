@@ -62,9 +62,34 @@ Statut de livraison : travaux locaux préparés pour l'issue #4 ; publication su
 qui ne dispose pas d'action d'écriture GitHub utilisable. Ne pas interpréter ce
 document comme une preuve de commit distant ou de clôture de l'issue.
 
+## 2026-09-23 - Phase 2 publiée et acceptée
+
+Le lot Phase 2 est présent sur main au commit
+`3c7453d4ede6bb364f34263ed5929358d7ec1929` et accepté par Bastien.
+Le statut local ci-dessus décrit sa préparation historique, pas le HEAD actuel.
+
+## 2026-09-23 - Phase 3 / issue #8
+
+Base de cette évolution : `3c7453d4ede6bb364f34263ed5929358d7ec1929`.
+
+Accès GitHub éphémère aux trois dépôts, sélection des modules, refs figées en SHA,
+transport HTTPS GET strict, extraction bornée et acquisition transactionnelle
+sont implémentés. Reprise sans réseau des sources déjà prouvées ; nouvelle
+validation du credential lorsqu'un téléchargement doit être recommencé.
+
+La documentation et les tests couvrent le journal Phase 2 existant, le bootstrap
+HTTPS, les sept combinaisons de modules en modes fresh et upgrade du moteur,
+les interruptions de processus, le retry et le rollback ciblé. Résultats et
+limites explicites dans [QUALITY_PHASE3.md](QUALITY_PHASE3.md).
+
+Aucun autre dépôt modifié, aucun SQL/install.php à changer, aucune compilation
+APK, aucun asset UI modifié. Le credential réel de l'utilisateur n'est pas fourni
+à l'environnement de Quality ; les essais sortants utilisent un serveur HTTPS
+local contrôlé, pas un téléchargement privé réel depuis GitHub.
+
 ## Prochaine frontière
 
-Publier et vérifier ce lot Phase 2, puis traiter l'acquisition GitHub lightweight.
-Les trois dépôts devront être validés avec un credential de lecture éphémère ;
-seuls les composants sélectionnés devront ensuite être téléchargés. Ne pas
-brancher un exécuteur de commande arbitraire sur la façade transactionnelle.
+Phase 4 : connecter les formulaires et boutons du wizard aux opérations typées,
+sans refaire l'UX figée. Commencer par l'accès GitHub, la sélection des modules,
+l'affichage du plan et la reprise d'état. Les contrats applicatifs Web/Gateway,
+la publication APK, le réseau et l'import restent dans les phases suivantes.

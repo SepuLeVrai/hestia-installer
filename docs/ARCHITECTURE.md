@@ -171,3 +171,33 @@ fichiers dans les tests restent exclusivement sous `tests/`.
 
 Le contrat détaillé, les commandes CLI et les exemples HTTP figurent dans
 [TRANSACTION_ENGINE.md](TRANSACTION_ENGINE.md).
+
+## Phase 3 - Acquisition GitHub lightweight / issue #8
+
+`github_client.py` fournit le transport GET HTTPS à destinations fermées et
+`GitHubAccess` conserve uniquement en mémoire le credential et le résultat de
+validation des trois dépôts. Aucun client git ni dépôt applicatif embarqué.
+
+```text
+POST github/validate -> Metadata + Contents des 3 dépôts -> snapshot des SHA
+POST github/plan -> sélection 1..3 modules -> refs résolues -> plan immuable
+POST installation/apply -> confirmation du plan -> github.acquire par module
+  -> archive bornée -> extraction contrôlée -> preuve SHA-256 -> commit local
+GET installation/state/report -> état non secret, indépendant du navigateur
+```
+
+`github_sources.py` reconstruit les adaptateurs exclusivement à partir des modules,
+dépôts et chemins autorisés côté serveur. Une reprise conserve le SHA approuvé,
+même si une branche distante a avancé. `source_archive.py` matérialise les fichiers
+sans les exécuter, avec des limites de contenu, de métadonnées, de chemins et d'inodes.
+
+Les sources restent sous `/var/lib/hestia-installer/sources/<module>-<sha>/`, en
+staging privé persistant distinct de `/run`. Le journal référence ce répertoire,
+le dépôt, la ref et le SHA ; les preuves locales contiennent les SHA-256 de
+l'archive et de l'arborescence. Le rollback ne retire que la frontière créée et
+prouvée. Le nettoyage final de ce cache relève de la phase de finition.
+
+Les adaptateurs de production sont désormais `preflight.run` et `github.acquire`.
+`DONE` signifie ici « sources acquises et vérifiées », jamais « HESTIA déployé ».
+Les boutons du wizard restent inchangés jusqu'à la Phase 4.
+Voir [GITHUB_ACQUISITION.md](GITHUB_ACQUISITION.md).

@@ -74,6 +74,15 @@ class ErrorCode(StrEnum):
     ROLLBACK_UNSUPPORTED = "ROLLBACK_UNSUPPORTED"
     UNSUPPORTED_MODULE = "UNSUPPORTED_MODULE"
     SHUTTING_DOWN = "SHUTTING_DOWN"
+    GITHUB_ACCESS_DENIED = "GITHUB_ACCESS_DENIED"
+    GITHUB_RATE_LIMITED = "GITHUB_RATE_LIMITED"
+    GITHUB_UNAVAILABLE = "GITHUB_UNAVAILABLE"
+    GITHUB_INVALID_RESPONSE = "GITHUB_INVALID_RESPONSE"
+    GITHUB_REDIRECT_REJECTED = "GITHUB_REDIRECT_REJECTED"
+    ARCHIVE_REJECTED = "ARCHIVE_REJECTED"
+    SOURCE_LIMIT = "SOURCE_LIMIT"
+    SOURCE_DRIFT = "SOURCE_DRIFT"
+    SOURCE_LAYOUT_UNSUPPORTED = "SOURCE_LAYOUT_UNSUPPORTED"
 
 
 class InstallerError(RuntimeError):
@@ -215,6 +224,23 @@ def validate_resource(value: Any) -> None:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceSpec:
+    repository: str
+    ref: str
+    commit_sha: str
+
+    def as_dict(self) -> dict:
+        text(self.repository, 128)
+        require(re.fullmatch(r"[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+", self.repository) is not None)
+        text(self.ref, 200)
+        require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", self.ref) is not None)
+        require(".." not in self.ref and not self.ref.endswith(("/", ".", ".lock"))
+                and all(part and not part.startswith(".") for part in self.ref.split("/")))
+        require(type(self.commit_sha) is str and _COMMIT.fullmatch(self.commit_sha) is not None)
+        return {"repository": self.repository, "ref": self.ref, "commit_sha": self.commit_sha}
+
+
+@dataclass(frozen=True, slots=True)
 class StepSpec:
     name: str
     operation: str
@@ -228,6 +254,7 @@ class StepSpec:
     manual_actions: tuple[str, ...] = ()
     requires_secrets: tuple[str, ...] = ()
     adapter_version: int = 1
+    source: SourceSpec | None = None
 
     def as_dict(self) -> dict:
         result = {
@@ -238,13 +265,22 @@ class StepSpec:
             "manual_actions": list(self.manual_actions), "requires_secrets": list(self.requires_secrets),
             "adapter_version": self.adapter_version,
         }
+        # Omit absent source: Phase 2 plans and digests remain byte-compatible.
+        if self.source is not None:
+            result["source"] = self.source.as_dict()
         validate_step_spec(result)
         return result
 
 
 def validate_step_spec(value: Any) -> None:
-    exact_keys(value, {"name", "operation", "module", "boundary", "action", "dependencies", "resources",
-                       "rollback_supported", "warnings", "manual_actions", "requires_secrets", "adapter_version"})
+    require(type(value) is dict)
+    keys = {"name", "operation", "module", "boundary", "action", "dependencies", "resources",
+            "rollback_supported", "warnings", "manual_actions", "requires_secrets", "adapter_version"}
+    if "source" in value:
+        keys.add("source")
+        exact_keys(value["source"], {"repository", "ref", "commit_sha"})
+        SourceSpec(**value["source"]).as_dict()
+    exact_keys(value, keys)
     for key in ("name", "operation", "module", "boundary"):
         identifier(value[key])
     text(value["action"])

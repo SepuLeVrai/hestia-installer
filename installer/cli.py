@@ -10,6 +10,7 @@ from installer import __version__
 from installer.bootstrap import prepare_bootstrap
 from installer.constants import DEFAULT_STATE_ROOT
 from installer.engine import TransactionEngine
+from installer.github_sources import GitHubAcquisition
 from installer.model import ErrorCode, InstallerError, plan_digest
 from installer.operations import default_registry
 from installer.service import TransactionService
@@ -40,7 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="exécuter uniquement le preflight non destructif",
     )
-    actions.add_argument("--dry-run", action="store_true", help="afficher le plan core non secret, sans écriture")
+    actions.add_argument("--dry-run", action="store_true", help="afficher le plan existant ou le contrôle core, sans écriture")
     actions.add_argument("--resume", action="store_true", help="rouvrir le cockpit sur le journal existant, sans replay automatique")
     actions.add_argument("--report", action="store_true", help="lire le rapport non secret sans démarrer HTTPS")
     parser.add_argument("--state-dir", type=Path, default=DEFAULT_STATE_ROOT,
@@ -77,9 +78,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         engine = TransactionEngine(StateJournal(args.state_dir / "state.json"), default_registry())
+        github = GitHubAcquisition(engine)
         if args.dry_run:
-            plan = engine.dry_run()
-            print(json.dumps({"title": "PLAN D'INSTALLATION - CORE CHECK UNIQUEMENT", "plan": plan,
+            existing = engine.report()
+            plan = existing["plan"] if existing is not None else engine.dry_run()
+            title = "PLAN D'ACQUISITION DES SOURCES" if any("source" in s for s in plan["steps"]) else "PLAN D'INSTALLATION - CORE CHECK UNIQUEMENT"
+            print(json.dumps({"title": title, "plan": plan,
                               "plan_sha256": plan_digest(plan)}, ensure_ascii=False, indent=2))
             return 0
         if args.report:
@@ -115,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     print("")
     print("Préparation du mini-web HTTPS temporaire...")
 
-    service = TransactionService(engine)
+    service = TransactionService(engine, github=github)
     try:
         with prepare_bootstrap(
             web_root=_web_root(),
