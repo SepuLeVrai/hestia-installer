@@ -11,3 +11,7 @@ dependencies = []
 
 [tool.setuptools]
 packages = ["installer", "installer.modules"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+installer = ["web/*.html", "web/assets/*"]

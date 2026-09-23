@@ -11,21 +11,6 @@ Dépôt initialisé.
 - aucune mutation système implémentée ;
 - aucune GitHub Action activée.
 
-## Prochaine frontière
-
-Le premier lot exécutable doit traiter le bootstrap sécurisé :
-
-1. détection IPv4 d'administration ;
-2. port aléatoire 57000-57999 ;
-3. bind atomique ;
-4. certificat TLS éphémère ;
-5. token bootstrap ;
-6. mini-web HTTPS ;
-7. session sécurisée ;
-8. arrêt et nettoyage.
-
-Ne pas démarrer les mutations NGINX, MariaDB ou Apache avant validation de cette frontière.
-
 ## 2026-09-23 - UX figée et acquisition GitHub
 
 - UX du mini-web figée ;
@@ -35,4 +20,23 @@ Ne pas démarrer les mutations NGINX, MariaDB ou Apache avant validation de cett
 - le credential GitHub est éphémère et exclu du state, des logs, des URLs, des arguments de processus et des rapports ;
 - l'acquisition via API GitHub + standard library Python est privilégiée afin de ne pas imposer `git` au bootstrap.
 
-La prochaine frontière exécutable reste le bootstrap HTTPS sécurisé, qui devra fournir le canal sûr nécessaire à la saisie de ce credential.
+## 2026-09-23 - Phase 1 bootstrap HTTPS
+
+La première frontière exécutable est implémentée et testée :
+
+1. préflight Debian 12/13, root, Python 3.11+, OpenSSL et iproute2 ;
+2. détection des IPv4 et politique fail-closed pour les IP publiques ;
+3. port aléatoire `57000-57999` réservé par socket réel ;
+4. certificat TLS éphémère avec SAN IP ;
+5. code bootstrap one-shot, TTL et limite de tentatives ;
+6. mini-web HTTPS avec écran de déverrouillage cohérent avec l'UX figée ;
+7. session `Secure`, `HttpOnly`, `SameSite=Strict` et CSRF ;
+8. CSP, `no-store`, Host/Origin checks, limites de requête et sécurité des chemins statiques ;
+9. nettoyage du staging et contrôle de fermeture du port ;
+10. tests collision, IP publique, multi-interface, restart, TLS réel et authentification HTTPS.
+
+Aucune mutation HESTIA, SQL, Apache, NGINX, Gateway ou APK n'est effectuée. Aucun changement de `schema.sql` ou `install.php` n'est nécessaire pour cette phase.
+
+## Prochaine frontière
+
+Phase 2 - issue #4 : moteur `prepare -> plan -> apply -> validate -> commit -> rollback`, journal atomique non secret, idempotence, resume et rollback.

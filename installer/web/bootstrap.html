@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#efe6dc">
+  <title>Accès sécurisé - HESTIA Installer</title>
+  <link rel="stylesheet" href="assets/installer.css">
+</head>
+<body>
+  <main class="installer-window bootstrap-window" aria-labelledby="bootstrap-title">
+    <header class="window-bar">
+      <div class="window-identity">
+        <span class="traffic-lights" aria-hidden="true">
+          <span class="traffic-light traffic-light-red"></span>
+          <span class="traffic-light traffic-light-amber"></span>
+          <span class="traffic-light traffic-light-green"></span>
+        </span>
+        <span class="window-title">Installation de HESTIA</span>
+      </div>
+      <p class="window-tagline"><span aria-hidden="true"></span>Accès temporaire sécurisé.</p>
+    </header>
+
+    <div class="installer-grid">
+      <section class="hero-panel" aria-label="Univers visuel HESTIA">
+        <img class="hero-image" src="assets/hestia-hero.webp" alt="Illustration chaleureuse de Hestia tenant le feu du foyer" width="1060" height="1510">
+        <div class="hero-vignette" aria-hidden="true"></div>
+        <div class="hero-glow" aria-hidden="true"></div>
+      </section>
+
+      <section class="content-panel bootstrap-content-panel">
+        <div class="brand-block" aria-label="HESTIA">
+          <svg class="brand-emblem" viewBox="0 0 126 112" role="img" aria-label="Flamme HESTIA">
+            <path class="brand-arc" d="M12 86A52 52 0 1 1 114 86" fill="none" pathLength="100"></path>
+            <path class="brand-flame" d="M63 21c3 15-5 19-5 30 0 5 3 9 6 12-1-9 7-14 10-23 8 12 11 21 7 30-3 7-10 12-18 12-13 0-23-10-23-23 0-11 7-19 15-28-1 8 2 13 8 17 3-9-1-17 0-27Z"></path>
+            <path class="brand-bowl" d="M39 78h48c-2 12-12 20-24 20S41 90 39 78Zm7 23h34v6H46z"></path>
+          </svg>
+          <div class="brand-name">HESTIA</div>
+          <div class="brand-values">HARMONIE <b>•</b> CRÉATION <b>•</b> ÉQUILIBRE</div>
+          <div class="brand-ornament" aria-hidden="true"><span></span><i></i><span></span></div>
+        </div>
+
+        <div class="wizard-content bootstrap-gate">
+          <p class="eyebrow">Accès temporaire</p>
+          <h1 id="bootstrap-title">Déverrouillez votre session d'installation</h1>
+          <p class="lead">Saisissez le code affiché dans le terminal du serveur. Il est éphémère et ne sera jamais conservé.</p>
+
+          <form id="bootstrap-form" class="bootstrap-form" autocomplete="off" novalidate>
+            <label for="bootstrap-code">Code d'accès temporaire</label>
+            <input
+              id="bootstrap-code"
+              name="code"
+              type="password"
+              inputmode="text"
+              maxlength="32"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              required
+              placeholder="HST-XXXX-XXXX"
+            >
+            <p id="bootstrap-message" class="bootstrap-message" role="status" aria-live="polite"></p>
+            <button type="submit" class="action-button action-primary bootstrap-submit">Continuer <span aria-hidden="true">›</span></button>
+          </form>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script src="assets/bootstrap.js"></script>
+</body>
+</html>
