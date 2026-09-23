@@ -126,3 +126,48 @@ Le téléchargement doit privilégier l'API GitHub et la standard library Python
 ## Source de vérité
 
 Le chantier de référence est l'issue [#1](https://github.com/SepuLeVrai/hestia-installer/issues/1).
+
+## Phase 2 - Coeur transactionnel
+
+Le journal persistant est indépendant du staging TLS :
+
+```text
+CLI / HTTPS authentifié
+  -> TransactionService : routes et arguments fermés
+  -> TransactionEngine : plan immuable + confirmation de son SHA-256
+  -> OperationRegistry : adaptateurs Python explicitement enregistrés
+  -> prepare (lecture) -> apply -> validate (lecture) -> commit
+  -> reprise prouvée par recover, ou arrêt MANUAL_ACTION_REQUIRED
+  -> rollback ciblé par frontière, en ordre inverse des dépendances
+
+/var/lib/hestia-installer/       0700, persistant
+  state.json                   0600, atomique, non secret
+  .transaction.lock            0600, inode conservé
+
+/run/hestia-installer/          staging HTTPS éphémère, nettoyé séparément
+```
+
+`model.py` conserve `InstallState` et `StepRecord`. Le format persistant est un
+schéma fermé distinct ; le dictionnaire libre `StepRecord.details` n'est jamais
+sérialisé par le moteur. Le plan contient les ressources, services, ports, chemins,
+FQDN, dépendances, backups prévus, avertissements et limites de rollback.
+
+L'écriture utilise un fichier temporaire, `fsync`, `os.replace` relatif à un
+descripteur de répertoire privé, puis `fsync` du répertoire. Le verrou couvre toute
+l'opération, pas uniquement l'écriture JSON. Un numéro de révision empêche les
+écritures obsolètes. Les lecteurs consultent un snapshot ancien ou nouveau complet.
+
+L'orchestrateur ne dépend pas de la connexion du navigateur. Une reconnexion lit
+le journal ; un arrêt gracieux attend les opérations actives avant d'effacer les
+secrets en mémoire. Un crash brutal laisse le dernier checkpoint durable pour
+`recover`. Aucun résultat d'exécution ambigu n'est automatiquement assimilé à un
+échec sans effet.
+
+L'UX reste inchangée. Les endpoints sont prêts ; leur branchement aux contrôles
+visuels relève de la phase wizard. Le seul adaptateur de production de cette phase
+est `preflight.run` (`core`, mode `check`). Son état `DONE` signifie « contrôles core
+terminés », pas « HESTIA déployé ». Les adaptateurs qui modifient réellement des
+fichiers dans les tests restent exclusivement sous `tests/`.
+
+Le contrat détaillé, les commandes CLI et les exemples HTTP figurent dans
+[TRANSACTION_ENGINE.md](TRANSACTION_ENGINE.md).

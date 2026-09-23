@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import json
 import mimetypes
 import ssl
@@ -13,6 +14,8 @@ from urllib.parse import urlsplit
 
 from installer.constants import BOOTSTRAP_SESSION_TTL_SECONDS, MAX_REQUEST_BODY_BYTES, SESSION_COOKIE_NAME
 from installer.network import PortReservation
+from installer.model import ErrorCode, InstallerError, strict_json_loads
+from installer.service import GET_ROUTES, POST_ROUTES, TransactionService
 from installer.security import BootstrapToken, Session, SessionStore
 
 
@@ -41,7 +44,9 @@ class BootstrapWebState:
         session_store: SessionStore,
         host: str,
         port: int,
+        transaction_service: TransactionService | None = None,
     ) -> None:
+        self.transaction_service = transaction_service
         self.web_root = Path(web_root).resolve()
         self.bootstrap_token = bootstrap_token
         self.session_store = session_store
@@ -82,6 +87,7 @@ def build_ssl_context(certificate: Path, private_key: Path) -> ssl.SSLContext:
 
 
 class BootstrapRequestHandler(BaseHTTPRequestHandler):
+    timeout = 15
     protocol_version = "HTTP/1.1"
     server_version = "HESTIA-Installer"
     sys_version = ""
@@ -91,8 +97,18 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
         return self.server.state  # type: ignore[attr-defined]
 
     def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
-        path = urlsplit(self.path).path
-        sys.stderr.write(f"HESTIA Installer HTTP {self.command} {path} {code}\n")
+        # Only fixed route names are logged, never user-controlled path segments.
+        allowed = GET_ROUTES | set(POST_ROUTES) | {
+            "/", "/index.html", "/bootstrap", "/bootstrap.html",
+            "/api/bootstrap/status", "/api/bootstrap/unlock", "/api/session", "/api/logout",
+        }
+        try:
+            path = urlsplit(self.path).path
+        except ValueError:
+            path = "<invalid>"
+        route = path if path in allowed else "<unmatched>"
+        method = self.command if self.command in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"} else "OTHER"
+        sys.stderr.write(f"HESTIA Installer HTTP {method} {route} {code}\n")
 
     def log_message(self, format: str, *args) -> None:  # noqa: A002
         return
@@ -158,12 +174,20 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _reject_if_bad_host_or_query(self) -> bool:
+        for name in ("Host", "Origin", "Content-Length", "Content-Type", "Transfer-Encoding", "Cookie", "X-Hestia-CSRF"):
+            if len(self.headers.get_all(name, [])) > 1:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "En-têtes ambigus"}, close_connection=True)
+                return True
         host = self.headers.get("Host", "")
         if host != self.app.expected_host_header:
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "Hôte invalide"}, close_connection=True)
             return True
-        parsed = urlsplit(self.path)
-        if parsed.query or parsed.fragment:
+        try:
+            parsed = urlsplit(self.path)
+        except ValueError:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "URL invalide"}, close_connection=True)
+            return True
+        if not self.path.startswith("/") or parsed.netloc or parsed.query or parsed.fragment:
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "Paramètres d'URL interdits"}, close_connection=True)
             return True
         return False
@@ -206,7 +230,7 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
     def _require_session(self) -> Session | None:
         session = self._session()
         if session is None:
-            self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "Session requise"})
+            self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "Session requise"}, close_connection=True)
             return None
         return session
 
@@ -215,7 +239,7 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.FORBIDDEN, {"error": "Origine invalide"}, close_connection=True)
             return False
         token = self.headers.get("X-Hestia-CSRF", "")
-        if not token or token != session.csrf_token:
+        if not token or not token.isascii() or not hmac.compare_digest(token, session.csrf_token):
             self._send_json(HTTPStatus.FORBIDDEN, {"error": "Protection CSRF invalide"}, close_connection=True)
             return False
         return True
@@ -239,8 +263,8 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             return None
         raw = self.rfile.read(length)
         try:
-            payload = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+            payload = strict_json_loads(raw)
+        except (InstallerError, UnicodeDecodeError, ValueError):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "JSON invalide"})
             return None
         if not isinstance(payload, dict):
@@ -309,6 +333,11 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             return
         path = urlsplit(self.path).path
 
+        if path in GET_ROUTES:
+            if self._require_session() is not None:
+                self._transaction_request()
+            return
+
         if path == "/api/bootstrap/status":
             self._send_json(
                 HTTPStatus.OK,
@@ -349,6 +378,18 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
         if self._reject_if_bad_host_or_query():
             return
         path = urlsplit(self.path).path
+
+        if path in POST_ROUTES:
+            session = self._require_session()
+            if session is None:
+                self.close_connection = True
+                return
+            if not self._require_csrf(session):
+                return
+            payload = self._read_json_body()
+            if payload is not None:
+                self._transaction_request(POST_ROUTES[path], payload)
+            return
 
         if path == "/api/bootstrap/unlock":
             if not self._origin_matches():
@@ -391,6 +432,33 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             return
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Route inconnue"}, close_connection=True)
+
+    def _transaction_request(self, action: str | None = None, payload: dict | None = None) -> None:
+        service = self.app.transaction_service
+        if service is None:
+            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "TRANSACTION_SERVICE_UNAVAILABLE"})
+            return
+        try:
+            response = service.report() if action is None else service.execute(action, payload)
+        except InstallerError as exc:
+            status = HTTPStatus.BAD_REQUEST if exc.code in {
+                ErrorCode.INVALID_DATA, ErrorCode.SECRET_REJECTED,
+                ErrorCode.CONFIRMATION_REQUIRED, ErrorCode.UNSUPPORTED_MODULE,
+            } else HTTPStatus.CONFLICT
+            self._send_json(status, {"error": exc.code.value})
+            return
+        except FileNotFoundError:
+            self._send_json(HTTPStatus.CONFLICT, {"error": ErrorCode.NOT_PLANNED.value})
+            return
+        except Exception:
+            # No repr, traceback, stdout, stderr, or exception message in the response.
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "TRANSACTION_UNAVAILABLE"})
+            return
+        try:
+            self._send_json(HTTPStatus.OK, response)
+        except OSError:
+            # A disconnected cockpit does not roll back a completed operation.
+            self.close_connection = True
 
     def do_PUT(self) -> None:
         self._method_not_allowed()

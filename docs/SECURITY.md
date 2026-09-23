@@ -69,7 +69,7 @@ Dans le processus :
 - expiration après 10 minutes ;
 - blocage après 5 échecs.
 
-Les journaux HTTP n'incluent ni headers, ni corps, ni query string. Seuls la méthode, le chemin sans paramètres et le statut sont journalisés.
+Les journaux HTTP n'incluent ni headers, ni corps, ni query string. Seuls une méthode autorisée, une route connue et le statut sont journalisés. Tout chemin inconnu devient `<unmatched>` ; un secret placé dans le chemin rejeté ne doit pas être recopié.
 
 ## Staging
 
@@ -109,3 +109,60 @@ Aucune protection ne peut garantir le nettoyage après `SIGKILL` ou coupure éle
 ## CI
 
 Aucune GitHub Action lourde n'est nécessaire à cette phase. Le Quality Check local exécute les tests unitaires et d'intégration HTTPS, la syntaxe JavaScript et un scan statique des motifs de sécurité interdits.
+
+## Transactions : invariants supplémentaires
+
+Le navigateur ne fournit ni fonction Python, ni nom de binaire, ni commande, ni
+chemin de travail exécutable. Les cinq mutations HTTP sont des actions fermées :
+plan, apply, resume, retry et rollback. Elles nécessitent la session, le contrôle
+Origin lorsqu'il est présent, le jeton CSRF et un corps JSON strict. Les opérations
+sur un plan nécessitent `confirm: true` et son SHA-256 exact. Le hash identifie le
+plan approuvé ; ce n'est ni un secret, ni une signature contre un administrateur
+root malveillant.
+
+Le parseur refuse les doublons JSON, NaN, Infinity, les entrées hors schéma et les
+en-têtes sensibles dupliqués. Les comparaisons CSRF sont à temps constant. Le code
+bootstrap et le magasin de sessions sont verrouillés entre threads : un double
+POST concurrent ne consomme pas deux fois le code one-shot.
+
+Le journal est limité à 1 Mio, les identifiants à 64 caractères, le plan à 128
+étapes et chaque étape à 128 ressources. Les nombres attendus sont des entiers
+bornés, pas des booléens ou des flottants. Les chemins sont absolus et sans
+traversée ; chaque composant du chemin persistant est ouvert avec `O_NOFOLLOW`.
+Le répertoire final doit appartenir à l'utilisateur effectif et être exactement
+0700. Les fichiers doivent être réguliers, appartenir au même utilisateur, être
+0600 et ne pas avoir de hardlink. Les permissions trop larges existantes sont
+refusées, pas corrigées silencieusement. Un lecteur déjà ouvert peut conserver
+l'ancien inode devenu sans lien après un remplacement atomique légitime.
+
+Les erreurs persistées et publiées sont des codes fixes. Ni message d'exception,
+ni sortie de commande, ni contenu libre de formulaire n'est inséré dans l'état.
+Les preuves contiennent uniquement des noms de ressources approuvées, des SHA de
+sources et des hashes d'artefacts explicitement non secrets. Il est interdit d'y
+mettre le hash d'un mot de passe ou d'un autre secret.
+
+`SecretVault` est un magasin en mémoire, non sérialisable et verrouillé. Le moteur
+refuse la présence des valeurs connues dans les documents et les preuves, même
+avec caractères échappés. Le schéma fermé et le rejet de motifs sensibles
+complètent ce contrôle. Un filtre ne peut pas reconnaître universellement un
+secret arbitraire dissimulé dans une chaîne présentée comme une description :
+les adaptateurs Python restent du code de confiance, soumis à revue. Ils ne
+reçoivent aucun champ libre à recopier dans le journal.
+
+L'effacement du magasin supprime les références, sans promettre un effacement
+physique des copies de chaînes Python. Après redémarrage, un secret nécessaire
+est redemandé (`SECRET_REQUIRED`) ; les étapes `DONE` n'en demandent pas de nouveau.
+La collecte effective des credentials GitHub appartient à la phase suivante.
+
+Un callback interrompu dans apply/commit/rollback n'est jamais rejoué sans preuve
+fournie par l'adaptateur. Le comportement par défaut est `MANUAL_ACTION_REQUIRED`.
+Un adaptateur futur doit rendre ses effets identifiables et ses appels externes
+bornés ; aucune garantie universelle « exactement une fois » n'est revendiquée
+pour des effets externes non observables. Un rollback impossible est refusé.
+
+La durabilité suppose un système de fichiers local offrant les garanties de
+`flock`, `fsync` et renommage atomique. NFS, partage réseau, corruption du stockage
+et altération du code ou du journal par root ne font pas partie des garanties.
+Après coupure brutale, un ancien temporaire privé non secret peut subsister ; il
+n'est jamais adopté comme état valide. Le staging TLS conserve les limites de
+nettoyage de la Phase 1, distinctes de la persistance du journal.

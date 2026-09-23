@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import secrets
 import time
+import threading
 from dataclasses import dataclass
 from typing import Callable
 
@@ -27,6 +28,7 @@ class BootstrapToken:
     ) -> None:
         if ttl_seconds <= 0 or max_attempts <= 0:
             raise ValueError("TTL et nombre de tentatives doivent être positifs")
+        self._lock = threading.RLock()
         self._clock = clock
         self._created_at = clock()
         self._ttl = ttl_seconds
@@ -74,15 +76,16 @@ class BootstrapToken:
         return not self.expired and not self.locked and not self.consumed
 
     def verify_and_consume(self, candidate: str) -> bool:
-        if not self.usable:
-            return False
-        self._attempts += 1
-        candidate_digest = self._derive(candidate)
-        valid = hmac.compare_digest(candidate_digest, self._digest)
-        if valid:
-            self._consumed = True
-            self._digest = b"\x00" * len(self._digest)
-        return valid
+        with self._lock:
+            if not self.usable:
+                return False
+            self._attempts += 1
+            candidate_digest = self._derive(candidate)
+            valid = hmac.compare_digest(candidate_digest, self._digest)
+            if valid:
+                self._consumed = True
+                self._digest = b"\x00" * len(self._digest)
+            return valid
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +106,7 @@ class SessionStore:
             raise ValueError("TTL de session invalide")
         self._ttl = ttl_seconds
         self._clock = clock
+        self._lock = threading.RLock()
         self._sessions: dict[str, Session] = {}
 
     def _prune(self) -> None:
@@ -112,24 +116,28 @@ class SessionStore:
             self._sessions.pop(key, None)
 
     def create(self) -> Session:
-        self._prune()
-        session = Session(
-            session_id=secrets.token_urlsafe(32),
-            csrf_token=secrets.token_urlsafe(32),
-            expires_at=self._clock() + self._ttl,
-        )
-        self._sessions[session.session_id] = session
-        return session
+        with self._lock:
+            self._prune()
+            session = Session(
+                session_id=secrets.token_urlsafe(32),
+                csrf_token=secrets.token_urlsafe(32),
+                expires_at=self._clock() + self._ttl,
+            )
+            self._sessions[session.session_id] = session
+            return session
 
     def get(self, session_id: str | None) -> Session | None:
-        if not session_id:
-            return None
-        self._prune()
-        return self._sessions.get(session_id)
+        with self._lock:
+            if not session_id:
+                return None
+            self._prune()
+            return self._sessions.get(session_id)
 
     def delete(self, session_id: str | None) -> None:
-        if session_id:
-            self._sessions.pop(session_id, None)
+        with self._lock:
+            if session_id:
+                self._sessions.pop(session_id, None)
 
     def clear(self) -> None:
-        self._sessions.clear()
+        with self._lock:
+            self._sessions.clear()

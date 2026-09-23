@@ -37,6 +37,34 @@ La première frontière exécutable est implémentée et testée :
 
 Aucune mutation HESTIA, SQL, Apache, NGINX, Gateway ou APK n'est effectuée. Aucun changement de `schema.sql` ou `install.php` n'est nécessaire pour cette phase.
 
+## 2026-09-23 - Phase 2, implémentation locale
+
+Base examinée : `38e956817f1404b78c4608ccd64ac9c7dd15926d`.
+
+Le moteur et sa façade HTTPS sont implémentés : plan immuable inspectable,
+confirmation explicite, registre typé, checkpoints persistants, idempotence,
+resume conservateur, retry ciblé, rollback par frontière et rapport non secret.
+Le journal privé est atomique, verrouillé et protégé contre les symlinks et les
+écritures obsolètes. Les états et les erreurs sont des valeurs fermées.
+
+Les tests exercent des mutations réelles dans des sandboxes, des backups réels,
+des interruptions de processus après apply, commit et rollback, la concurrence,
+la reconnexion HTTPS et la non-régression du bootstrap. Le détail des vérifications
+et leurs limites se trouve dans [QUALITY_PHASE2.md](QUALITY_PHASE2.md).
+
+Le seul adaptateur exposé en production est le contrôle `core/preflight.run`.
+L'acquisition GitHub, les déploiements Web/Gateway/APK, les mutations SQL et le
+branchement des boutons du wizard restent dans les phases suivantes. Aucune
+évolution de `schema.sql` ou `install.php` n'est introduite. Aucun asset UI modifié.
+
+Statut de livraison : travaux locaux préparés pour l'issue #4 ; publication sur
+`main` et mise à jour de l'issue non réalisées dans l'environnement de préparation,
+qui ne dispose pas d'action d'écriture GitHub utilisable. Ne pas interpréter ce
+document comme une preuve de commit distant ou de clôture de l'issue.
+
 ## Prochaine frontière
 
-Phase 2 - issue #4 : moteur `prepare -> plan -> apply -> validate -> commit -> rollback`, journal atomique non secret, idempotence, resume et rollback.
+Publier et vérifier ce lot Phase 2, puis traiter l'acquisition GitHub lightweight.
+Les trois dépôts devront être validés avec un credential de lecture éphémère ;
+seuls les composants sélectionnés devront ensuite être téléchargés. Ne pas
+brancher un exécuteur de commande arbitraire sur la façade transactionnelle.

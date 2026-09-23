@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import signal
 from pathlib import Path
 
 from installer import __version__
 from installer.bootstrap import prepare_bootstrap
+from installer.constants import DEFAULT_STATE_ROOT
+from installer.engine import TransactionEngine
+from installer.model import ErrorCode, InstallerError, plan_digest
+from installer.operations import default_registry
+from installer.service import TransactionService
+from installer.transaction import StateJournal
 from installer.preflight import bootstrap_blockers, run_read_only_preflight
 
 
@@ -27,11 +34,17 @@ def build_parser() -> argparse.ArgumentParser:
         description="Orchestrateur one-shot HESTIA",
     )
     parser.add_argument("--version", action="version", version=__version__)
-    parser.add_argument(
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument(
         "--check",
         action="store_true",
         help="exécuter uniquement le preflight non destructif",
     )
+    actions.add_argument("--dry-run", action="store_true", help="afficher le plan core non secret, sans écriture")
+    actions.add_argument("--resume", action="store_true", help="rouvrir le cockpit sur le journal existant, sans replay automatique")
+    actions.add_argument("--report", action="store_true", help="lire le rapport non secret sans démarrer HTTPS")
+    parser.add_argument("--state-dir", type=Path, default=DEFAULT_STATE_ROOT,
+                        help="répertoire privé persistant du journal (chemin absolu, mode 0700)")
     parser.add_argument(
         "--bind-address",
         help="IPv4 locale à utiliser pour le mini-web HTTPS",
@@ -62,6 +75,30 @@ def main(argv: list[str] | None = None) -> int:
         status, _ = _print_preflight()
         return status
 
+    try:
+        engine = TransactionEngine(StateJournal(args.state_dir / "state.json"), default_registry())
+        if args.dry_run:
+            plan = engine.dry_run()
+            print(json.dumps({"title": "PLAN D'INSTALLATION - CORE CHECK UNIQUEMENT", "plan": plan,
+                              "plan_sha256": plan_digest(plan)}, ensure_ascii=False, indent=2))
+            return 0
+        if args.report:
+            print(json.dumps({"installation": engine.report()}, ensure_ascii=False, indent=2))
+            return 0
+        if args.resume:
+            document = engine.report()
+            if document is None:
+                raise InstallerError(ErrorCode.NOT_PLANNED)
+            engine.registry.validate_document(document)
+            print(f"Reprise du journal {document['installation_id']} : {document['state']}")
+            print("Aucune étape n'est rejouée avant confirmation explicite du plan.")
+    except InstallerError as exc:
+        print(f"[FAIL] transaction: {exc.code.value}")
+        return 4
+    except Exception:
+        print("[FAIL] transaction: état indisponible")
+        return 4
+
     _, results = _print_preflight()
     blockers = bootstrap_blockers(results)
     if blockers:
@@ -78,11 +115,13 @@ def main(argv: list[str] | None = None) -> int:
     print("")
     print("Préparation du mini-web HTTPS temporaire...")
 
+    service = TransactionService(engine)
     try:
         with prepare_bootstrap(
             web_root=_web_root(),
             bind_address=args.bind_address,
             allow_public=args.allow_public_bootstrap,
+            transaction_service=service,
         ) as prepared:
             print(f"[PASS] IPv4 d'administration : {prepared.bind_decision.bind_address}")
             print(f"[PASS] Port HTTPS temporaire réservé : {prepared.port}")
@@ -106,9 +145,11 @@ def main(argv: list[str] | None = None) -> int:
                 print("\nArrêt demandé. Nettoyage du bootstrap...")
             finally:
                 prepared.server.shutdown()
-    except Exception as exc:
-        print(f"[FAIL] bootstrap: {exc}")
+    except Exception:
+        print("[FAIL] bootstrap: préparation ou exécution indisponible")
         return 3
+    finally:
+        service.close()
 
     print("[PASS] Mini-web arrêté, staging nettoyé et port fermé")
     return 0

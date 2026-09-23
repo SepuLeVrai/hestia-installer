@@ -11,6 +11,7 @@ from installer.httpd import BootstrapRequestHandler, BootstrapWebState, Threaded
 from installer.network import BindDecision, choose_admin_candidate, discover_ipv4_candidates, reserve_random_port, verify_port_closed
 from installer.runtime import cleanup_staging, create_private_staging
 from installer.security import BootstrapToken, SessionStore
+from installer.service import TransactionService
 from installer.tls import TLSMaterial, generate_ephemeral_certificate
 
 
@@ -35,6 +36,8 @@ class PreparedBootstrap:
         self._closed = True
         try:
             self.server.server_close()
+            if self.server.state.transaction_service is not None:
+                self.server.state.transaction_service.close()
             self.server.state.session_store.clear()  # type: ignore[attr-defined]
         finally:
             cleanup_staging(self.staging_dir, self.runtime_root)
@@ -58,6 +61,7 @@ def prepare_bootstrap(
     bind_address: str | None = None,
     allow_public: bool = False,
     interactive: bool | None = None,
+    transaction_service: TransactionService | None = None,
 ) -> PreparedBootstrap:
     staging = create_private_staging(runtime_root)
     reservation = None
@@ -80,6 +84,7 @@ def prepare_bootstrap(
             session_store=sessions,
             host=decision.bind_address,
             port=reservation.port,
+            transaction_service=transaction_service,
         )
         context = build_ssl_context(tls_material.certificate, tls_material.private_key)
         server = ThreadedHTTPSServer(
