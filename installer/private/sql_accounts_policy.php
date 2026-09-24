@@ -10,12 +10,16 @@ function hestia_account_policy(
     mixed $role,
     string $user,
     string $database,
-    string $profile
+    string $profile,
+    bool $remoteTls = false
 ): bool {
     if (!preg_match('/^[A-Za-z0-9_]{1,32}$/D', $user) || strtolower($user) === 'root'
         || !preg_match('/^[A-Za-z0-9_]{1,64}$/D', $database)
         || !in_array($profile, ['application', 'provisioning'], true) || $role !== null
-        || !in_array($account, [$user . '@localhost', $user . '@127.0.0.1'], true)
+        || !str_starts_with($account, $user . '@')
+        || !((!$remoteTls && in_array(substr($account, strlen($user) + 1), ['localhost', '127.0.0.1', '::1'], true))
+            || ($remoteTls && (substr($account, strlen($user) + 1) === 'localhost'
+                || filter_var(substr($account, strlen($user) + 1), FILTER_VALIDATE_IP) !== false)))
         || count($grants) !== 2 || count($publicGrants) > 1) return false;
     foreach ($publicGrants as $grant) {
         if (!is_string($grant) || !preg_match('/^GRANT USAGE ON \*\.\* TO (?:PUBLIC|`PUBLIC`)$/D', $grant)) return false;
@@ -26,13 +30,14 @@ function hestia_account_policy(
     $host = substr($account, strlen($user) + 1);
     $quotedAccount = '(?:`' . preg_quote($user, '/') . '`@`' . preg_quote($host, '/')
         . '`|\'' . preg_quote($user, '/') . '\'@\'' . preg_quote($host, '/') . '\')';
+    $tls = $remoteTls ? ' REQUIRE SSL' : '';
     $usage = 0; $scoped = 0;
     foreach ($grants as $grant) {
         if (!is_string($grant) || strlen($grant) > 4096) return false;
-        // Only native-password authentication is accepted by this first local
-        // profile; plugins, PROXY, roles and unknown clauses fail closed.
+        // Only native-password authentication is accepted by these closed
+        // local/TLS profiles; plugins, PROXY, roles and unknown clauses fail closed.
         if (preg_match('/^GRANT USAGE ON \*\.\* TO ' . $quotedAccount
-            . '(?: IDENTIFIED BY PASSWORD \'\*[A-F0-9]{40}\'| IDENTIFIED VIA mysql_native_password USING \'\*[A-F0-9]{40}\')$/D', $grant)) {
+            . '(?: IDENTIFIED BY PASSWORD \'\*[A-F0-9]{40}\'| IDENTIFIED VIA mysql_native_password USING \'\*[A-F0-9]{40}\')' . $tls . '$/D', $grant)) {
             $usage++; continue;
         }
         if (!preg_match('/^GRANT ([A-Z, ]+) ON ' . preg_quote($schema, '/') . ' TO ' . $quotedAccount . '$/D', $grant, $matches)) return false;

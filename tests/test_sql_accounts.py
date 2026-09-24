@@ -10,16 +10,10 @@ from unittest.mock import patch
 
 from installer import php_transport as p
 from installer import sql_accounts as accounts
-from test_web_config import request
+from web_configuration_fixture import local_request
 
 POLICY = Path(__file__).resolve().parents[1] / 'installer/private/sql_accounts_policy.php'
 BRIDGE = POLICY.with_name('sql_accounts_bridge.php')
-
-
-def local_request(mode='fresh'):
-    value = request(mode)
-    value['database']['mode'] = 'existing_local'
-    return value
 
 
 def response(identifier, **changes):

@@ -17,7 +17,7 @@ from unittest.mock import patch
 from installer import database_config as config
 from installer import php_transport as p
 from installer import sql_accounts as accounts
-from test_sql_accounts import local_request
+from web_configuration_fixture import local_request
 
 
 class ProtectedConfigurationFixture:

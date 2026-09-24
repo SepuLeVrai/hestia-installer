@@ -129,10 +129,16 @@ def _read_file(path: Path) -> bytes:
 
 
 def _bundle(source: Path, destination: Path, gid: int) -> None:
-    """Copy only the pinned executable closure; never read includes/db.php or IA secrets."""
+    """The published v1 adapter keeps its original fixed source and bridge."""
+    _copy_bundle(source, destination, gid, ENGINE_FILES, ENGINE_SHA256, "php_bridge.php")
+
+
+def _copy_bundle(source: Path, destination: Path, gid: int, engine_files: tuple[str, ...],
+                 engine_sha256: str, bridge_name: str) -> None:
+    """Internal snapshot builder. Arguments are code constants, never HTTP inputs."""
     deadline = time.monotonic() + 30
     _safe_path(source, directory=True)
-    names = list(ENGINE_FILES)
+    names = list(engine_files)
     vendor = source / "vendor"
     _safe_path(vendor, directory=True)
     pending = [vendor]
@@ -163,9 +169,9 @@ def _bundle(source: Path, destination: Path, gid: int) -> None:
             output.write(data)
         os.chown(target, 0, gid)
         os.chmod(target, 0o640)
-    _require(digest.hexdigest() == ENGINE_SHA256, "SOURCE_PIN_MISMATCH")
+    _require(digest.hexdigest() == engine_sha256, "SOURCE_PIN_MISMATCH")
     # The bridge belongs to the installed, root-owned Installer, not to the Web tree.
-    bridge = _read_file(Path(__file__).parent / "private" / "php_bridge.php")
+    bridge = _read_file(Path(__file__).parent / "private" / bridge_name)
     (destination / "bridge.php").write_bytes(bridge)
     for root, dirs, files in os.walk(destination):
         os.chown(root, 0, gid)

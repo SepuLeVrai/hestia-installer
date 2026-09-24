@@ -175,3 +175,22 @@ Les versions effectivement testées et les nombres finaux sont ceux des rapports
 core du commit livré. Le test de connexion via les constantes générées n'est pas
 un test du Web complet avec compte DML. Contrat et limites :
 [PHASE5B22A_LOCAL_SQL_CONFIGURATION.md](PHASE5B22A_LOCAL_SQL_CONFIGURATION.md).
+
+## Étape 1 résiduelle 5B2.2
+
+331 tests core historiques conservés, 22 nouveaux tests fermés/fichiers : 353 core.
+Les 16 tests du gate sont aussi inclus dans core ; ne pas compter deux fois.
+16 scénarios DOM et 21 HTTPS natifs restent requis. Pas d'écran modifié.
+Le script cross-dépôts tests/integration/database_step_mariadb.py ajoute une
+campagne SQL/TLS de 18 scénarios sur le Web épinglé, distincte des mocks core.
+Commande, invariants, fixtures et limites :
+[PHASE5B22_DATABASE_PREPARATION.md](PHASE5B22_DATABASE_PREPARATION.md).
+La promotion exige les preuves de cette campagne en plus des Quality complètes
+Installer et Web. Ne pas remplacer cette recette par une ancienne campagne 5B2.1.
+Le contrôle de CA respecte l'open_basedir du worker, sans accès supplémentaire
+aux ancêtres déjà vérifiés par le parent. Toute erreur PDO/JSON/timeout/crash
+reste fermée. DDL partiel et erreur disque après SQL ne sont jamais des succès.
+
+La factory de payload synthétique est extraite sans changement de corps vers
+`tests/web_configuration_fixture.py`. Les fixtures SQL ne chargent plus les
+fixtures HTTP par transitivité ; aucune assertion historique n’est supprimée.

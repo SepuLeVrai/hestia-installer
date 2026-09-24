@@ -1,16 +1,17 @@
 # État du projet
 
-## Point de reprise à lire en premier - 24 septembre 2026
+## Point de reprise - Étape 1 résiduelle 5B2.2
 
-5A, 5B1 Web et 5B2.1 sont publiées/qualifiées. Le présent lot est **5B2.2a**,
-audit des comptes locaux existants et configuration protégée **non activée**.
-Il ne termine pas 5B2.2 : création des comptes/base et distant/TLS restent à faire.
-Les paragraphes historiques ci-dessous ne remplacent pas ce point de reprise.
-Pour WORK demain : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md).
-Contrat et limites : [PHASE5B22A_LOCAL_SQL_CONFIGURATION.md](PHASE5B22A_LOCAL_SQL_CONFIGURATION.md).
-Le commit publié et les résultats effectifs sont consignés dans Installer #13.
+5A, 5B1, 5B2.1 et 5B2.2a sont conservées. Ce lot assemble la préparation SQL
+fresh et la configuration privée : provisioning SQL local, ports explicites,
+TLS distant vérifié et privilèges séparés. Il ne livre pas 5B2.3.
+Le résultat maximal est DATABASE_CONFIGURATION_READY, sans activation ni lock Web.
+La preuve de publication est le commit contenant ce document et ses Quality réelles,
+pas les paragraphes historiques ou une ancienne campagne.
+Contrat : [PHASE5B22_DATABASE_PREPARATION.md](PHASE5B22_DATABASE_PREPARATION.md).
+Reprise : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md), puis dernier commentaire
+Installer #13/Web #135 pour les références finales et les limites mesurées.
 Le wizard affiche toujours « Sources prêtes ». Aucun serveur HESTIA déployé.
-
 
 ## 2026-09-21
 
