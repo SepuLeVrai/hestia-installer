@@ -321,27 +321,37 @@ class BrowserWizardTests(unittest.TestCase):
 
     def test_responsive_plan_and_reduced_motion(self):
         self.plan(("web", "gateway", "apk"))
-        for width, height in ((1920,1080),(1440,900),(1366,768),(1280,720),(1024,768),(840,600),(768,1024),(390,844),(360,640),(320,568)):
-            with self.subTest(width=width, height=height):
-                self.page.set_viewport_size({"width": width, "height": height})
-                self.page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
-                result = self.page.evaluate("""() => {
-                  const footer = document.querySelector('.wizard-actions').getBoundingClientRect();
-                  const root = document.querySelector('.installer-window').getBoundingClientRect();
-                  const button = document.getElementById('next-button').getBoundingClientRect();
-                  const inner = document.getElementById('wizard-content');
-                  return {width: document.documentElement.scrollWidth, viewport: innerWidth,
-                    footerBottom: footer.bottom, rootBottom: root.bottom, buttonRight: button.right,
-                    panelOverflow: inner.scrollWidth > inner.clientWidth + 1,
-                    transition: getComputedStyle(inner).transitionDuration};
-                }""")
-                self.assertLessEqual(result["width"], width + 1, result)
-                self.assertFalse(result["panelOverflow"], result)
-                self.assertLessEqual(result["buttonRight"], width, result)
-                self.assertLessEqual(result["footerBottom"], result["rootBottom"] + 1, result)
-                if width > 820: self.assertLessEqual(result["footerBottom"], height, result)
-                self.assertIn("1e-05s", result["transition"])
+        sizes = ((1920,1080),(1440,900),(1366,768),(1280,720),(1024,768),(840,600),(768,1024),(390,844),(360,640),(320,568))
+        # Like the native suite, wait for CSS dynamic viewport units to catch up
+        # with the requested viewport. Two animation frames alone can still see
+        # old body min-height. Never wait for the tested footer bounds to pass.
+        for cycle in range(3):
+            for width, height in sizes:
+                with self.subTest(cycle=cycle, width=width, height=height):
+                    self.page.set_viewport_size({"width": width, "height": height})
+                    self.page.wait_for_function("""({width,height}) =>
+                        innerWidth === width && innerHeight === height &&
+                        Math.round(parseFloat(getComputedStyle(document.body).minHeight)) === height
+                    """, arg={"width": width, "height": height})
+                    self.page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+                    result = self.page.evaluate("""() => {
+                      const footer = document.querySelector('.wizard-actions').getBoundingClientRect();
+                      const root = document.querySelector('.installer-window').getBoundingClientRect();
+                      const button = document.getElementById('next-button').getBoundingClientRect();
+                      const inner = document.getElementById('wizard-content');
+                      return {width: document.documentElement.scrollWidth, viewport: innerWidth,
+                        footerBottom: footer.bottom, rootBottom: root.bottom, buttonRight: button.right,
+                        panelOverflow: inner.scrollWidth > inner.clientWidth + 1,
+                        transition: getComputedStyle(inner).transitionDuration};
+                    }""")
+                    self.assertLessEqual(result["width"], width + 1, result)
+                    self.assertFalse(result["panelOverflow"], result)
+                    self.assertLessEqual(result["buttonRight"], width, result)
+                    self.assertLessEqual(result["footerBottom"], result["rootBottom"] + 1, result)
+                    if width > 820: self.assertLessEqual(result["footerBottom"], height, result)
+                    self.assertIn("1e-05s", result["transition"])
         self.page.set_viewport_size({"width":1366,"height":768})
+        self.page.wait_for_function("() => innerHeight === 768 && parseFloat(getComputedStyle(document.body).minHeight) === 768")
         screenshot_dir = os.environ.get("HESTIA_QC_SCREENSHOTS")
         if screenshot_dir:
             Path(screenshot_dir).mkdir(parents=True, exist_ok=True)

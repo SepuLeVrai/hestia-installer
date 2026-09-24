@@ -194,3 +194,21 @@ reste fermée. DDL partiel et erreur disque après SQL ne sont jamais des succè
 La factory de payload synthétique est extraite sans changement de corps vers
 `tests/web_configuration_fixture.py`. Les fixtures SQL ne chargent plus les
 fixtures HTTP par transitivité ; aucune assertion historique n’est supprimée.
+
+
+### 5B2.2 - Synchronisation du viewport dans le banc DOM
+
+Le candidat e5ae0dfa a révélé la récidive du test responsive à 1440x900
+(footerBottom=919, rootBottom=920). La sonde locale sans modification CSS/JS a
+observé innerHeight=1080 ou900 alors que body.minHeight restait à768px après
+les deux requestAnimationFrame. Les unités de viewport CSS n'étaient donc pas
+nécessairement actualisées au moment de la mesure.
+
+Le banc DOM attend désormais, comme le banc natif existant, la concordance
+innerWidth/innerHeight et body.minHeight avec la taille demandée. L'attente ne
+porte jamais sur les valeurs de footer, d'overflow ou de bouton faisant l'objet
+des assertions. Les bornes pixels, assertions et timeout existants sont conservés.
+Les dix tailles sont parcourues trois fois, et le viewport est aussi synchronisé
+avant capture. Aucun asset, CSS, JS ou écran applicatif n'est modifié. Il ne s'agit
+pas d'une relance aveugle du run : le banc corrigé et tous les contrôles requis
+font l'objet d'une nouvelle qualification sur les nouveaux fichiers gelés.

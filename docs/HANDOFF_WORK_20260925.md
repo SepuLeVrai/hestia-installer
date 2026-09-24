@@ -76,9 +76,13 @@ compte temporaire peuvent subsister, sans rollback DDL atomique promis.
 Les essais TLS sont sur hostname/certificats/datadirs jetables locaux, pas le
 réseau réel de l'utilisateur. Consulter les limites de la recette finale.
 
-L'incident responsive de 5B2.2a reste historique : mesure footer/root sur1440x900,
-relance unique passée sans changement, cause inconnue. Une récidive nécessite
-un diagnostic et une requalification, pas des relances jusqu'au vert.
+La récidive responsive sur le premier candidat de cette étape a été diagnostiquée :
+la sonde observe innerHeight déjà actualisé mais body.minHeight encore ancien
+après deux frames. Le banc DOM attend maintenant la concordance du viewport CSS,
+comme le natif existant, sans attendre que les assertions de géométrie passent.
+Dix tailles sont parcourues trois fois, toutes les bornes et timeout conservés,
+aucun CSS/JS produit modifié. Lire docs/QUALITY.md et les preuves du diagnostic.
+Ne pas réintroduire une mesure après seulement deux frames, ni relancer en boucle.
 
 ## Autorisations et livraison
 
