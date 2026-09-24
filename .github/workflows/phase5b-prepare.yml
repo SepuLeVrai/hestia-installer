@@ -1,0 +1,84 @@
+name: Phase5B exact candidate preparation
+on:
+  push:
+    branches: ['verification/phase5b-prepare-20260924']
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Reconstruct and store exact unattached objects, no ref update
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PYCODE'
+          import base64,hashlib,json,lzma,os,subprocess,urllib.request
+          from pathlib import Path
+          base = '07d0da54c317420463a3699ee96dd6000afa6c31'
+          expected_tree = '36d89042f3135884809020b23edf11873888a41d'
+          allowed = {'docs/PROJECT_STATE.md', 'installer/phase5b.py', 'installer/private/phase5b_bridge.php', 'installer/private/phase5b_verify.php', 'tests/integration/phase5b_e2e.py', 'installer/private/phase5b_policy.php', 'tests/quality-baseline.json', 'docs/QUALITY.md', 'tests/test_phase5b.py', 'docs/HANDOFF_WORK_20260925.md', 'docs/PHASE5B_COMPLETE.md'}
+          parts = sorted(Path('.assembly/phase5b').glob('source.*.b64'))
+          assert len(parts) == 4
+          compressed = base64.b64decode(''.join(p.read_text() for p in parts),validate=True)
+          assert hashlib.sha256(compressed).hexdigest() == '614488eb50a3de4fca428546d31a6da0e0bc3a8d3d3604a5d0c01d455f08bc3f'
+          raw = lzma.decompress(compressed,memlimit=268435456)
+          assert len(raw) < 1048576
+          package = json.loads(raw)
+          assert set(package) == {'base','tree','files'} and package['base'] == base and package['tree'] == expected_tree
+          assert set(package['files']) == allowed
+          root = Path(os.environ['RUNNER_TEMP'])/'phase5b-candidate'
+          subprocess.run(['git','worktree','add','--detach',str(root),base],check=True)
+          def git(*args): return subprocess.check_output(['git','-C',str(root),*args],text=True).strip()
+          manifest = {}
+          for name,item in package['files'].items():
+              assert item['mode'] == '100644'
+              path = root/name
+              if 'new' in item:
+                  assert set(item)=={'mode','new'} and not path.exists()
+                  text = item['new']
+              else:
+                  assert set(item)=={'mode','base_sha256','edits'}
+                  previous = path.read_bytes()
+                  assert hashlib.sha256(previous).hexdigest()==item['base_sha256']
+                  text = previous.decode('utf-8')
+                  for start,end,replacement in reversed(item['edits']):
+                      assert 0<=start<=end<=len(text)
+                      text = text[:start]+replacement+text[end:]
+              path.parent.mkdir(parents=True,exist_ok=True)
+              path.write_bytes(text.encode('utf-8'));path.chmod(0o644)
+              content = path.read_bytes()
+              manifest[name]={'mode':item['mode'],'sha':hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest(),'sha256':hashlib.sha256(content).hexdigest()}
+          git('add','--force','--',*sorted(allowed))
+          assert git('write-tree')==expected_tree
+          def post(kind,data):
+              req=urllib.request.Request('https://api.github.com/repos/SepuLeVrai/hestia-installer/git/'+kind,
+                  json.dumps(data).encode(),headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],
+                  'Accept':'application/vnd.github+json','Content-Type':'application/json','User-Agent':'HESTIA-qualification-preparation'},method='POST')
+              with urllib.request.urlopen(req,timeout=30) as response:
+                  raw=response.read(1048577);assert len(raw)<=1048576
+                  return json.loads(raw)
+          entries=[]
+          for name,item in manifest.items():
+              result=post('blobs',{'content':(root/name).read_text(),'encoding':'utf-8'})
+              assert result['sha']==item['sha']
+              entries.append({'path':name,'mode':item['mode'],'type':'blob','sha':item['sha']})
+          result=post('trees',{'base_tree':'c9abcd35d714ded3e6d0480d8af90e0a77438314','tree':entries})
+          assert result['sha']==expected_tree
+          Path('prepared-evidence').mkdir()
+          Path('prepared-evidence/objects.json').write_text(json.dumps({'base':base,'tree':expected_tree,'files':manifest},indent=2))
+          print('Verified unattached tree '+expected_tree+'; no branch reference changed')
+          PYCODE
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: phase5b-prepared-objects
+          path: prepared-evidence/
+          retention-days: 1
+          if-no-files-found: error
