@@ -69,6 +69,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # Actions mounts a runner-owned checkout. Execute the exact commit from
+          # a new root-owned clone; never weaken runtime ownership checks or chown
+          # shared runner ancestors. No hardlinks and no source transformation.
+          install -d -m 0755 /var/lib/hestia-quality-core
+          git clone --quiet --no-hardlinks --no-local "$GITHUB_WORKSPACE" /var/lib/hestia-quality-core/source
+          cd /var/lib/hestia-quality-core/source
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           mkdir -p quality-results
           ./scripts/quality-local.sh 2>&1 | tee quality-results/core.log
       - name: Preserve non-secret evidence
@@ -76,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: installer-quality-core-debian-${{ matrix.debian }}
-          path: quality-results/
+          path: /var/lib/hestia-quality-core/source/quality-results/
           if-no-files-found: error
           retention-days: 7
 
