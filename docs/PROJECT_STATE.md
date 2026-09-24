@@ -1,16 +1,16 @@
 # État du projet
 
-## Point de reprise à lire en premier - 24 septembre 2026
+## Point de reprise - Phase 5B applicative complète
 
-5A, 5B1 Web et 5B2.1 sont publiées/qualifiées. Le présent lot est **5B2.2a**,
-audit des comptes locaux existants et configuration protégée **non activée**.
-Il ne termine pas 5B2.2 : création des comptes/base et distant/TLS restent à faire.
-Les paragraphes historiques ci-dessous ne remplacent pas ce point de reprise.
-Pour WORK demain : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md).
-Contrat et limites : [PHASE5B22A_LOCAL_SQL_CONFIGURATION.md](PHASE5B22A_LOCAL_SQL_CONFIGURATION.md).
-Le commit publié et les résultats effectifs sont consignés dans Installer #13.
-Le wizard affiche toujours « Sources prêtes ». Aucun serveur HESTIA déployé.
-
+Le lot courant ajoute la composition privée fresh, le provisioning logique managed,
+les connexions locales à port explicite/distantes TLS, la configuration data-only,
+l'Assistant et le scellement. Contrat : [PHASE5B_COMPLETE.md](PHASE5B_COMPLETE.md).
+Les lots 5A/5B1/5B2.1/5B2.2a restent acquis et leurs primitives conservées.
+La publication effective se vérifie sur main et ses Quality, puis dans Installer #13.
+Reprise WORK : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md).
+Après qualification/publication du lot, la prochaine frontière est 5C (upgrade),
+puis 5D (hôte, écrans, serveur HTTP et recette). WEB_CONFIGURED n'est pas
+application_installed : le wizard affiche toujours « Sources prêtes ».
 
 ## 2026-09-21
 

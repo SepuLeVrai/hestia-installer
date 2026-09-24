@@ -175,3 +175,24 @@ Les versions effectivement testées et les nombres finaux sont ceux des rapports
 core du commit livré. Le test de connexion via les constantes générées n'est pas
 un test du Web complet avec compte DML. Contrat et limites :
 [PHASE5B22A_LOCAL_SQL_CONFIGURATION.md](PHASE5B22A_LOCAL_SQL_CONFIGURATION.md).
+
+## Phase 5B complète - qualification transverse obligatoire
+
+La suite core conserve l'inventaire précédent et ajoute tests/test_phase5b.py.
+Les anciennes campagnes ne qualifient pas ce nouveau code. Le script
+`tests/integration/phase5b_e2e.py` exige un hôte root jetable et l'opt-in
+HESTIA_PHASE5B_DB_TEST=1 ainsi que --web-source avec le runtime Web exact.
+Il démarre uniquement ses bases, comptes et certificats de test, valide fresh
+managed/existing/remote, port explicite, CA/nom/expiration, refus du clair avant
+authentification, isolement des grants, Assistant et effets après interruption.
+Les pannes injectées sont test-only et ne sont pas exposées comme options runtime.
+Aucun skip ne compte comme PASS. Le profil 11.4 est testé dans la campagne
+transverse, pas présumé à partir de l'acceptation de sa chaîne de version.
+
+Les Quality permanentes Installer (Debian 12/13, DOM, HTTPS natif et gate) et
+Web (PHP 8.3/8.4, MariaDB/upgrade historique, Apache) restent obligatoires.
+La campagne transverse isolée archive ses sources/empreintes et ne s'intègre pas
+aux branches actives avec un duplicata du composant privé. Les scripts de tests
+restent versionnés ; le compte rendu fournit les commandes, matrices et limites
+locales réellement observées. L'incident responsive antérieur reste un point de
+vigilance : ne pas boucler des relances jusqu'à obtenir du vert.

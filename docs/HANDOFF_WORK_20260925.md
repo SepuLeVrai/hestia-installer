@@ -1,117 +1,94 @@
-# Handoff WORK - HESTIA Installer - reprise du 25 septembre 2026
+# Handoff WORK - HESTIA Installer - après la frontière 5B
 
-## Lecture de départ
+## Lire avant de modifier
 
-Ce document prépare la reprise après le sous-lot 5B2.2a du 24 septembre.
-Ne pas reprendre le handoff initial demandant 5B2.1 : ce lot est déjà publié.
-Lire d'abord les HEAD réels, puis les documents du commit retenu. La preuve de
-publication de ce document est le commit qui le contient et ses campagnes Quality,
-pas un hash que le document pourrait citer avant sa propre publication.
+La demande de Bastien est de terminer 5B, sans absorber 5C/5D. Le présent lot
+réalise sa composition applicative privée. Vérifier les HEAD actuels, la présence
+de ce contrat sur main et les Quality du commit, puis le dernier commentaire
+Installer #13 / Web #135. Ce commentaire contient les SHA/runs/ZIP finaux qui ne
+peuvent pas être cités avant la création de ce commit lui-même.
 
-Base Installer de cette évolution : `93e7d7c1be273c9e17a1fc97846b062367cdb5e5`.
-Web relu : main et dev-Bastien = `dcb856bc5ef5f35006d2398289b49f5386dcc5f5`.
-La présente évolution n'a besoin d'aucune modification des fichiers Web.
-Lire aussi le dernier commentaire de livraison dans Installer #13 : il donne
-commit publié, runs finaux, ZIP léger et empreintes. Vérifier leur statut réel.
-Ne pas réappliquer les ZIP 5A/5B1/5B2.1 sur un HEAD déjà à jour.
+Bases relues : Installer 07d0da54c317420463a3699ee96dd6000afa6c31 ;
+Web main/dev-Bastien dcb856bc5ef5f35006d2398289b49f5386dcc5f5.
+Ne pas réappliquer les anciens ZIP ni reprendre leurs branches techniques.
+La conversation autorise les écritures dans les dépôts concernés, mais les
+fast-forwards exigent toutes les Quality requises réussies, sans force push,
+sans effacement d'un HEAD concurrent et sans déploiement de production implicite.
 
-## État fonctionnel à conserver
+## Ordre de lecture
+
+1. [PROJECT_STATE.md](PROJECT_STATE.md), [PHASE5B_COMPLETE.md](PHASE5B_COMPLETE.md)
+   et [QUALITY.md](QUALITY.md), puis le dernier compte rendu Installer #13.
+2. installer/phase5b.py et les trois ressources private/phase5b_*.php ;
+   tests/test_phase5b.py et tests/integration/phase5b_e2e.py.
+3. Web docs/INSTALLER_PHASE5B_CONFIGURATION.md, les bibliothèques
+   includes/installation/connection.php, managed_config.php et finalize.php,
+   puis get_pdo() et les méthodes Assistant modifiées.
+4. Relire les moteurs existants avant l'upgrade : installation/core.php,
+   fresh.php et les migrations publiées. Ne pas dupliquer leurs factories.
+
+## État après qualification/publication de ce lot
 
 | Frontière | État et sens exact |
 | --- | --- |
-| Phases 1-4 | Bootstrap HTTPS, orchestration transactionnelle et acquisition existent. |
-| 5A | Validation fermée INPUT_ONLY, publiée et qualifiée. |
-| 5B1 Web | Moteur SQL partagé, DATABASE_READY mais application_installed=false. |
-| 5B2.1 | Transport privé Python/PHP, provenance/identité/secrets/bornes et interlock anti-rejeu. |
-| 5B2.2a | Audit de comptes SQL locaux existants et configuration protégée non activée. |
-| Reste 5B2.2 | Création base/comptes, droits, ports et distant/TLS, intégration contrôlée. |
-| 5B2.3 | Assistant optionnel, activation cohérente et scellement, non livrés. |
-| 5C | Upgrade, sauvegarde, reprise/rollback pilotés, non livrés. |
-| 5D | Écrans applicatifs, identités système et recette Web intégrée, non livrés. |
+| 1-4 | Bootstrap/orchestrateur/acquisition présents, wizard Sources prêtes. |
+| 5A | Validation INPUT_ONLY, jamais un consentement de mutation. |
+| 5B1 | Moteur SQL partagé unique, fresh refuse l'existant. |
+| 5B2.1 / 5B2.2a | Anciennes API conservées, leurs limites historiques subsistent. |
+| 5B complète | Nouvelle API privée compose comptes, TLS, fresh, config, Assistant et sceau. |
+| 5C | Moteur d'upgrade/sauvegarde/restauration/reprise à réaliser. |
+| 5D | Installation système/identités, PHP-FPM/Apache, données et écrans/recette HTTP à réaliser. |
 
-Le wizard termine toujours par « Sources prêtes ». Ne jamais le faire afficher
-« HESTIA installé » après un audit, une acquisition, un DDL ou un fichier écrit seul.
+WEB_CONFIGURED signifie runtime SQL/config vérifié sous l'identité Web,
+application_installed=false et http_verified=false. Ne pas annoncer une
+installation one-shot achevée, un accès OpenAI testé ou un login HTTP à partir
+seulement de la réussite de 5B. Le mode managed suppose le serveur SQL prêt ;
+il crée base et comptes et supprime son compte temporaire après vérification.
+Le compte d'autorité/migration n'est jamais un secret durable du Web.
 
-## Ce que fournit 5B2.2a
+## Prochaine frontière : 5C, pas une nouvelle 5B2.2a
 
-Lire [PHASE5B22A_LOCAL_SQL_CONFIGURATION.md](PHASE5B22A_LOCAL_SQL_CONFIGURATION.md).
-Principaux fichiers : installer/sql_accounts.py, installer/database_config.py et
-les trois ressources PHP privées associées. Aucun raccordement public/HTTP n'existe.
+Définir les versions acceptées, un plan non mutant, une sauvegarde réelle et
+sa restauration testée avant toute migration. Exiger une autorité privée explicite,
+préserver Admin/password/données/RBAC/paramètres et configuration Assistant.
+La fresh install ne doit jamais servir de fallback pour une base existante.
+Les DDL ne sont pas une transaction annulable : le journal doit décrire les effets
+incertains et les frontières de récupération, sans supprimer automatiquement
+base/comptes ou fichiers qu'il ne possède pas.
 
-Seul existing_local / TCP 127.0.0.1:3306 est pris en charge. Base, identités système
-et comptes SQL sont préexistants. Application = SELECT/INSERT/UPDATE/DELETE sur
-le seul schéma ; provisioning = ALL sur le seul schéma sans GRANT OPTION. Rôles,
-PUBLIC privilégié, compte/hôte générique et grants ambigus sont refusés. Les GRANT
-sur un nom avec underscore doivent l'échapper. Aucun compte n'est créé ni modifié.
+L'API update_assistant actuelle vise une instance gérée, scellée et épinglée :
+conserver observe, remplacement vide conserve, disabled est explicite. Elle ne
+convertit pas un ancien fichier PHP IA et n'évalue jamais ce fichier en root.
+La conversion des configurations legacy et les migrations relèvent de 5C.
+Ne pas vider une clé existante parce qu'un champ de formulaire est vide.
 
-Le chargeur généré et son JSON applicatif restent hors webroot, root:groupe-Web
-0750/0640, sans credential privilégié. Aucun includes/db.php, install.lock ou réglage
-Assistant n'est posé dans le Web. Ce staging est un secret durable à conserver ;
-son activation fera l'objet d'une autre étape. Aucun fichier préexistant n'est exécuté.
-Upgrade est refusé pour l'écriture ; l'audit seul peut observer les comptes en upgrade.
-Une tentative interrompue reste bloquante et ne peut pas être écrasée automatiquement.
+## Invariants pour 5D
 
-## Prochain travail recommandé, à borner avant codage
+Ne pas assouplir les contrôles root/dirfds/ACL/liens ni les identités worker/Web
+pour contourner un problème du banc. Préparer les répertoires et le PHP avant
+l'appel privé ; raccorder seulement une opération typée avec secrets hors journal.
+La politique de sources est fermée. L'exécution d'un Web actif avec ses répertoires
+uploads/logs/caches modifiables exige une séparation code/données explicite et des
+tests, pas l'exclusion globale des contrôles de provenance. La recette DML actuelle
+n'est pas une validation de tous les écrans DDL/maintenance/backup du Web.
 
-Commencer par le reste de 5B2.2, sans absorber Assistant, upgrade et écrans.
-Relire includes/functions.php::get_pdo() et la chaîne includes/bootstrap.php.
-Le runtime Web ne gère actuellement ni un DB_PORT distinct ni des options PDO TLS.
-Ne pas glisser de fragment DSN dans DB_HOST pour contourner ce contrat.
+La connexion gérée prend maintenant le port et TLS séparément ; aucun fragment
+DSN dans DB_HOST. Contrôler la CA persistante et le runtime sous PHP-FPM/Apache,
+les fichiers sensibles inaccessibles, sessions 43200 s sans désactiver
+phpsessionclean, la politique fonctionnelle 1 h / 4 h / 8 h et les proxies fiables.
+Conserver l'UX figée. Pas de modification Gateway/APK avant leurs phases propres.
 
-La création contrôlée des comptes et de la base doit distinguer l'autorité SQL
-capable de provisionner des comptes, le compte de migration restreint au schéma
-et le runtime DML. Définir préflight, consentement, cible non occupée, privilèges,
-révocation des droits temporaires et traitement d'un résultat incertain AVANT DDL.
-Ne jamais publier le mot de passe d'autorité/migration dans la configuration Web.
+## Quality, publication et preuves
 
-Le parcours distant nécessite une CA protégée, la vérification du certificat et
-du nom du serveur, un chiffrement effectivement observé, des délais et des tests
-négatifs (CA incorrecte, certificat expiré/mauvais nom, refus du clair, interruption).
-Ne pas transformer le simple champ tls_ca_file validé en 5A en preuve de TLS réel.
-Toute évolution du Web exige sa propre Quality complète et un ZIP compagnon
-avec fichiers complets nécessaires ; ni schema.sql ni install.php ne doivent
-recevoir une modification artificielle pour donner l'impression d'une migration.
+Les tests existants sont conservés, les nouveaux inventoriés. Exécuter la Quality
+Installer complète, la Quality Web complète et la campagne transverse E2E sur
+les octets finaux. Les essais de préparation, campagnes interrompues et anciennes
+preuves ne sont pas le PASS du lot. Le compte rendu indique les matrices exactes,
+les incidents et les vérifications de ZIP/modes/application/réapplication.
+Les ZIP de chaque dépôt contiennent des fichiers complets ; install.php et
+schema.sql complets accompagnent le Web sans modification SQL artificielle.
+Les branches verification/quality d'assemblage ou de tests croisés ne sont pas
+une base de reprise et leurs sondes/paquets ne doivent jamais être fusionnés.
 
-Assembler ensuite explicitement les préconditions, l'appel 5B2.1 et le staging.
-L'audit des grants est ponctuel, ne certifie pas le schéma et ne remplace pas une
-vérification au moment d'emploi. La politique DML n'est pas encore une recette
-exhaustive de toutes les fonctions Web, notamment maintenance/restore/DDL.
-Qualifier cela sans redonner des privilèges root/ALL au runtime.
-
-## Règles et autorisation de cette conversation
-
-Bastien a autorisé l'écriture dans les dépôts concernés par ce chantier, avec
-fast-forward uniquement après Quality 100 % réussie. Ne pas en déduire un déploiement
-sur LAB-PAWEB30 ni une permission de modifier une base de production. Ne pas toucher
-Gateway/APK tant que leur frontière n'est pas abordée. Pas de compilation APK inutile.
-
-Partir de main Installer et des branches Web demandées, jamais d'une branche
-technique d'assemblage, de qualification ou d'une vieille préparation. Comparer
-les HEAD à nouveau avant promotion et refuser une divergence inattendue. Aucun
-force push. Les ZIP sont légers, composés des fichiers complets exacts testés.
-Aucun changement de dernière minute après les preuves ; sinon tout requalifier.
-
-## Quality et limites de preuve
-
-[QUALITY.md](QUALITY.md) décrit les contrôles permanents et leur inventaire strict.
-La suite SQL 5B2.2a est incluse dans core Debian 12/13 et impose un opt-in explicite :
-
-```bash
-# Conteneur root jetable, aucun MariaDB existant sur le port 3306.
-HESTIA_ACCOUNT_DB_TEST=1 ./scripts/quality-local.sh
-```
-
-Les 290 tests core antérieurs sont conservés ; les nouveaux tests doivent tous
-être présents dans tests/quality-baseline.json. Le serveur SQL de test utilise
-son propre datadir aléatoire, n'écoute que loopback et refuse un port déjà occupé.
-Ne pas confondre ce parcours de fixture avec l'installation système de MariaDB.
-Ne pas confondre la connexion PDO via constantes générées avec une recette Web HTTP.
-
-Les 16 scénarios DOM et 21 HTTPS natifs restent obligatoires même sans nouvel écran.
-PHP 8.2 Debian 12 qualifie la compatibilité du nouveau composant, pas le vendor Web
-exigeant PHP 8.3+. Sans MariaDB ou pdo_mysql locaux, ne pas annoncer les tests SQL
-comme exécutés localement. Lire les artefacts du nouveau run pour les preuves CI.
-Les contrôles antérieurs 5A/5B1/5B2.1 restent historiques, pas une preuve du nouveau code.
-
-Issues de reprise : Installer #13 et Web #135 (ouvertes, transverses), Installer #1
-(global), #3 (wizard complet), puis contrats Gateway #4 et APK #5 quand concernés.
+Les issues transverses Installer #13 et Web #135 restent ouvertes pour 5C/5D
+et leurs engagements ultérieurs. La clôture de 5B ne ferme pas ces périmètres.
