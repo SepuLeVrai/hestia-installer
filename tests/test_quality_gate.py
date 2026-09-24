@@ -29,6 +29,16 @@ class QualityGateTests(unittest.TestCase):
     def test_dispatch_always_runs_full_quality(self):
         with patch.dict(q.os.environ, {'GITHUB_EVENT_NAME': 'workflow_dispatch', 'QUALITY_BASE': 'a' * 40}):
             self.assertTrue(q.scope())
+        base = 'a' * 40; repo = 'fixture/installer'
+        run = {'head_sha':base,'status':'completed','conclusion':'success','path':'.github/workflows/quality.yml',
+               'event':'push','head_repository':{'full_name':repo}}
+        self.assertTrue(q.approved_previous_run({'workflow_runs':[run]}, base, repo))
+        for change in ({'status':'in_progress'}, {'conclusion':'failure'}, {'conclusion':'cancelled'},
+                       {'head_sha':'b'*40}, {'path':'other.yml'}, {'head_repository':{'full_name':'other/repo'}}):
+            self.assertFalse(q.approved_previous_run({'workflow_runs':[dict(run,**change)]},base,repo))
+        self.assertFalse(q.approved_previous_run({},base,repo))
+        with patch.dict(q.os.environ, {'QUALITY_HISTORY_TOKEN':'', 'GITHUB_REPOSITORY':repo}):
+            self.assertFalse(q.previous_quality_passed(base))
 
     def test_only_successful_required_jobs_pass_the_gate(self):
         q.gate('true', 'success', 'success', 'success')
@@ -48,6 +58,7 @@ class QualityGateTests(unittest.TestCase):
         self.assertTrue(q.verdict(self._result('self.assertTrue(True)'), [], True))
         self.assertFalse(q.verdict(self._result('self.fail("fixture")'), [], True))
         self.assertFalse(q.verdict(unittest.TestResult(), [], True))
+        self.assertFalse(q.verdict(self._result('self.assertTrue(True)'), [], True, preflight=False))
 
     def test_skip_cannot_produce_green_quality(self):
         self.assertFalse(q.verdict(self._result('self.skipTest("fixture")'), [], True))
@@ -61,6 +72,12 @@ class QualityGateTests(unittest.TestCase):
         result = self._result('self.assertTrue(True)')
         result.expectedFailures.append((None, 'fixture'))
         self.assertFalse(q.verdict(result, [], True))
+        xml = q.ET.Element('testsuite')
+        case = q.ET.SubElement(xml, 'testcase', name='strict_gate')
+        q.ET.SubElement(case, 'failure').text = 'fixture'
+        q.finish_junit(xml)
+        self.assertEqual(xml.get('tests'), '1')
+        self.assertEqual(xml.get('failures'), '1')
 
     def test_runtime_ast_guards_detect_shell_spacing_and_dynamic_calls(self):
         for source in ('subprocess.run(["x"], shell = True)', 'subprocess.run(["x"], shell=flag)',

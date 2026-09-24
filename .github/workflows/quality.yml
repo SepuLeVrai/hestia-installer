@@ -16,6 +16,9 @@ concurrency:
 
 jobs:
   scope:
+    permissions:
+      contents: read
+      actions: read
     name: Scope and static guards
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -30,6 +33,7 @@ jobs:
         id: scope
         env:
           QUALITY_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          QUALITY_HISTORY_TOKEN: ${{ github.token }}
         run: python3 scripts/quality.py scope
       - name: Mandatory source, syntax, permissions, docs and security guards
         run: python3 scripts/quality.py static

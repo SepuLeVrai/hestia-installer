@@ -69,7 +69,11 @@ le lancement manuel. Un lancement manuel demande toujours la campagne complète.
 Les seules modifications classées documentaires sont README.md, CONTRIBUTING.md
 et les fichiers Markdown du dossier docs. Un chemin inconnu, un changement mixte,
 une suppression de test ou un historique non disponible déclenchent les tests
-complets. Aucun filtre global de workflow ne laisse un check requis en attente.
+complets. Un changement documentaire ne peut éviter la campagne complète que si
+le commit précédent a une exécution réussie de ce même workflow. Un run précédent
+en cours, annulé, échoué, absent ou inaccessible impose une nouvelle campagne
+complète. Cela empêche un push de documentation de masquer une modification de
+code encore non validée. Aucun filtre global de workflow ne laisse un check requis en attente.
 Un contrôle documentaire vert est explicitement distinct d'une nouvelle recette
 applicative et ne publie pas de package applicatif.
 
@@ -78,8 +82,9 @@ les paquets Debian suivent les dépôts signés de la distribution, donc les ver
 exactes doivent être relues dans les preuves de chaque campagne. Cela n'est pas
 une image système hermétique figée pour toujours.
 
-Les Actions officielles sont figées par SHA. Le token Actions n'a que Contents
-Read, n'est pas conservé dans Git et ne sert pas de PAT applicatif. Aucun secret
+Les Actions officielles sont figées par SHA. Le token Actions a Contents Read et,
+pour le seul job de sélection, Actions Read afin de vérifier le résultat précédent.
+Il n'est pas conservé dans Git et ne sert pas de PAT applicatif. Aucun secret
 réel de HESTIA, aucun autre dépôt et aucune compilation Android ne sont nécessaires.
 Aucun `pull_request_target`, runner auto-hébergé, accès SSH ou mutation de serveur
 externe n'est utilisé. Les runs obsolètes du même événement/ref sont annulés.
@@ -89,7 +94,7 @@ Les gros outils navigateur ne sont installés que dans le job qui en a besoin.
 
 `tests/browser_native.py` utilise les routes HTTPS et les assets de production,
 le vrai formulaire de bootstrap, les cookies réels, le vrai fetch et le vrai
- téléchargement de rapport. Aucun pont fetch, réécriture du HTML, faux Blob ou
+téléchargement de rapport. Aucun pont fetch, réécriture du HTML, faux Blob ou
 assouplissement de la CSP de production n'est utilisé. Certaines réponses d'erreur
 et interruptions sont injectées de manière ciblée comme scénarios négatifs.
 
@@ -99,12 +104,16 @@ séparément les règles TLS. GitHub utilise des fixtures et le préflight du wi
 est contrôlé par des fixtures. Le CLI est exercé réellement sur Debian 12/13.
 Aucun téléchargement privé avec PAT utilisateur ni déploiement complet sur VM
 n'est revendiqué. Les contrôles d'affichage ne remplacent pas une nouvelle
-validation artistique de l'UX déjà figée.
+validation artistique de l'UX déjà figée. Les mesures natives de redimensionnement
+attendent que le viewport et les unités CSS dynamiques aient réellement pris leur
+taille cible, avant les mêmes assertions strictes de débordement. Aucune tolérance
+de dépassement n'est ajoutée et aucun style de production n'est changé.
 
 ## Preuves, gel et livraison
 
 Chaque suite produit un JSON strict, un JUnit et un manifeste des fichiers sources
-avec leur SHA-256 et leurs permissions. Le manifeste est identique avant et après
+avec leur SHA-256 et leurs permissions. Le préflight CLI est inclus dans le
+résultat core et exigé par le packaging. Le manifeste est identique avant et après
 les tests. Le packaging vérifie les quatre preuves : core Debian 12, core Debian 13,
 DOM bridge et navigateur natif. Elles doivent correspondre aux mêmes octets.
 

@@ -182,3 +182,36 @@ class NativeBrowserTests(legacy.BrowserWizardTests):
         response = self.browser_context.request.post(self.url + '/api/run-command', data={'command': 'fixture-only'})
         self.assertIn(response.status, (403, 404))
         self.assertEqual(self.fake.archive_requests, [])
+
+    def test_responsive_plan_and_reduced_motion(self):
+        # Native Chromium applies dynamic viewport units asynchronously. Await the
+        # requested CSS viewport, not an arbitrary sleep or relaxed pixel bound.
+        self.plan(('web', 'gateway', 'apk'))
+        sizes = [(1920,1080),(1440,900),(1366,768),(1280,720),(1024,768),
+                 (840,600),(768,1024),(390,844),(360,640),(320,568)]
+        for cycle in range(3):
+            for width, height in sizes:
+                with self.subTest(cycle=cycle, width=width, height=height):
+                    self.page.set_viewport_size({'width':width,'height':height})
+                    self.page.wait_for_function("""({width,height}) =>
+                        innerWidth === width && innerHeight === height &&
+                        Math.round(parseFloat(getComputedStyle(document.body).minHeight)) === height
+                    """, arg={'width':width,'height':height})
+                    self.page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+                    result = self.page.evaluate("""() => ({
+                      width:document.documentElement.scrollWidth, viewport:innerWidth,
+                      footerBottom:document.querySelector('.wizard-actions').getBoundingClientRect().bottom,
+                      rootBottom:document.querySelector('.installer-window').getBoundingClientRect().bottom,
+                      buttonRight:document.querySelector('#next-button').getBoundingClientRect().right,
+                      transition:getComputedStyle(document.querySelector('#next-button')).transitionDuration
+                    })""")
+                    self.assertLessEqual(result['width'],width,result)
+                    self.assertLessEqual(result['footerBottom'],result['rootBottom']+1,result)
+                    self.assertLessEqual(result['buttonRight'],width,result)
+                    if width > 820: self.assertLessEqual(result['footerBottom'],height,result)
+                    self.assertIn('1e-05s',result['transition'])
+        self.page.set_viewport_size({'width':1366,'height':768})
+        self.page.wait_for_function('innerHeight === 768 && parseFloat(getComputedStyle(document.body).minHeight) === 768')
+        if os.environ.get('HESTIA_QC_SCREENSHOTS'):
+            directory=Path(os.environ['HESTIA_QC_SCREENSHOTS']); directory.mkdir(parents=True,exist_ok=True)
+            self.page.screenshot(path=str(directory/'native-plan-desktop.png'))

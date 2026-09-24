@@ -12,10 +12,13 @@ import platform
 import re
 import shutil
 import stat
+import ssl
 import subprocess
 import sys
 import time
 import unittest
+import urllib.request
+import urllib.error
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -90,9 +93,68 @@ def scope() -> bool:
         result = subprocess.run(['git', 'diff', '--name-only', '-z', base, 'HEAD'], cwd=ROOT,
                                 check=True, capture_output=True)
         names = result.stdout.decode('utf-8').rstrip('\0').split('\0')
-        return not is_docs_only(names)
+        if not is_docs_only(names):
+            return True
+        # A docs push must not hide a preceding code push whose run is still
+        # running, failed, or was cancelled by concurrency. Require green history.
+        return not previous_quality_passed(base)
     except (subprocess.CalledProcessError, UnicodeError):
         return True  # Missing history must not disable tests.
+
+
+
+def approved_previous_run(payload: object, base: str, repository: str) -> bool:
+    if not isinstance(payload, dict) or not isinstance(payload.get('workflow_runs'), list):
+        return False
+    return any(isinstance(run, dict) and run.get('head_sha') == base and
+               run.get('status') == 'completed' and run.get('conclusion') == 'success' and
+               run.get('path') == '.github/workflows/quality.yml' and
+               run.get('event') in {'push', 'workflow_dispatch'} and
+               isinstance(run.get('head_repository'), dict) and
+               run['head_repository'].get('full_name') == repository
+               for run in payload['workflow_runs'])
+
+
+def previous_quality_passed(base: str) -> bool:
+    repository = os.environ.get('GITHUB_REPOSITORY', '')
+    token = os.environ.get('QUALITY_HISTORY_TOKEN', '')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository) or not token or not re.fullmatch(r'[0-9a-f]{40}', base):
+        return False
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(),
+        urllib.request.HTTPSHandler(context=ssl.create_default_context()))
+    url = f'https://api.github.com/repos/{repository}/actions/workflows/quality.yml/runs?head_sha={base}&per_page=10'
+    request = urllib.request.Request(url, headers={'Accept': 'application/vnd.github+json',
+        'Authorization': 'Bearer ' + token, 'X-GitHub-Api-Version': '2022-11-28'})
+    try:
+        with opener.open(request, timeout=10) as response:
+            data = response.read(524289)
+            if len(data) > 524288:
+                return False
+            return approved_previous_run(json.loads(data), base, repository)
+    except (OSError, ValueError, urllib.error.URLError):
+        return False  # No response details or token are printed; full tests run.
+
+
+def target_preflight() -> bool:
+    if os.geteuid() != 0 or platform.freedesktop_os_release().get('ID') != 'debian':
+        print('Target preflight requires disposable Debian as root.', file=sys.stderr)
+        return False
+    try:
+        return subprocess.run([str(ROOT / 'install-hestia.sh'), '--check'], check=False, timeout=30).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def finish_junit(root: ET.Element) -> None:
+    cases = root.findall('testcase')
+    root.set('tests', str(len(cases)))
+    for kind, attribute in (('failure', 'failures'), ('error', 'errors'), ('skipped', 'skipped')):
+        root.set(attribute, str(sum(case.find(kind) is not None for case in cases)))
 
 
 def python_risks(text: str) -> list[str]:
@@ -193,9 +255,9 @@ def load_suite(group: str):
     return unittest.defaultTestLoader.loadTestsFromName(module + '.' + cls)
 
 
-def verdict(result: unittest.TestResult, missing: list[str], stable: bool) -> bool:
+def verdict(result: unittest.TestResult, missing: list[str], stable: bool, preflight: bool = True) -> bool:
     return (result.testsRun > 0 and result.wasSuccessful() and not result.skipped and
-            not result.expectedFailures and not result.unexpectedSuccesses and not missing and stable)
+            not result.expectedFailures and not result.unexpectedSuccesses and not missing and stable and preflight)
 
 
 def run(group: str) -> int:
@@ -211,14 +273,16 @@ def run(group: str) -> int:
     missing = sorted(set(required) - set(ids))
     started = time.monotonic()
     result = unittest.TextTestRunner(verbosity=2).run(suite)
+    preflight = target_preflight() if group == 'core' else True
     stable = snapshot() == before
-    passed = verdict(result, missing, stable) and len(set(ids)) == len(ids)
+    passed = verdict(result, missing, stable, preflight) and len(set(ids)) == len(ids)
     report = {'schema': 1, 'suite': group, 'status': 'PASS' if passed else 'FAIL',
               'tests_run': result.testsRun, 'discovered_ids': sorted(ids),
               'failures': len(result.failures), 'errors': len(result.errors),
               'skipped': len(result.skipped), 'expected_failures': len(result.expectedFailures),
               'unexpected_successes': len(result.unexpectedSuccesses), 'missing_ids': missing,
               'source_stable': stable, 'source_manifest_sha256': manifest_hash,
+              'target_preflight': preflight if group == 'core' else None,
               'python': platform.python_version(),
               'os': platform.freedesktop_os_release().get('ID', 'unknown'),
               'os_version': platform.freedesktop_os_release().get('VERSION_ID', 'unknown'),
@@ -239,6 +303,7 @@ def run(group: str) -> int:
     if not passed:
         item = ET.SubElement(xml, 'testcase', classname='quality', name='strict_gate')
         ET.SubElement(item, 'failure').text = 'Missing/skipped/expected-failure/duplicate tests or source drift are forbidden.'
+    finish_junit(xml)
     ET.ElementTree(xml).write(out / (group + '.xml'), encoding='utf-8', xml_declaration=True)
     print(f'HESTIA {group} strict Quality: {report["status"]}; {result.testsRun} tests; {len(missing)} missing')
     return 0 if passed else 1
@@ -265,6 +330,8 @@ def package(reports: Path, output: Path) -> None:
             raise QualityError('Unsuccessful or mismatched Quality evidence: ' + str(path))
         if any(record.get(key) != 0 for key in ('errors', 'failures', 'skipped', 'expected_failures', 'unexpected_successes')) or record.get('missing_ids') != [] or record.get('tests_run', 0) <= 0:
             raise QualityError('Incomplete strict Quality evidence: ' + str(path))
+        if record.get('suite') == 'core' and record.get('target_preflight') is not True:
+            raise QualityError('Target preflight proof is missing or failed')
         records.append(record)
     cores = [r for r in records if r['suite'] == 'core']
     if len(cores) != 2 or {(r['os'], r['os_version']) for r in cores} != {('debian', '12'), ('debian', '13')} or sorted(r['suite'] for r in records) != ['bridge', 'core', 'core', 'native']:
