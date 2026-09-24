@@ -1,30 +1,20 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
-
-python3 -m compileall -q installer tests
-python3 -m unittest discover -s tests -v
-
-if command -v node >/dev/null 2>&1; then
-    for file in installer/web/assets/*.js; do
-        node --check "$file"
-    done
-fi
-
-if grep -RInE '(shell=True|https?://[^[:space:]]*TOKEN|Authorization:[[:space:]]*(Bearer|token)[[:space:]]+[A-Za-z0-9])' installer tests --exclude='*.pyc'; then
-    printf '\nHESTIA Installer security scan: FAIL\n' >&2
-    exit 1
-fi
-
-if grep -RInE 'https?://' installer/web --include='*.html' --include='*.css' --include='*.js'; then
-    printf '\nHESTIA Installer remote runtime asset scan: FAIL\n' >&2
-    exit 1
-fi
-
-if [ -r /etc/os-release ] && grep -Eq '^ID=debian$|^ID="debian"$' /etc/os-release; then
-    ./install-hestia.sh --check >/dev/null
-fi
-
-printf '\nHESTIA Installer local quality: PASS\n'
+for tool in python3 node bash openssl ip; do
+    command -v "$tool" >/dev/null || { printf 'Required Quality tool missing: %s\n' "$tool" >&2; exit 1; }
+done
+python3 scripts/quality.py static
+python3 scripts/quality.py run core
+# Production CLI check runs on the supported OS under its actual required UID.
+# A non-Debian/non-root development host must not claim this target check passed.
+python3 - <<'PY'
+import os
+import platform
+import subprocess
+if os.geteuid() != 0 or platform.freedesktop_os_release().get('ID') != 'debian':
+    raise SystemExit('Quality target preflight requires a disposable Debian environment as root.')
+subprocess.run(['./install-hestia.sh', '--check'], check=True)
+PY
+printf '\nHESTIA Installer local target Quality: PASS\n'

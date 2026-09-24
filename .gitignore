@@ -18,3 +18,4 @@ build/
 *.tmp
 *.swp
 installer-state.json
+quality-results/

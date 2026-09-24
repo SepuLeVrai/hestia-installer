@@ -1,0 +1,5 @@
+# Test dependencies only. Never installed by install-hestia.sh.
+playwright==1.57.0
+greenlet==3.5.1
+pyee==13.0.1
+typing_extensions==4.16.0

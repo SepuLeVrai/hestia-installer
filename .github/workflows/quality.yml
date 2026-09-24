@@ -1,0 +1,167 @@
+name: Installer Quality
+
+on:
+  push:
+    branches: [main, 'quality/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installer-quality-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scope:
+    name: Scope and static guards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Determine required checks, fail closed
+        id: scope
+        env:
+          QUALITY_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python3 scripts/quality.py scope
+      - name: Mandatory source, syntax, permissions, docs and security guards
+        run: python3 scripts/quality.py static
+      - name: Test the Quality gate itself, including docs-only changes
+        run: python3 scripts/quality.py run tools
+
+  core:
+    name: Core / Debian ${{ matrix.debian }}
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        debian: ['12', '13']
+    container: debian:${{ matrix.debian }}-slim
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install test-only tools in disposable Debian
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -Eeuo pipefail
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ca-certificates git python3 nodejs openssl iproute2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Strict historical and regression tests, actual target preflight
+        run: |
+          set -Eeuo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir -p quality-results
+          ./scripts/quality-local.sh 2>&1 | tee quality-results/core.log
+      - name: Preserve non-secret evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: installer-quality-core-debian-${{ matrix.debian }}
+          path: quality-results/
+          if-no-files-found: error
+          retention-days: 7
+
+  browser:
+    name: Browser / bridge and native HTTPS
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: debian:13-slim
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install test-only tools in disposable Debian
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -Eeuo pipefail
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ca-certificates git python3 python3-venv nodejs chromium openssl iproute2
+          python3 -m venv /opt/quality-venv
+          echo /opt/quality-venv/bin >> "$GITHUB_PATH"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned browser test libraries
+        run: python3 -m pip install --disable-pip-version-check -r requirements-quality.txt
+      - name: Historical bridge and native browser, original assets
+        env:
+          HESTIA_QC_SCREENSHOTS: quality-results/screenshots
+        run: |
+          set -Eeuo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir -p quality-results
+          python3 --version > quality-results/environment.txt
+          chromium --version >> quality-results/environment.txt
+          node --version >> quality-results/environment.txt
+          python3 -m pip freeze >> quality-results/environment.txt
+          ./scripts/quality-wizard.sh --browser-only 2>&1 | tee quality-results/browser.log
+      - name: Preserve non-secret evidence and original-asset screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: installer-quality-browser
+          path: quality-results/
+          if-no-files-found: error
+          retention-days: 7
+
+  quality:
+    name: Installer Quality gate
+    needs: [scope, core, browser]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Reject failed, cancelled, missing or unexpectedly skipped checks
+        env:
+          QUALITY_CODE: ${{ needs.scope.outputs.code }}
+          QUALITY_SCOPE_RESULT: ${{ needs.scope.result }}
+          QUALITY_CORE_RESULT: ${{ needs.core.result }}
+          QUALITY_BROWSER_RESULT: ${{ needs.browser.result }}
+        run: python3 scripts/quality.py gate
+      - name: Gather exact-run test evidence
+        if: needs.scope.outputs.code == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: installer-quality-*
+          path: quality-results/received
+      - name: Package only the exact source tested on both Debian versions
+        if: needs.scope.outputs.code == 'true'
+        run: python3 scripts/quality.py package --reports quality-results/received --output dist
+      - name: Publish the verified source package
+        if: needs.scope.outputs.code == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: installer-verified-source
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Explicit check scope in summary
+        env:
+          QUALITY_CODE: ${{ needs.scope.outputs.code }}
+        run: |
+          if [ "$QUALITY_CODE" = true ]; then
+            printf '## Installer Quality: PASS\nDebian 12/13, DOM bridge, native HTTPS browser and exact-source packaging passed.\n' >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '## Documentation Quality: PASS\nDocumentation-only change. Application/browser tests were not requested; no application package was published.\n' >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -222,3 +222,17 @@ Le client crée le DOM par textContent/createElement. Il traduit une liste ferm�
 de codes d'erreur, ne persiste pas de secret et n'en réinjecte aucun après envoi.
 Le refresh lit l'état ; aucune mutation n'est rejouée automatiquement. Logout
 efface le credential et la session, pas les sources. Voir [WIZARD.md](WIZARD.md).
+
+## Contrôles permanents et chaîne de livraison
+
+Le dispositif [Quality](QUALITY.md) s'exécute sans secrets applicatifs, avec le
+credential Actions en lecture seule et sans persistance dans Git. Les tests root
+restent dans des conteneurs Debian jetables, pas sur l'infrastructure HESTIA.
+Les tests navigateur utilisent les assets et la CSP de production sans pont pour
+la suite native ; l'acceptation du certificat auto-signé est locale au banc de test.
+Les fixtures ne prouvent pas un accès effectif aux dépôts privés avec PAT réel.
+
+L'inventaire refuse les tests manquants/ignorés et les preuves de livraison incluent
+le contenu et le mode Unix de chaque fichier. Le packaging ne remplace pas la
+revue sécurité des futurs adaptateurs. La protection GitHub de main est distincte
+du workflow et nécessite une configuration administrative vérifiée.

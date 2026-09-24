@@ -118,3 +118,11 @@ Le chantier global est suivi dans :
 ```
 
 La Phase 1 ne modifie ni `schema.sql` ni `install.php` et n'effectue aucune mutation HESTIA, MariaDB, Apache, NGINX, Gateway ou APK.
+
+## Quality permanente
+
+Les commandes, la matrice Debian 12/13, les tests navigateur natifs et les limites
+sont décrits dans [docs/QUALITY.md](docs/QUALITY.md). Le workflow Installer Quality
+publie des preuves et un ZIP du code exact testé uniquement après réussite des
+contrôles requis. Pour reprendre le chantier avant la Phase 5, consulter
+[docs/PREREQUISITES_20260924.md](docs/PREREQUISITES_20260924.md).

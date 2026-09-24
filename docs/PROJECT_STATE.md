@@ -111,3 +111,16 @@ n'est revendiqué dans l'environnement de Quality.
 Phase 5 : contrat HESTIA Web. Intégrer le parcours réel fresh/upgrade du Web,
 sa configuration, sa base et son premier administrateur avec les protections
 et tests correspondants. Ne pas simuler le déploiement dans le wizard.
+
+## 2026-09-24 - Consolidation Phase 4 et Quality permanente
+
+La Phase 4 est publiée au commit `2d86b36da536f118ae5dbb79ddbba663644cf18f`.
+Le défaut de mode 0644 de son script quality-wizard.sh est corrigé et couvert.
+Le workflow Installer Quality, les tests stricts, la matrice Debian 12/13,
+le navigateur HTTPS natif et la preuve de packaging exact sont ajoutés.
+
+Description, limites et commandes : [QUALITY.md](QUALITY.md).
+Traçabilité et préparation Phase 5 : [PREREQUISITES_20260924.md](PREREQUISITES_20260924.md).
+Les résultats mesurés du commit livré sont ceux de ses artefacts Actions et de
+son compte rendu. L'ajout du workflow n'active pas une protection de branche
+administrative. Le périmètre applicatif demeure celui des sources prêtes.
