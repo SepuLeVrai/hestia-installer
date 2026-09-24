@@ -1,0 +1,99 @@
+name: Prepare isolated 5B2.2a tree
+on:
+  push:
+    branches: ['verification/phase5b22a-assembly-20260924']
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Reconstruct exact candidate as unattached Git objects only
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, os, subprocess, urllib.request
+          from pathlib import Path
+          base = '93e7d7c1be273c9e17a1fc97846b062367cdb5e5'
+          tree = 'c9abcd35d714ded3e6d0480d8af90e0a77438314'
+          names = {'.github/workflows/quality.yml', 'docs/HANDOFF_WORK_20260925.md',
+                   'docs/PHASE5B22A_LOCAL_SQL_CONFIGURATION.md', 'docs/PROJECT_STATE.md',
+                   'docs/QUALITY.md', 'installer/database_config.py',
+                   'installer/private/database_loader.php', 'installer/private/sql_accounts_bridge.php',
+                   'installer/private/sql_accounts_policy.php', 'installer/sql_accounts.py',
+                   'scripts/quality-local.sh', 'tests/quality-baseline.json',
+                   'tests/sql_accounts_fixture.py', 'tests/test_database_config.py',
+                   'tests/test_sql_accounts.py', 'tests/test_sql_accounts_mariadb.py'}
+          parts = sorted(Path('.assembly/phase5b22a').glob('source.*.b64'))
+          assert len(parts) == 5
+          compressed = base64.b64decode(''.join(p.read_text() for p in parts), validate=True)
+          assert hashlib.sha256(compressed).hexdigest() == 'c0728b7730b95bff11102cb0938b66055ea02ef95356c951d08f3a31fea7b36c'
+          raw = lzma.decompress(compressed, memlimit=268435456)
+          assert len(raw) < 524288
+          package = json.loads(raw)
+          assert set(package) == {'base', 'tree', 'files'}
+          assert package['base'] == base and package['tree'] == tree
+          assert set(package['files']) == names
+          root = Path(os.environ['RUNNER_TEMP']) / 'phase5b22a-prepared'
+          subprocess.run(['git', 'worktree', 'add', '--detach', str(root), base], check=True)
+          def git(*args):
+              return subprocess.check_output(['git', '-C', str(root), *args], text=True).strip()
+          manifest = {}
+          for name, item in package['files'].items():
+              path = root / name
+              mode = item['mode']
+              assert mode == ('100755' if name == 'scripts/quality-local.sh' else '100644')
+              if 'new' in item:
+                  assert set(item) == {'mode', 'new'} and not path.exists()
+                  text = item['new']
+              else:
+                  assert set(item) == {'mode', 'base_sha256', 'edits'}
+                  previous = path.read_bytes()
+                  assert hashlib.sha256(previous).hexdigest() == item['base_sha256']
+                  text = previous.decode('utf-8')
+                  for start, end, replacement in reversed(item['edits']):
+                      assert 0 <= start <= end <= len(text)
+                      text = text[:start] + replacement + text[end:]
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_bytes(text.encode('utf-8')); path.chmod(int(mode[-3:], 8))
+              content = path.read_bytes()
+              manifest[name] = {'sha256': hashlib.sha256(content).hexdigest(), 'mode': mode,
+                                'sha': hashlib.sha1(b'blob ' + str(len(content)).encode() + b'\0' + content).hexdigest()}
+          git('add', '--force', '--', *sorted(names))
+          assert git('write-tree') == tree
+          endpoint = 'https://api.github.com/repos/SepuLeVrai/hestia-installer/git/'
+          def post(kind, data):
+              request = urllib.request.Request(endpoint + kind, json.dumps(data).encode(),
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                           'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json',
+                           'User-Agent': 'HESTIA-exact-tree-preparation'}, method='POST')
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  body = response.read(1048577)
+                  assert len(body) <= 1048576
+                  return json.loads(body)
+          entries = []
+          for name, item in manifest.items():
+              result = post('blobs', {'content': (root / name).read_text(), 'encoding': 'utf-8'})
+              assert result['sha'] == item['sha']
+              entries.append({'path': name, 'type': 'blob', 'mode': item['mode'], 'sha': item['sha']})
+          result = post('trees', {'base_tree': '9bf8700c14f1abe2de8c505f061412f2a92279f9', 'tree': entries})
+          assert result['sha'] == tree
+          Path('prepared-evidence').mkdir()
+          Path('prepared-evidence/prepared.json').write_text(json.dumps({'base': base, 'tree': tree, 'files': manifest}, indent=2))
+          print('PREPARED_TREE=' + tree)
+          print('No branch reference or application runtime changed; candidate Quality still required.')
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: phase5b22a-prepared-tree
+          path: prepared-evidence/
+          retention-days: 1
+          if-no-files-found: error
