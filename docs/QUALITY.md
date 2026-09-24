@@ -138,3 +138,19 @@ Le check à rendre obligatoire dans un ruleset/protection est :
 droits Administration du dépôt ; le connecteur de ce chantier n'offre pas cette
 écriture. Ne pas affirmer qu'une protection serveur est activée sans la vérifier.
 La livraison du présent lot ne promeut main qu'après lecture des preuves vertes.
+
+## Extension 5B2.1 : transport privé PHP
+
+La suite core conserve les scénarios historiques et ajoute 36 tests de transport.
+Outils de test requis en plus : php-cli, php-mysql, useradd/userdel (paquet passwd),
+setpriv/prlimit (util-linux). Ils sont installés seulement dans les conteneurs
+Quality ; le lot ne provisionne pas ces dépendances sur une cible applicative.
+Les tests créent puis suppriment une identité système non interactive de fixture.
+Ils nécessitent donc un environnement root jetable, pas un serveur de production.
+
+Le banc MariaDB opt-in est séparé des tests unitaires sans SQL. Son exécution
+sur les fichiers Installer exacts et le Web épinglé est une preuve additionnelle,
+pas un remplacement des contrôles Debian, bridge, HTTPS natif et packaging.
+Aucun ancien run Web/Installer ne qualifie le nouvel adaptateur. Les campagnes
+isolées de recette ne sont pas des branches de reprise ni des sources à fusionner.
+Voir [PHASE5B21_PRIVATE_TRANSPORT.md](PHASE5B21_PRIVATE_TRANSPORT.md).

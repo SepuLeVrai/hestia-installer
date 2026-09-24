@@ -141,3 +141,23 @@ n'est déduit des tests de configuration de 5A. Aucun SQL/install.php à modifie
 Statut 5A : lot local non publié, envoi GitHub bloqué par la plateforme. Le test
 natif local est bloqué par la politique Chromium ; ne pas déclarer la CI complète
 verte. La base de reprise distante reste le dernier commit des préalables.
+
+## 2026-09-24 - Reprise qualifiée 5A/5B1 et sous-lot 5B2.1
+
+La Phase 5A est publiée sur main Installer au commit
+`13df634237ba818c199121d23f4bceea8bf2a5b1`. La Phase 5B1 Web est publiée et
+qualifiée sur main/dev-Bastien au commit `dcb856bc5ef5f35006d2398289b49f5386dcc5f5`.
+Ces références remplacent les statuts historiques locaux ci-dessus pour la reprise.
+
+Le présent sous-lot ajoute seulement le transport privé Python/PHP, l'empreinte
+fermée des sources exécutées, la séparation d'identité, les canaux bornés et
+l'interlock empêchant un second fresh après perte de réponse. Une observation
+SQL non mutante est disponible, sans autorisation de rejeu ou déclaration d'une
+installation complète. Aucune façade publique ou écran n'est raccordé.
+Le code applicatif Web reste inchangé. Le périmètre suivant reste 5B2.2, pas 5C.
+Contrat, préconditions, tests et limites :
+[PHASE5B21_PRIVATE_TRANSPORT.md](PHASE5B21_PRIVATE_TRANSPORT.md).
+
+La publication effective de ce lot et la réussite des nouveaux runs doivent être
+vérifiées dans le compte rendu de livraison ; ce document ne recycle pas les
+résultats 5A/5B1 comme preuve de 5B2.1. #13 et Web #135 restent transverses ouverts.

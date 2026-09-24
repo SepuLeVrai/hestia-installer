@@ -61,7 +61,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           apt-get update -qq
-          apt-get install -y --no-install-recommends ca-certificates git python3 nodejs openssl iproute2
+          apt-get install -y --no-install-recommends ca-certificates git python3 nodejs openssl iproute2 php-cli php-mysql passwd util-linux
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

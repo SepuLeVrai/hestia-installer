@@ -14,4 +14,4 @@ packages = ["installer", "installer.modules"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-installer = ["web/*.html", "web/assets/*"]
+installer = ["web/*.html", "web/assets/*", "private/*.php"]
