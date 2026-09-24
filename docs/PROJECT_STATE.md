@@ -87,9 +87,27 @@ APK, aucun asset UI modifié. Le credential réel de l'utilisateur n'est pas fou
 à l'environnement de Quality ; les essais sortants utilisent un serveur HTTPS
 local contrôlé, pas un téléchargement privé réel depuis GitHub.
 
+## 2026-09-23 - Phase 4 / issue #11
+
+Base : `710760aec85ae96795224adce8e91e37e5cb86e5`.
+
+Les formulaires et boutons des six écrans sont reliés aux opérations typées.
+Le brouillon serveur non secret survit à la reconnexion, les prérequis bloquent
+la suite, le plan impose une confirmation et le suivi propose retry/rollback
+ciblés ainsi qu'un rapport. La composition UX reste celle de référence.
+
+L'issue #4 a été documentée et clôturée pour régulariser la Phase 2 déjà publiée
+et acceptée. #11 suit cette livraison fonctionnelle limitée à l'acquisition.
+L'issue #3 reste ouverte pour les écrans applicatifs ultérieurs, sans déclarer
+qu'une acquisition réussie est une installation complète. Détails dans WIZARD.md
+et résultats/limites dans QUALITY_PHASE4.md.
+
+Aucun autre dépôt modifié, aucune évolution SQL/schema.sql/install.php,
+aucune compilation Android. Aucun téléchargement privé avec un PAT utilisateur
+n'est revendiqué dans l'environnement de Quality.
+
 ## Prochaine frontière
 
-Phase 4 : connecter les formulaires et boutons du wizard aux opérations typées,
-sans refaire l'UX figée. Commencer par l'accès GitHub, la sélection des modules,
-l'affichage du plan et la reprise d'état. Les contrats applicatifs Web/Gateway,
-la publication APK, le réseau et l'import restent dans les phases suivantes.
+Phase 5 : contrat HESTIA Web. Intégrer le parcours réel fresh/upgrade du Web,
+sa configuration, sa base et son premier administrateur avec les protections
+et tests correspondants. Ne pas simuler le déploiement dans le wizard.

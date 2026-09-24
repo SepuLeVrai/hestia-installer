@@ -1,13 +1,19 @@
-"""Typed HTTPS facade. UI wiring is deliberately deferred to the wizard phase."""
+"""Typed HTTPS facade for the wizard and transaction engine."""
 from __future__ import annotations
 
 import threading
 from contextlib import contextmanager
 
 from installer.engine import TransactionEngine
+from installer.wizard import WizardDraft, preflight_snapshot
+from installer.operations import default_registry
 from installer.model import ErrorCode, InstallerError, exact_keys, require
 
 POST_ROUTES = {
+    "/api/wizard/draft": "wizard.draft",
+    "/api/wizard/plan": "wizard.plan",
+    "/api/wizard/reset-plan": "wizard.reset-plan",
+    "/api/preflight/run": "preflight.run",
     "/api/installation/plan": "plan",
     "/api/installation/apply": "apply",
     "/api/installation/resume": "resume",
@@ -17,13 +23,15 @@ POST_ROUTES = {
     "/api/github/plan": "github.plan",
     "/api/github/clear": "github.clear",
 }
-GET_ROUTES = frozenset({"/api/installation/state", "/api/installation/report", "/api/github/status"})
+GET_ROUTES = frozenset({"/api/wizard/state", "/api/installation/state", "/api/installation/report", "/api/github/status"})
 
 
 class TransactionService:
     def __init__(self, engine: TransactionEngine, *, github=None) -> None:
         self.engine = engine
         self.github = github
+        self.wizard = WizardDraft(engine)
+        self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
         self._active = 0
@@ -49,6 +57,13 @@ class TransactionService:
         finally:
             self._mutation_lock.release()
 
+    def wizard_state(self) -> dict:
+        with self._activity():
+            # Readers never wait for a long acquisition. A stale RUNNING snapshot
+            # does not authorize a replay; mutations retain the engine's lock.
+            return {"installation": self.engine.report(), "draft": self.wizard.read(),
+                    "busy": self._mutation_lock.locked(), "preflight": self._preflight}
+
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
             require(self.github is not None, ErrorCode.UNSUPPORTED_MODULE)
@@ -65,6 +80,24 @@ class TransactionService:
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action == "wizard.draft":
+                return {"draft": self.wizard.save(payload)}
+            if action == "preflight.run":
+                exact_keys(payload, set())
+                self._preflight = preflight_snapshot()
+                return {"preflight": self._preflight}
+            if action == "wizard.plan":
+                require(self.github is not None, ErrorCode.UNSUPPORTED_MODULE)
+                exact_keys(payload, {"modules", "refs", "mode"})
+                self._preflight = preflight_snapshot()
+                require(self._preflight["ok"], ErrorCode.VALIDATION_FAILED)
+                return {"installation": self.github.plan(payload)}
+            if action == "wizard.reset-plan":
+                exact_keys(payload, {"confirm", "confirmation"})
+                require(payload["confirm"] is True, ErrorCode.CONFIRMATION_REQUIRED)
+                self.engine.discard_unapproved(payload["confirmation"])
+                self.engine.registry = default_registry()
+                return {"installation": None, "draft": self.wizard.read()}
             if action in {"github.validate", "github.plan", "github.clear"}:
                 require(self.github is not None, ErrorCode.UNSUPPORTED_MODULE)
                 if action == "github.validate":

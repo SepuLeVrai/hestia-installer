@@ -201,6 +201,12 @@ class TransactionEngine:
             document.update(state=state, last_error_redacted=error)
             self._save(locked, document)
 
+    def discard_unapproved(self, confirmation: str) -> None:
+        """Explicitly abandon only a plan which has never been approved or run."""
+        with self.journal.locked() as locked:
+            document = self._load(locked, confirmation)
+            locked.discard_unapproved(document)
+
     def apply(self, confirmation: str) -> dict:
         return self._forward(confirmation, resume=False)
 

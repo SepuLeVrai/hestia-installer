@@ -149,6 +149,7 @@ class GitHubClient:
     def validate_all(self, token: str) -> dict[str, SourceSpec]:
         credential(token)
         result = {}
+        self.validation_checks = {module: "UNCHECKED" for module in REPOSITORIES}
         for module, repository in REPOSITORIES.items():
             try:
                 metadata = strict_json_loads(self._bytes(repository, "", token))
@@ -156,9 +157,12 @@ class GitHubClient:
                         ErrorCode.GITHUB_INVALID_RESPONSE)
                 # SHA media endpoint requires Contents:read, unlike repo metadata.
                 result[module] = self.resolve(module, metadata.get("default_branch"), token)
-            except InstallerError:
+                self.validation_checks[module] = "ACCESSIBLE"
+            except InstallerError as exc:
+                self.validation_checks[module] = ("DENIED" if exc.code == ErrorCode.GITHUB_ACCESS_DENIED else "UNAVAILABLE")
                 raise
             except Exception:
+                self.validation_checks[module] = "UNAVAILABLE"
                 raise InstallerError(ErrorCode.GITHUB_INVALID_RESPONSE) from None
         return result
 
@@ -200,11 +204,13 @@ class GitHubAccess:
         self._clock = clock
         self._expires = 0.0
         self._validated: dict[str, SourceSpec] = {}
+        self._checks = {module: "UNCHECKED" for module in REPOSITORIES}
 
     def clear(self) -> None:
         self.vault.delete(SECRET_NAME)
         self._expires = 0.0
         self._validated = {}
+        self._checks = {module: "UNCHECKED" for module in REPOSITORIES}
 
     def token(self) -> str:
         if self._clock() >= self._expires or set(self._validated) != set(REPOSITORIES):
@@ -220,18 +226,29 @@ class GitHubAccess:
             self.vault.put(SECRET_NAME, token)
             self.vault.reject_in({name: spec.as_dict() for name, spec in result.items()})
             self._validated = result
+            self._checks = {module: "ACCESSIBLE" for module in REPOSITORIES}
             self._expires = self._clock() + CREDENTIAL_TTL
             return self.status()
         except Exception:
             self.clear()
+            candidate = getattr(self.client, "validation_checks", {})
+            self._checks = {module: candidate.get(module, "UNCHECKED")
+                            if candidate.get(module) in {"ACCESSIBLE", "DENIED", "UNAVAILABLE"}
+                            else "UNCHECKED" for module in REPOSITORIES}
             raise
 
     def status(self) -> dict:
+        if self._expires > 0 and self._clock() >= self._expires:
+            self.clear()
+        checks = [{"module": module, "status": self._checks[module]} for module in REPOSITORIES]
         try:
             self.token()
         except InstallerError:
-            return {"ready": False, "repositories": []}
-        return {"ready": True, "repositories": [
+            # A failed validation has already cleared the secret; retain only
+            # fixed per-repository status codes until another validation/clear.
+            self._checks = {item["module"]: item["status"] for item in checks}
+            return {"ready": False, "repositories": [], "checks": checks}
+        return {"ready": True, "checks": checks, "repositories": [
             {"module": name, **spec.as_dict()} for name, spec in self._validated.items()
         ]}
 

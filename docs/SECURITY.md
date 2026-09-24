@@ -205,3 +205,20 @@ Un root hostile ou un stockage défaillant reste hors de la garantie. Un état l
 ambigu, une preuve manquante ou une dérive ne justifie jamais un écrasement : arrêt
 conservateur. Une suppression interrompue au milieu de son arborescence peut exiger
 une action manuelle si la preuve de propriété a disparu.
+
+## Phase 4 - Cockpit fonctionnel
+
+Le brouillon `wizard.json` a un schéma fermé, une limite de 8192 octets, un verrou
+partagé avec le journal et un contrôle de révision. Les lectures/écritures sont
+relatives au répertoire privé vérifié ; liens, fichiers spéciaux et droits trop
+larges sont refusés. L'écriture est atomique avec synchronisation des données et
+du répertoire. Aucun credential n'est accepté dans ce fichier.
+
+Le préflight du wizard est revérifié côté serveur avant planification. Les nouvelles
+routes conservent session/CSRF/Host/Origin. Le retrait confirmé d'un plan ne concerne
+que les plans jamais approuvés ni exécutés ; il n'efface pas un journal d'audit.
+
+Le client crée le DOM par textContent/createElement. Il traduit une liste fermée
+de codes d'erreur, ne persiste pas de secret et n'en réinjecte aucun après envoi.
+Le refresh lit l'état ; aucune mutation n'est rejouée automatiquement. Logout
+efface le credential et la session, pas les sources. Voir [WIZARD.md](WIZARD.md).

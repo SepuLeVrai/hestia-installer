@@ -335,7 +335,7 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
 
         if path in GET_ROUTES:
             if self._require_session() is not None:
-                self._transaction_request("github.status" if path == "/api/github/status" else None)
+                self._transaction_request({"/api/github/status": "github.status", "/api/wizard/state": "wizard.state"}.get(path))
             return
 
         if path == "/api/bootstrap/status":
@@ -445,7 +445,12 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "TRANSACTION_SERVICE_UNAVAILABLE"})
             return
         try:
-            response = service.github_status() if action == "github.status" else (service.report() if action is None else service.execute(action, payload))
+            if action == "wizard.state":
+                response = service.wizard_state()
+            elif action == "github.status":
+                response = service.github_status()
+            else:
+                response = service.report() if action is None else service.execute(action, payload)
         except InstallerError as exc:
             status = HTTPStatus.BAD_REQUEST if exc.code in {
                 ErrorCode.INVALID_DATA, ErrorCode.SECRET_REJECTED,

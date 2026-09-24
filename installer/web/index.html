@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#efe6dc">
   <title>Installation de HESTIA</title>
   <link rel="stylesheet" href="assets/installer.css">
+  <link rel="stylesheet" href="assets/wizard.css">
 </head>
 <body>
   <main class="installer-window" aria-labelledby="wizard-title">
@@ -36,7 +37,7 @@
         <span class="sr-only">Un espace plus serein pour de plus grands possibles.</span>
       </section>
 
-      <section class="content-panel" aria-live="polite">
+      <section class="content-panel">
         <div class="brand-block" aria-label="HESTIA - Harmonie, Création, Équilibre">
           <svg class="brand-emblem" viewBox="0 0 126 112" role="img" aria-label="Flamme HESTIA">
             <path class="brand-arc" d="M12 86A52 52 0 1 1 114 86" fill="none" pathLength="100" />
@@ -50,11 +51,11 @@
 
         <div class="wizard-content" id="wizard-content">
           <p class="eyebrow" id="wizard-eyebrow">Installation clé en main</p>
-          <h1 id="wizard-title">Bienvenue dans l'installation
+          <h1 id="wizard-title" tabindex="-1">Bienvenue dans l'installation
 de HESTIA</h1>
           <p class="lead" id="wizard-lead">Cet assistant va vous guider pas à pas pour installer et configurer votre environnement HESTIA.</p>
 
-          <div class="feature-grid" aria-label="Principes de l'installation">
+          <div class="feature-grid" id="welcome-features" aria-label="Principes de l'installation">
             <article class="feature-card">
               <div class="feature-icon" aria-hidden="true">
                 <svg viewBox="0 0 32 32"><path d="M16 3 27 7v8c0 7-4.5 11.6-11 14-6.5-2.4-11-7-11-14V7l11-4Z"/><path d="m11.5 16 3 3 6.5-7" class="icon-detail"/></svg>
@@ -74,6 +75,9 @@ de HESTIA</h1>
               <div><strong>Pensé pour vous</strong><span>Un environnement plus harmonieux</span></div>
             </article>
           </div>
+          <p id="wizard-message" class="wizard-message" role="status" aria-live="polite"></p>
+          <div id="wizard-form"></div>
+          <noscript>JavaScript est nécessaire pour cet assistant. Aucun changement n'est effectué sans confirmation.</noscript>
         </div>
 
         <div class="wizard-bottom">
@@ -83,7 +87,7 @@ de HESTIA</h1>
                 <span id="step-label">Préambule</span>
                 <span id="step-name">Bienvenue</span>
               </div>
-              <div class="progress-track" id="progress-track" role="progressbar" aria-valuemin="1" aria-valuemax="6" aria-valuenow="1" aria-label="Progression de l'installation">
+              <div class="progress-track" id="progress-track" role="group" aria-label="Progression de l'installation">
                 <button type="button" class="progress-dot is-active" data-step="0" aria-label="Préambule - Bienvenue"></button>
                 <span></span>
                 <button type="button" class="progress-dot" data-step="1" aria-label="Étape 1 - Accès GitHub"></button>
@@ -102,7 +106,7 @@ de HESTIA</h1>
 
           <footer class="wizard-actions">
             <button type="button" class="action-button action-secondary" id="previous-button" disabled>Précédent</button>
-            <button type="button" class="action-button action-primary" id="next-button"><span id="next-button-label">Suivant</span> <span aria-hidden="true">›</span></button>
+            <button type="button" class="action-button action-primary" id="next-button" disabled><span id="next-button-label">Suivant</span> <span aria-hidden="true">›</span></button>
             <button type="button" class="action-button action-ghost" id="cancel-button">Annuler</button>
           </footer>
         </div>
@@ -114,14 +118,24 @@ de HESTIA</h1>
     <form method="dialog">
       <div class="dialog-mark" aria-hidden="true">H</div>
       <h2 id="cancel-title">Quitter l'installation ?</h2>
-      <p>Cette maquette ne modifie rien sur le système. Vous pouvez reprendre là où vous étiez.</p>
+      <p>La session et le jeton GitHub seront effacés. Le journal est conservé. Pour rouvrir l'assistant, relancez le bootstrap dans le terminal. Quitter ne supprime aucune source.</p>
       <div class="dialog-actions">
         <button value="resume" class="action-button action-primary">Reprendre</button>
-        <button value="reset" class="action-button action-secondary">Revenir au début</button>
+        <button value="quit" class="action-button action-secondary">Fermer ma session</button>
       </div>
     </form>
   </dialog>
 
+  <dialog class="cancel-dialog" id="operation-dialog" aria-labelledby="operation-title">
+    <form method="dialog">
+      <h2 id="operation-title">Confirmer l'action</h2>
+      <p id="operation-description"></p>
+      <div class="dialog-actions">
+        <button value="cancel" class="action-button action-secondary">Annuler</button>
+        <button value="confirm" class="action-button action-primary">Confirmer</button>
+      </div>
+    </form>
+  </dialog>
   <script src="assets/installer.js"></script>
 </body>
 </html>

@@ -201,3 +201,16 @@ Les adaptateurs de production sont désormais `preflight.run` et `github.acquire
 `DONE` signifie ici « sources acquises et vérifiées », jamais « HESTIA déployé ».
 Les boutons du wizard restent inchangés jusqu'à la Phase 4.
 Voir [GITHUB_ACQUISITION.md](GITHUB_ACQUISITION.md).
+
+## Phase 4 - Wizard connecté
+
+Les six écrans de l'UX existante pilotent maintenant les routes typées du moteur :
+validation GitHub, préflight, sélection, plan, acquisition et suivi/reprise.
+`installer/wizard.py` porte le brouillon non secret privé et les contrôles normalisés.
+`TransactionService` conserve la sérialisation des mutations et fournit un snapshot
+lisible pendant leur exécution. Aucun nouveau serveur ni dépendance runtime.
+
+`wizard.json` conserve uniquement les choix pré-plan ; `state.json` fait autorité
+dès la planification. Les sessions, CSRF et credentials restent éphémères. Le contrat
+et les confirmations sont décrits dans [WIZARD.md](WIZARD.md). Le résultat est une
+acquisition de sources, pas un déploiement Web/Gateway/APK.

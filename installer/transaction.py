@@ -147,6 +147,21 @@ class _LockedJournal:
         self._journal = journal
         self._directory_fd = directory_fd
 
+    @property
+    def directory_fd(self) -> int:
+        """Borrowed private dirfd, valid only while the shared transaction lock is held."""
+        return self._directory_fd
+
+    def discard_unapproved(self, document: dict) -> None:
+        current = self.read()
+        require(current == document and current is not None, ErrorCode.BUSY)
+        require(current["approved_plan_sha256"] is None and current["state"] == "PLANNED"
+                and current["rollback_boundary"] is None
+                and all(r["state"] == "PLANNED" and r["attempts"] == 0 for r in current["steps"]),
+                ErrorCode.PLAN_EXISTS)
+        os.unlink(self._journal.path.name, dir_fd=self._directory_fd)
+        os.fsync(self._directory_fd)
+
     def read(self) -> dict | None:
         return self._journal._read_at(self._directory_fd)
 
