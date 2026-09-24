@@ -1,0 +1,27 @@
+name: Phase5B isolated test dependencies
+on:
+  push:
+    branches: ['verification/phase5b-environment-20260924']
+permissions:
+  contents: read
+jobs:
+  packages:
+    runs-on: ubuntu-24.04
+    container: debian:13-slim
+    timeout-minutes: 5
+    steps:
+      - name: Download signed-distribution packages for isolated qualification only
+        run: |
+          set -eu
+          apt-get update -qq
+          apt-get install -y --download-only --no-install-recommends php8.4-cli php8.4-mysql mariadb-server mariadb-client openssl
+          mkdir -p /tmp/phase5b-dependencies
+          cp /var/cache/apt/archives/*.deb /tmp/phase5b-dependencies/
+          cd /tmp/phase5b-dependencies
+          sha256sum *.deb > SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: phase5b-test-dependencies-debian13
+          path: /tmp/phase5b-dependencies/
+          retention-days: 1
+          if-no-files-found: error
