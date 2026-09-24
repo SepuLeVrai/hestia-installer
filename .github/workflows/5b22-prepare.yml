@@ -13,63 +13,48 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Reconstruct exact source and create unattached blobs only
+      - name: Reconstruct exact test correction and create unattached blobs only
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -Eeuo pipefail
           python3 - <<'PY'
-          import base64, hashlib, json, lzma, os, subprocess, urllib.request
+          import base64,hashlib,json,lzma,os,subprocess,urllib.request
           from pathlib import Path
-          parts = sorted(Path('.quality/5b22').glob('source.*.b64'))
-          assert len(parts) == 3
-          blob = base64.b64decode(''.join(p.read_text() for p in parts), validate=True)
-          assert hashlib.sha256(blob).hexdigest() == '466a9efd73eb187af1b0c25ea8a0837fcae91e11699ff05c4bc4fd97cad17270'
-          raw = lzma.decompress(blob, memlimit=268435456)
-          assert len(raw) <= 300000
-          v = json.loads(raw)
-          assert set(v) == {'base','tree','files'}
-          assert v['base'] == '07d0da54c317420463a3699ee96dd6000afa6c31'
-          assert v['tree'] == '62e369bd5e7a4d8eb0c625b0e1a8ddeb6d96c4ec'
-          assert set(v['files']) == {'docs/HANDOFF_WORK_20260925.md','docs/PHASE5B22_DATABASE_PREPARATION.md',
-              'docs/PROJECT_STATE.md','docs/QUALITY.md','installer/database_step.py','installer/php_transport.py',
-              'installer/private/database_loader_v2.php','installer/private/database_step_bridge.php',
-              'installer/private/sql_accounts_policy.php','tests/integration/database_step_mariadb.py',
-              'tests/quality-baseline.json','tests/sql_accounts_fixture.py','tests/test_database_step.py',
-              'tests/test_sql_accounts.py','tests/test_web_config.py','tests/web_configuration_fixture.py'}
-          root = Path(os.environ['RUNNER_TEMP'])/'step1-installer'
+          blob=base64.b64decode(Path('.quality/5b22/responsive.b64').read_text(),validate=True)
+          assert hashlib.sha256(blob).hexdigest()=='b3b6ab35ba408a86a84601e4881d86ef6890308c7efc75fb1e2d31b2c8a7b869'
+          raw=lzma.decompress(blob,memlimit=268435456);assert len(raw)<50000
+          v=json.loads(raw)
+          assert set(v)=={'base','tree','files'}
+          assert v['base']=='e5ae0dfa57d600a443985efe9105da49a7c03ca9'
+          assert v['tree']=='4c2a10909d6e75b86b898313105894f2a0cfcbe7'
+          assert set(v['files'])=={'tests/browser_wizard.py','docs/QUALITY.md','docs/HANDOFF_WORK_20260925.md'}
+          root=Path(os.environ['RUNNER_TEMP'])/'responsive-correction'
           subprocess.run(['git','worktree','add','--detach',str(root),v['base']],check=True)
           entries=[]
           for name,item in v['files'].items():
-              assert item['mode'] == '100644'
-              path=root/name
-              if 'text' in item:
-                  assert not path.exists();text=item['text']
-              else:
-                  data=path.read_bytes();assert hashlib.sha256(data).hexdigest()==item['base_sha256']
-                  text=data.decode('utf-8')
-                  for start,end,new in reversed(item['edits']):
-                      assert 0 <= start <= end <= len(text)
-                      text=text[:start]+new+text[end:]
-              path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(text.encode('utf-8'));path.chmod(0o644)
-              data=path.read_bytes()
+              assert item['mode']=='100644'
+              path=root/name;old=path.read_bytes();assert hashlib.sha256(old).hexdigest()==item['base_sha256']
+              text=old.decode('utf-8')
+              for start,end,new in reversed(item['edits']):
+                  assert 0<=start<=end<=len(text)
+                  text=text[:start]+new+text[end:]
+              data=text.encode('utf-8');path.write_bytes(data);path.chmod(0o644)
               assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==item['sha']
-              entries.append({'path':name,'type':'blob','mode':'100644','sha':item['sha']})
-          subprocess.run(['git','-C',str(root),'add','--force','--',*v['files']],check=True)
+              entries.append({'path':name,'mode':'100644','type':'blob','sha':item['sha']})
+          subprocess.run(['git','-C',str(root),'add','--',*v['files']],check=True)
           assert subprocess.check_output(['git','-C',str(root),'write-tree'],text=True).strip()==v['tree']
           for entry in entries:
               request=urllib.request.Request('https://api.github.com/repos/SepuLeVrai/hestia-installer/git/blobs',
                   json.dumps({'encoding':'utf-8','content':(root/entry['path']).read_text(encoding='utf-8')}).encode(),
                   headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json',
-                    'Content-Type':'application/json','User-Agent':'HESTIA-source-qualification'},method='POST')
+                  'Content-Type':'application/json','User-Agent':'HESTIA-source-qualification'},method='POST')
               with urllib.request.urlopen(request,timeout=30) as response:
-                  data=response.read(1048577);assert len(data) <= 1048576
-                  result=json.loads(data);assert result['sha']==entry['sha']
-          Path('evidence').mkdir()
-          Path('evidence/objects.json').write_text(json.dumps({'base':v['base'],'tree':v['tree'],'entries':entries},indent=2))
-          print('Exact source objects prepared: '+v['tree'])
-          print('No branch updated. Permanent Quality remains required before promotion.')
+                  data=response.read(1048577);assert len(data)<=1048576
+                  assert json.loads(data)['sha']==entry['sha']
+          Path('evidence').mkdir();Path('evidence/objects.json').write_text(json.dumps({'tree':v['tree'],'entries':entries},indent=2))
+          print('Exact test correction prepared; no branch updated. Full requalification required.')
           PY
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
