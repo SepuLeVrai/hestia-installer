@@ -124,3 +124,20 @@ Traçabilité et préparation Phase 5 : [PREREQUISITES_20260924.md](PREREQUISITE
 Les résultats mesurés du commit livré sont ceux de ses artefacts Actions et de
 son compte rendu. L'ajout du workflow n'active pas une protection de branche
 administrative. Le périmètre applicatif demeure celui des sources prêtes.
+
+## 2026-09-24 - Phase 5A, validation Web isolée
+
+Première frontière bornée après les interruptions de la préparation Phase 5 :
+validateur de configuration et route HTTPS authentifiée, sans mutation de cible,
+sans persistance de credentials, sans changement du wizard ou du moteur Web.
+La réponse est INPUT_ONLY, jamais un plan approuvé. Fresh/upgrade et les choix
+Assistant sont distingués explicitement. Détails et limites dans
+[PHASE5A_WEB_CONFIGURATION.md](PHASE5A_WEB_CONFIGURATION.md).
+
+Les sous-lots suivants sont 5B (moteur Web et fresh), 5C (upgrade/reprise/rollback),
+puis 5D (écrans et recette système intégrée). Aucun PASS de déploiement applicatif
+n'est déduit des tests de configuration de 5A. Aucun SQL/install.php à modifier ici.
+
+Statut 5A : lot local non publié, envoi GitHub bloqué par la plateforme. Le test
+natif local est bloqué par la politique Chromium ; ne pas déclarer la CI complète
+verte. La base de reprise distante reste le dernier commit des préalables.

@@ -6,10 +6,12 @@ from contextlib import contextmanager
 
 from installer.engine import TransactionEngine
 from installer.wizard import WizardDraft, preflight_snapshot
+from installer.web_config import validate_web_configuration
 from installer.operations import default_registry
 from installer.model import ErrorCode, InstallerError, exact_keys, require
 
 POST_ROUTES = {
+    "/api/web/config/validate": "web.config.validate",
     "/api/wizard/draft": "wizard.draft",
     "/api/wizard/plan": "wizard.plan",
     "/api/wizard/reset-plan": "wizard.reset-plan",
@@ -80,6 +82,10 @@ class TransactionService:
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action == "web.config.validate":
+                preview = validate_web_configuration(payload)
+                self.engine.secrets.reject_in(preview)
+                return {"web_configuration": preview}
             if action == "wizard.draft":
                 return {"draft": self.wizard.save(payload)}
             if action == "preflight.run":
