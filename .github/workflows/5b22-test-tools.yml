@@ -1,0 +1,30 @@
+name: Isolated Debian test dependencies
+on:
+  push:
+    branches: ['verification/5b22-test-tools-20260924']
+permissions:
+  contents: read
+jobs:
+  tools:
+    runs-on: ubuntu-24.04
+    container: debian:13-slim
+    timeout-minutes: 6
+    steps:
+      - name: Retrieve signed official Debian packages for disposable local tests only
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -eu
+          apt-get update -qq
+          apt-get install --download-only -y --no-install-recommends php-cli php-mysql php-mbstring php-gd php-zip php-xml php-curl mariadb-server composer
+          mkdir -p /tmp/hestia-test-tools
+          cp /var/cache/apt/archives/*.deb /tmp/hestia-test-tools/
+          cd /tmp/hestia-test-tools
+          sha256sum *.deb > SHA256SUMS
+          apt-cache policy php8.4-cli mariadb-server > ORIGIN.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: phase5b22-debian13-test-tools
+          path: /tmp/hestia-test-tools/
+          if-no-files-found: error
+          retention-days: 1
