@@ -127,7 +127,7 @@ class NativeBrowserTests(legacy.BrowserWizardTests):
         self.assertTrue(cookies[0]['secure'])
         self.assertEqual(cookies[0]['sameSite'], 'Strict')
         self.assertEqual(self.page.evaluate('document.cookie'), '')
-        self.page.wait_for_function("document.querySelector('.hero-image').complete")
+        self.page.wait_for_function("() => document.querySelector('.hero-image').complete")
         self.assertEqual(self.page.locator('.hero-image').evaluate('(image) => image.naturalWidth'), 1060)
         self.assertEqual(self.page.locator('.hero-image').evaluate('(image) => image.naturalHeight'), 1510)
         response = self.browser_context.request.get(self.url + '/')
@@ -211,7 +211,25 @@ class NativeBrowserTests(legacy.BrowserWizardTests):
                     if width > 820: self.assertLessEqual(result['footerBottom'],height,result)
                     self.assertIn('1e-05s',result['transition'])
         self.page.set_viewport_size({'width':1366,'height':768})
-        self.page.wait_for_function('innerHeight === 768 && parseFloat(getComputedStyle(document.body).minHeight) === 768')
+        self.page.wait_for_function('() => innerHeight === 768 && parseFloat(getComputedStyle(document.body).minHeight) === 768')
         if os.environ.get('HESTIA_QC_SCREENSHOTS'):
             directory=Path(os.environ['HESTIA_QC_SCREENSHOTS']); directory.mkdir(parents=True,exist_ok=True)
             self.page.screenshot(path=str(directory/'native-plan-desktop.png'))
+
+    def test_draft_refresh_empty_selection_and_advanced_ref(self):
+        self.modules()
+        self.page.locator("#module-web").uncheck()
+        expect(self.page.locator("#next-button")).to_be_disabled()
+        self.page.locator("#module-apk").check()
+        self.page.locator("#installation-mode").select_option("upgrade")
+        self.page.get_by_text("Références GitHub avancées", exact=True).click()
+        self.page.locator("#ref-apk").fill("feature/" + "a" * 150)
+        self.page.locator("#ref-apk").press("Tab")
+        self.page.wait_for_function("async () => (await (await fetch('/api/wizard/state')).json()).draft.refs.apk?.length === 158")
+        # Last saved draft is visible after refresh, without browser storage.
+        self.page.wait_for_function("() => document.getElementById('wizard-form').getAttribute('aria-busy') === 'false'")
+        self.refresh(); self.step(3)
+        expect(self.page.locator("#module-apk")).to_be_checked()
+        expect(self.page.locator("#module-web")).not_to_be_checked()
+        expect(self.page.locator("#installation-mode")).to_have_value("upgrade")
+

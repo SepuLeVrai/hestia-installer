@@ -107,7 +107,9 @@ n'est revendiqué. Les contrôles d'affichage ne remplacent pas une nouvelle
 validation artistique de l'UX déjà figée. Les mesures natives de redimensionnement
 attendent que le viewport et les unités CSS dynamiques aient réellement pris leur
 taille cible, avant les mêmes assertions strictes de débordement. Aucune tolérance
-de dépassement n'est ajoutée et aucun style de production n'est changé.
+de dépassement n'est ajoutée et aucun style de production n'est changé. Les
+attentes du banc natif utilisent des fonctions JavaScript explicites pour ne pas
+dépendre d'un eval de chaîne interdit par la CSP. La CSP n'est jamais affaiblie.
 
 ## Preuves, gel et livraison
 
