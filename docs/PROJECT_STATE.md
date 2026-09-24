@@ -1,5 +1,17 @@
 # État du projet
 
+## Point de reprise à lire en premier - 24 septembre 2026
+
+5A, 5B1 Web et 5B2.1 sont publiées/qualifiées. Le présent lot est **5B2.2a**,
+audit des comptes locaux existants et configuration protégée **non activée**.
+Il ne termine pas 5B2.2 : création des comptes/base et distant/TLS restent à faire.
+Les paragraphes historiques ci-dessous ne remplacent pas ce point de reprise.
+Pour WORK demain : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md).
+Contrat et limites : [PHASE5B22A_LOCAL_SQL_CONFIGURATION.md](PHASE5B22A_LOCAL_SQL_CONFIGURATION.md).
+Le commit publié et les résultats effectifs sont consignés dans Installer #13.
+Le wizard affiche toujours « Sources prêtes ». Aucun serveur HESTIA déployé.
+
+
 ## 2026-09-21
 
 Dépôt initialisé.

@@ -154,3 +154,24 @@ pas un remplacement des contrôles Debian, bridge, HTTPS natif et packaging.
 Aucun ancien run Web/Installer ne qualifie le nouvel adaptateur. Les campagnes
 isolées de recette ne sont pas des branches de reprise ni des sources à fusionner.
 Voir [PHASE5B21_PRIVATE_TRANSPORT.md](PHASE5B21_PRIVATE_TRANSPORT.md).
+
+## 5B2.2a - Contrôles SQL locaux et configuration privée
+
+Les contrôles historiques restent requis. La matrice core Debian 12/13 installe
+MariaDB uniquement dans ses conteneurs jetables et exécute désormais aussi les
+tests SQL de comptes existants. Ceux-ci créent un datadir/serveur isolé et refusent
+un port 3306 occupé. Le démarrage du service SQL par défaut des paquets est inhibé
+dans ces conteneurs. L'opt-in `HESTIA_ACCOUNT_DB_TEST=1` est obligatoire pour la
+commande `./scripts/quality-local.sh` ; sans lui, aucun PASS global n'est produit.
+
+Les ressources PHP privées sont toutes lintées. Le nouvel inventaire couvre
+les politiques de GRANT, rôles/PUBLIC, connexion réelle, préparation non active,
+permissions sous identités réelles, ACL, liens, secrets, données atypiques,
+concurrence, crash, fsync et préservation d'un upgrade refusé. Aucun nouveau
+workflow APK ou scénario UI n'est ajouté. Le packaging exact couvre les nouveaux
+fichiers comme les anciens ; une mutation après le snapshot invalide le paquet.
+
+Les versions effectivement testées et les nombres finaux sont ceux des rapports
+core du commit livré. Le test de connexion via les constantes générées n'est pas
+un test du Web complet avec compte DML. Contrat et limites :
+[PHASE5B22A_LOCAL_SQL_CONFIGURATION.md](PHASE5B22A_LOCAL_SQL_CONFIGURATION.md).

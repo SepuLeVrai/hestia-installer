@@ -60,12 +60,20 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           set -Eeuo pipefail
+          # No default SQL service may start in this disposable job. Tests create
+          # their own isolated datadir/server and refuse an occupied port.
+          if [ ! -e /usr/sbin/policy-rc.d ]; then
+            printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+            chmod 0755 /usr/sbin/policy-rc.d
+          fi
           apt-get update -qq
-          apt-get install -y --no-install-recommends ca-certificates git python3 nodejs openssl iproute2 php-cli php-mysql passwd util-linux
+          apt-get install -y --no-install-recommends ca-certificates git python3 nodejs openssl iproute2 php-cli php-mysql mariadb-server passwd util-linux
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Strict historical and regression tests, actual target preflight
+        env:
+          HESTIA_ACCOUNT_DB_TEST: '1'
         run: |
           set -Eeuo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
