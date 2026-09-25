@@ -1,5 +1,13 @@
 # Quality et non-régression de HESTIA Installer
 
+## Candidat WORK 5C2b
+
+Le [correctif DEFINER](PHASE5C2_DEFINER.md) conserve les suites historiques et
+ajoute quatre recettes SQL réelles (24 backup au total). La qualification du
+candidat est en cours ; les preuves 5C2a ci-dessous ne qualifient pas le correctif.
+Le vérificateur indépendant `tests/integration/source_pins.py` exige l'arbre Web
+exact et les cinq empreintes de contenu, sans adaptation automatique des pins.
+
 ## Frontière couverte actuelle - 5C2a
 
 Contrat : [PHASE5C2_BACKUP.md](PHASE5C2_BACKUP.md). Sauvegarde privée bornée,

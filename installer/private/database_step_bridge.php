@@ -7,6 +7,7 @@ set_error_handler(static function (): never { throw new RuntimeException('DATABA
 require_once __DIR__ . '/engine/includes/installation/connection.php';
 require_once __DIR__ . '/engine/includes/installation/fresh.php';
 require_once __DIR__ . '/sql_accounts_policy.php';
+require_once __DIR__ . '/trigger_definer.php';
 
 function dbstep_keys(mixed $value, array $keys): void
 {
@@ -104,6 +105,11 @@ function dbstep_run(#[SensitiveParameter] stdClass $request, bool &$mutated): ar
             $q = $authority->prepare('SELECT COUNT(*) FROM mysql.global_priv WHERE User IN (?, ?)');
             $q->execute([$request->application->user, $request->migration->user]);
             if ((int)$q->fetchColumn() !== 0) throw new RuntimeException('SQL_ACCOUNT_OCCUPIED');
+            $definerUser = hdf_user($target['name']);
+            if (in_array($definerUser, array_map(static fn($c) => $c->user, $credentials), true)) {
+                throw new RuntimeException('ACCOUNT_SEPARATION_REQUIRED');
+            }
+            hdf_absent($authority, $definerUser);
             $q = $authority->prepare('SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?');
             $q->execute([$target['name']]);
             if ((int)$q->fetchColumn() !== 0) throw new RuntimeException('SQL_DATABASE_OCCUPIED');
@@ -130,6 +136,7 @@ function dbstep_run(#[SensitiveParameter] stdClass $request, bool &$mutated): ar
             throw $error;
         }
         $mutated = true;
+        if ($managed) hdf_rebind_fresh($authority, $target['name'], $request->migration->user);
         // Observe actual fresh invariants through the restricted application connection.
         $q = $application->prepare("SELECT u.password_hash, r.code_role FROM UserInfo u JOIN Roles r ON r.id_role_applicatif=u.id_role_applicatif WHERE u.email=? AND u.actif=1");
         $q->execute([strtolower($request->administrator->email)]); $admin = $q->fetch();
@@ -146,6 +153,10 @@ function dbstep_run(#[SensitiveParameter] stdClass $request, bool &$mutated): ar
             $q = $authority->prepare('SELECT COUNT(*) FROM mysql.global_priv WHERE User = ?');
             $q->execute([$request->migration->user]);
             if ((int)$q->fetchColumn() !== 0) throw new RuntimeException('TEMPORARY_ACCOUNT_CLEANUP_FAILED');
+            // Exercise all five effects only AFTER the migration account is gone.
+            // The private fresh database is not active yet; probes are rolled back.
+            hdf_smoke($application);
+            hdf_audit($authority, $target['name'], $definerUser);
         }
         return ['scope' => 'DATABASE_READY', 'version' => $result['version'], 'schema_statements' => $result['schema_statements'],
             'tls_verified' => $target['tls_required'], 'application_verified' => true, 'migration_retained' => !$managed,
@@ -176,7 +187,8 @@ try {
         'INSTALLATION_BUSY', 'AUDIT_UNAVAILABLE', 'DATABASE_VERIFICATION_FAILED', 'TEMPORARY_ACCOUNT_CLEANUP_FAILED',
         'ADMIN_INPUT_INVALID', 'FRESH_CONFIRMATION_REQUIRED', 'ACTIVE_TRANSACTION_REFUSED', 'MARIADB_REQUIRED',
         'PDO_EXCEPTION_MODE_REQUIRED', 'DATABASE_TARGET_INVALID', 'INSTALL_VERSION_MISMATCH', 'SCHEMA_INVALID',
-        'FRESH_DATABASE_NOT_EMPTY', 'FRESH_PREFLIGHT_FAILED', 'FRESH_INCOMPLETE_MANUAL_ACTION', 'INSTALL_LOCK_RELEASE_FAILED'];
+        'FRESH_DATABASE_NOT_EMPTY', 'FRESH_PREFLIGHT_FAILED', 'FRESH_INCOMPLETE_MANUAL_ACTION', 'INSTALL_LOCK_RELEASE_FAILED',
+        'DEFINER_ACCOUNT_OCCUPIED', 'DEFINER_PROFILE_REJECTED', 'DEFINER_TRIGGER_PROFILE_REJECTED', 'DEFINER_REBIND_FAILED', 'DEFINER_SMOKE_FAILED'];
     $code = $exception instanceof HestiaFreshInstallException ? $exception->errorCode : $exception->getMessage();
     $error = in_array($code, $allowed, true) ? $code : 'DATABASE_STEP_FAILED';
 }

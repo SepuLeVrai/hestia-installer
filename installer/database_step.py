@@ -30,7 +30,8 @@ ERRORS = frozenset({"REQUEST_INVALID", "SQL_TARGET_INVALID", "SQL_CA_INVALID", "
     "ADMIN_INPUT_INVALID", "FRESH_CONFIRMATION_REQUIRED", "ACTIVE_TRANSACTION_REFUSED", "MARIADB_REQUIRED",
     "PDO_EXCEPTION_MODE_REQUIRED", "DATABASE_TARGET_INVALID", "INSTALL_VERSION_MISMATCH", "SCHEMA_INVALID",
     "FRESH_DATABASE_NOT_EMPTY", "FRESH_PREFLIGHT_FAILED", "FRESH_INCOMPLETE_MANUAL_ACTION", "INSTALL_LOCK_RELEASE_FAILED",
-    "DATABASE_STEP_FAILED"})
+    "DATABASE_STEP_FAILED", "DEFINER_ACCOUNT_OCCUPIED", "DEFINER_PROFILE_REJECTED", "DEFINER_TRIGGER_PROFILE_REJECTED",
+    "DEFINER_REBIND_FAILED", "DEFINER_SMOKE_FAILED"})
 
 
 class DatabaseStepError(RuntimeError):
@@ -162,8 +163,9 @@ def _response(code: int, raw: bytes, request: dict) -> dict:
 
 def _snapshot(runtime: p.PhpRuntime, source: Path, stage: Path, ca: bytes | None):
     p._copy_bundle(source, stage, runtime.worker_gid, ENGINE_FILES, ENGINE_SHA256, "database_step_bridge.php")
-    data = p._read_file(Path(__file__).parent / "private" / "sql_accounts_policy.php")
-    for name, content in (("sql_accounts_policy.php", data), ("ca.pem", ca)):
+    helpers = [(name, p._read_file(Path(__file__).parent / "private" / name))
+               for name in ("sql_accounts_policy.php", "trigger_definer.php")]
+    for name, content in (*helpers, ("ca.pem", ca)):
         if content is None: continue
         file = stage / name
         with file.open("xb") as stream: stream.write(content)

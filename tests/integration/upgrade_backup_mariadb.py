@@ -44,6 +44,79 @@ class BackupLive(previous.UpgradePreflightLive):
         return self.backup.create_and_verify(self.existing(),self.authority,config_root=self.output,
             backup_root=self.backups,confirmed=True,allow_global_read_lock=True,**kwargs).report()
 
+    def definer_user(self):
+        return 'hdf_'+hashlib.sha256(self.db.lower().encode()).hexdigest()[:24]
+
+    def tearDown(self):
+        try:
+            self.sql([f"DROP USER IF EXISTS `{self.definer_user()}`@'localhost'",
+                      f"DROP USER IF EXISTS `{self.definer_user()}`@'127.0.0.2'"])
+        finally:
+            super().tearDown()
+
+    def legacy_orphaned_fixture(self):
+        # Explicit older-version fixture. The original 5C2a source reproduces
+        # this state independently in the recorded baseline run. Keep the same
+        # negative assertions after fixing future provisioning.
+        query=f"SELECT TRIGGER_NAME,EVENT_MANIPULATION,EVENT_OBJECT_TABLE,ACTION_TIMING,ACTION_STATEMENT,ACTION_ORDER,SQL_MODE,CHARACTER_SET_CLIENT,COLLATION_CONNECTION,DATABASE_COLLATION FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='{self.db}' ORDER BY TRIGGER_NAME"
+        rows=self.sql(query=query)
+        self.assertEqual(len(rows),5)
+        statements=[f'USE `{self.db}`', 'SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci']
+        literal=previous.previous.previous.literal
+        for row in rows:
+            statements += [f"SET SESSION sql_mode={literal(row['SQL_MODE'])}",
+                f"CREATE OR REPLACE DEFINER=`{self.migration}`@`127.0.0.1` TRIGGER `{row['TRIGGER_NAME']}` {row['ACTION_TIMING']} {row['EVENT_MANIPULATION']} ON `{row['EVENT_OBJECT_TABLE']}` FOR EACH ROW {row['ACTION_STATEMENT']}"]
+        self.sql(statements)
+        self.assertEqual(self.sql(query=query),rows)
+
+    def managed_ready(self):
+        self.managed()
+        result=self.prepare(authority=self.authority)
+        self.assertEqual(result['state'],'DATABASE_CONFIGURATION_READY',result)
+        self.assertEqual(self.finalize()['state'],'WEB_FRESH_FINALIZED')
+
+    def test_backup_managed_durable_definer_five_effects_and_actual_restore(self):
+        self.managed_ready()
+        self.assertEqual(self.sql(query=f"SELECT COUNT(*) n FROM mysql.global_priv WHERE User='{self.migration}'")[0]['n'],0)
+        rows=self.sql(query=f"SELECT DEFINER FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='{self.db}'")
+        self.assertEqual(len(rows),5)
+        self.assertEqual({r['DEFINER'] for r in rows},{self.definer_user()+'@localhost'})
+        # The fresh path already exercised all five via its actual DML identity.
+        # The verifier independently restores them and exercises the same effects.
+        before=self.logical_dump();files=self.files();result=self.backup_run()
+        self.assertEqual(result['state'],'BACKUP_RESTORE_VERIFIED',result)
+        self.assertEqual(result['trigger_smoke_verified'],5)
+        self.assertEqual(before,self.logical_dump());self.assertEqual(files,self.files())
+        self.assertEqual(self.sql(query=f"SELECT COUNT(*) n FROM `{self.db}`.P_Activite")[0]['n'],0)
+        self.assertEqual(self.sql(query=f"SELECT COUNT(*) n FROM mysql.db WHERE User='{self.definer_user()}'")[0]['n'],0)
+        # No ability to read password hashes, write accounts, or alter a schema.
+        self.assertEqual(self.sql(query=f"SELECT COUNT(*) n FROM mysql.columns_priv WHERE User='{self.definer_user()}' AND Table_name='UserInfo' AND Column_name<>'id_user'")[0]['n'],0)
+
+    def test_backup_managed_definer_unlocked_is_rejected_without_repair(self):
+        self.managed_ready();self.sql([f"ALTER USER `{self.definer_user()}`@'localhost' ACCOUNT UNLOCK"])
+        before=self.logical_dump();result=self.backup_run()
+        self.assertEqual(result['code'],'BACKUP_DEFINER_PROFILE_REJECTED',result)
+        self.assertEqual(before,self.logical_dump())
+
+    def test_backup_managed_definer_excess_or_missing_rights_are_rejected(self):
+        self.managed_ready();account=f"`{self.definer_user()}`@'localhost'"
+        changes=[(f'GRANT SELECT (password_hash) ON `{self.db}`.UserInfo TO {account}',
+                  f'REVOKE SELECT (password_hash) ON `{self.db}`.UserInfo FROM {account}'),
+                 (f'REVOKE SELECT (id_user) ON `{self.db}`.UserInfo FROM {account}',
+                  f'GRANT SELECT (id_user) ON `{self.db}`.UserInfo TO {account}')]
+        for change,restore in changes:
+            self.sql([change]);result=self.backup_run()
+            self.assertEqual(result['code'],'BACKUP_DEFINER_PROFILE_REJECTED',result)
+            self.sql([restore])
+        self.assertEqual(self.backup_run()['state'],'BACKUP_RESTORE_VERIFIED')
+
+    def test_backup_managed_definer_host_collision_refuses_before_database_creation(self):
+        self.managed();self.sql([f"CREATE USER `{self.definer_user()}`@'127.0.0.2' ACCOUNT LOCK"])
+        result=self.prepare(authority=self.authority)
+        self.assertEqual(result['state'],'REFUSED',result)
+        self.assertEqual(result['code'],'DEFINER_ACCOUNT_OCCUPIED',result)
+        self.assertEqual(self.sql(query=f"SELECT COUNT(*) n FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='{self.db}'")[0]['n'],0)
+
     def test_backup_complete_database_envelope_restored_and_source_unchanged(self):
         self.finish();before=self.logical_dump();files=self.files()
         result=self.backup_run();self.assertEqual(result['state'],'BACKUP_RESTORE_VERIFIED',result)
@@ -129,6 +202,7 @@ class BackupLive(previous.UpgradePreflightLive):
     def test_backup_managed_orphaned_definers_are_not_certified_or_repaired(self):
         self.managed()
         self.assertEqual(self.prepare(authority=self.authority)['state'],'DATABASE_CONFIGURATION_READY')
+        self.legacy_orphaned_fixture()
         self.assertEqual(self.finalize()['state'],'WEB_FRESH_FINALIZED')
         self.assertEqual(self.sql(query=f"SELECT COUNT(*) n FROM mysql.global_priv WHERE User='{self.migration}'")[0]['n'],0)
         rows=self.sql(query=f"SELECT DEFINER FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='{self.db}'")

@@ -1,5 +1,13 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Reprise WORK active
+
+Le mandat actuel couvre toute la fin de 5C puis 5D. Voir
+[le candidat DEFINER et ses limites](PHASE5C2_DEFINER.md). La reproduction du
+défaut est acquise ; la qualification du futur provisioning corrigé est en cours.
+La réparation de l'existant, les fichiers/sessions, transitions et services
+restent obligatoires. Aucune promotion du candidat n'est encore revendiquée.
+
 ## Références à relire
 
 Base Installer : c0dcb902663130302599635b36c7fb8deab80a47, arbre

@@ -193,6 +193,7 @@ def _worker_stage(runtime: p.PhpRuntime, source: Path, stage: Path, ca: bytes | 
     p._copy_bundle(source,stage,runtime.worker_gid,f.ENGINE_FILES,f.ENGINE_SHA256,'backup_bridge.php')
     with fs._directory(stage) as fd:
         f._write(fd,'sql_accounts_policy.php',p._read_file(Path(__file__).parent/'private/sql_accounts_policy.php'),runtime.worker_gid)
+        f._write(fd,'trigger_definer.php',p._read_file(Path(__file__).parent/'private/trigger_definer.php'),runtime.worker_gid)
         if ca is not None:
             f._write(fd,'ca.pem',ca,runtime.worker_gid)
 

@@ -1,5 +1,13 @@
 # État du projet
 
+## Reprise WORK - candidat 5C2b en préparation
+
+La mission porte sur la fin de 5C puis 5D. Le candidat courant prépare la
+[correction DEFINER](PHASE5C2_DEFINER.md) pour les futurs fresh managed, avec
+restauration isolée du profil durable. Qualification et promotion restent à
+confirmer sur le gel final. La réparation de l'existant et la clôture de la
+Phase 5 ne sont pas encore réalisées. Aucun déploiement de production.
+
 ## Point de reprise - 5C2a, prochaine frontière 5C2b
 
 5C1 est publiée au commit c0dcb902663130302599635b36c7fb8deab80a47. Le présent lot

@@ -79,7 +79,13 @@ function bk_triggers(PDO $pdo,bool $auditDefiners=true): array {
             $count=(int)$q->fetchColumn();$q->closeCursor();bk_require($count===1,'BACKUP_DEFINER_MISSING');
             $q=$pdo->query('SHOW GRANTS FOR '.bk_ident($identity[1]).'@`'.$identity[2].'`');$grants=$q->fetchAll(PDO::FETCH_COLUMN);$q->closeCursor();
             $public=hestia_bounded_grants($pdo,true);$allowed=false;
-            foreach([false,true] as $tls)$allowed=$allowed||hestia_account_policy($grants,$public,$r['DEFINER'],null,$identity[1],$database,'provisioning',$tls);
+            if (str_starts_with($identity[1], 'hdf_')) {
+                bk_require($identity[1] === hdf_user($database) && $identity[2] === 'localhost', 'BACKUP_DEFINER_PROFILE_REJECTED');
+                try { hdf_audit($pdo, $database, $identity[1]); $allowed=true; }
+                catch (Throwable $error) { throw new RuntimeException('BACKUP_DEFINER_PROFILE_REJECTED'); }
+            } else {
+                foreach([false,true] as $tls)$allowed=$allowed||hestia_account_policy($grants,$public,$r['DEFINER'],null,$identity[1],$database,'provisioning',$tls);
+            }
             bk_require($allowed,'BACKUP_DEFINER_PROFILE_REJECTED');
         }
     }
@@ -96,8 +102,14 @@ function bk_restore_triggers(PDO $authority,array $triggers): array {
             $q=$authority->prepare('SELECT COUNT(*) FROM mysql.global_priv WHERE User=?');$q->execute([$m[1]]);
             $count=(int)$q->fetchColumn();$q->closeCursor();bk_require($count===0,'BACKUP_VERIFIER_TARGET_OCCUPIED');
             // Preserve DEFINER identity and its schema-only privileges, NEVER its login credential.
-            $authority->exec('CREATE USER '.$account.' ACCOUNT LOCK');
-            $authority->exec('GRANT ALL PRIVILEGES ON `backup\_verify`.* TO '.$account);$created[$account]=true;
+            if (preg_match('/^hdf_[a-f0-9]{24}$/D', $m[1]) === 1 && $m[2] === 'localhost') {
+                try { hdf_create($authority, 'backup_verify', $m[1]); }
+                catch (Throwable $error) { throw new RuntimeException('BACKUP_DEFINER_PROFILE_REJECTED'); }
+            } else {
+                $authority->exec('CREATE USER '.$account.' ACCOUNT LOCK');
+                $authority->exec('GRANT ALL PRIVILEGES ON `backup\_verify`.* TO '.$account);
+            }
+            $created[$account]=true;
         }
         bk_require(is_string($r['SQL_MODE'])&&preg_match('/^[A-Z_,]*$/D',$r['SQL_MODE'])===1
             &&$r['CHARACTER_SET_CLIENT']==='utf8mb4'&&$r['COLLATION_CONNECTION']==='utf8mb4_unicode_ci','BACKUP_TRIGGER_PROFILE_REJECTED');
@@ -338,6 +350,7 @@ try {
     require_once __DIR__.'/engine/includes/installation/connection.php';
     require_once __DIR__.'/engine/includes/installation/finalization.php';
     require_once __DIR__.'/sql_accounts_policy.php';
+    require_once __DIR__.'/trigger_definer.php';
     $raw=stream_get_contents(STDIN,16385);bk_require(is_string($raw)&&strlen($raw)<=16384,'REQUEST_INVALID');
     $v=json_decode($raw,true,12,JSON_THROW_ON_ERROR);bk_require(is_array($v)&&bk_json($v)===$raw,'REQUEST_INVALID');
     bk_require(isset($v['request_id'])&&is_string($v['request_id'])&&preg_match('/^[a-f0-9]{32}$/D',$v['request_id'])===1,'REQUEST_INVALID');$id=$v['request_id'];$op=$v['operation']??'invalid';

@@ -1,5 +1,10 @@
 # Phase 5C2a - Sauvegarde privée et restauration SQL isolée
 
+Le candidat WORK [5C2b DEFINER](PHASE5C2_DEFINER.md) étend le profil documenté
+ci-dessous. Sa qualification est distincte et en cours. Le défaut de l'ancienne
+version reste couvert par une fixture négative explicite ; aucune réparation
+silencieuse n'est introduite dans le backup.
+
 ## Statut et découpage
 
 Base Installer : `c0dcb902663130302599635b36c7fb8deab80a47`, arbre
