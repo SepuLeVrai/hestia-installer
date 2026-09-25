@@ -1,5 +1,16 @@
 # État du projet
 
+## Reprise active — identité système dédiée
+
+Base collecteur `37de8a99` qualifiée au premier passage : Quality `36152239576`,
+système `36152239622`, SQL/HTTP `36152489096`. Le
+[nouveau lot](PHASE5_SERVICE_IDENTITY.md) crée exclusivement un compte système
+verrouillé et son groupe, sans adoption ni home. Journal durable, réponse perdue
+récupérable en lecture, création partielle manuelle. Qualification requise :
+576 core et 47 recettes système par Debian, 16 DOM, 21 HTTPS, 118 SQL/HTTP.
+Activation réelle et fin de Phase 5 ouvertes ; intermittence DOM historique
+non résolue. Les sections suivantes sont historiques ; preuves dans le checkpoint.
+
 ## Reprise active — collecteur dédié des sessions
 
 Base runtime `6477faf8` qualifiée : Quality `36147944637` tentative 2,

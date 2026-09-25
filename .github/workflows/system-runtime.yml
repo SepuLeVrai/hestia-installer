@@ -77,6 +77,12 @@ jobs:
           docker exec -e HESTIA_SESSION_CLEANER_TEST=1 hestia-system-runtime \
             python3 /opt/hestia-installer/tests/integration/session_cleaner_systemd.py \
             --report /evidence/session-cleaner.json 2>&1 | tee evidence/session-cleaner.log
+      - name: Exercise exclusive service identity and actual runtime consumption
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_SERVICE_IDENTITY_TEST=1 hestia-system-runtime \
+            python3 /opt/hestia-installer/tests/integration/service_identity_systemd.py \
+            --report /evidence/service-identity.json 2>&1 | tee evidence/service-identity.log
       - name: Preserve non-secret evidence and remove disposable container
         if: always()
         run: |

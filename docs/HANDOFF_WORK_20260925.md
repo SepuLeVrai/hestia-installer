@@ -1,5 +1,17 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Nouveau checkpoint — création du compte système
+
+Base qualifiée `37de8a99e66aeff24b3cb3a1958968f1f4df2ecc`. Lire
+[PHASE5_SERVICE_IDENTITY.md](PHASE5_SERVICE_IDENTITY.md). Identité neuve créée
+par useradd, verrouillée et sans home, sous journal exclusif. Aucune adoption,
+suppression ou relance d’empreinte partielle. Les services consomment ce compte
+dans la recette jetable, sans démarrage produit livré. Exiger 576 core et
+47 recettes système par Debian, 16 DOM, 21 HTTPS et 118 SQL/HTTP sur l’arbre gelé.
+Huit manifestes système identiques à Quality. Préserver l’intermittence DOM
+historique non résolue. Suite : paquets officiels/activation, producteurs et
+stockages complets, fin de 5C2/5C3/5C4/5D. Sections suivantes historiques.
+
 ## Nouveau checkpoint — collecteur privé de sessions
 
 Base `6477faf85d5f31f1ca645cd3de89b780ed119a07`. Le lot

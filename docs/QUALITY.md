@@ -1,5 +1,15 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot identité système dédiée — candidat à qualifier
+
+[Contrat](PHASE5_SERVICE_IDENTITY.md) : 18 nouveaux tests core obligatoires,
+576 par Debian 12/13. Système : 47 cas par Debian (11 drainage, 12 runtime,
+12 collecteur, 12 identité), dont concurrence, interruption réelle après useradd
+et consommation du compte par les services. Conserver 16 DOM, 21 HTTPS et
+118 SQL/HTTP sans skip, sur sources exactes et stables. Les vrais comptes sont
+créés uniquement dans le conteneur jetable explicitement autorisé. Résultats
+finaux dans le checkpoint après gel documentaire, sans retouche de l’arbre.
+
 ## Lot collecteur de sessions — candidat à qualifier
 
 Le [collecteur dédié](PHASE5_SESSION_CLEANER.md) exige 558 core par Debian 12/13,

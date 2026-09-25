@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Provisionnement de l’identité locale
+
+[ServiceIdentity](PHASE5_SERVICE_IDENTITY.md) réserve un journal root:root 0700
+avant useradd ; aucun compte/groupe existant adopté. Mot de passe verrouillé,
+nologin, pas de home, groupe exclusif, aucune sous-identité. NSS local contrôlé,
+hooks useradd absents/vides, outils/réglages liés au plan. Aucune donnée shadow
+d’un autre compte persistée ou exposée ; sorties de commande fermées. Création
+partielle : MANUAL, sans suppression ni réattribution implicite d’UID. La preuve
+du compte reste distincte du déploiement, de la migration et de l’activation Web.
+
 ## Collecteur de sessions et exclusion des écritures
 
 Le [collecteur dédié](PHASE5_SESSION_CLEANER.md) n'exécute que sous l'UID du pool,
