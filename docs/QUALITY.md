@@ -1,5 +1,21 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot paquets officiels — candidat à qualifier
+
+[Contrat](PHASE5_SYSTEM_PACKAGES.md) : **598 core par Debian**, dont 22 nouveaux
+cas obligatoires. Conserver les 47 scénarios système par Debian et ajouter
+13 cas paquets réels par Debian (5 acquisition, 7 installation sans réseau,
+1 échec de reçu après dpkg). Conserver 16 DOM, 21 HTTPS et 118 SQL/HTTP,
+zéro erreur/échec/skip. Tous les manifests et ZIP doivent désigner les mêmes
+octets gelés ; les résultats antérieurs ne qualifient pas le candidat.
+
+Trois workflows permanents : quality.yml, system-runtime.yml et system-packages.yml.
+Le gate principal couvre core/DOM/HTTPS et le ZIP source. Une PR/promotion exige
+aussi les deux autres workflows et les huit recettes SQL/HTTP sur ce même code.
+Les recettes paquets utilisent des conteneurs jetables amd64 avec réseau pour
+l'acquisition officielle, puis sans interface externe pour dpkg et la reprise.
+Aucun serveur métier n'est concerné. Rapports finaux dans le checkpoint compagnon.
+
 ## Lot identité système dédiée — candidat à qualifier
 
 [Contrat](PHASE5_SERVICE_IDENTITY.md) : 18 nouveaux tests core obligatoires,
@@ -185,7 +201,8 @@ preuve formelle de sécurité ou de couverture de code à 100 %.
 
 ## Workflow GitHub Actions
 
-Un seul workflow permanent : `.github/workflows/quality.yml`.
+Le workflow principal est `.github/workflows/quality.yml` ; les workflows système
+et paquets ci-dessus sont également requis pour ce lot.
 
 - `Scope and static guards` : systématique, y compris pour la documentation ;
   le mécanisme de Quality est lui-même testé sans ignorer les tests manquants.

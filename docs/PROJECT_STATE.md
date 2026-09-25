@@ -1,5 +1,17 @@
 # État du projet
 
+## Reprise active — paquets Debian officiels
+
+Base identité `870560b61ebc271d8979741b1f6b074a76c93251` qualifiée : Quality
+`36155640408`, système `36155640569`, SQL/HTTP `36155918278`. Le
+[nouveau lot](PHASE5_SYSTEM_PACKAGES.md) fige les archives signées puis installe
+hors réseau les seuls ajouts prévus, sans démarrer les services par défaut.
+598 core, 47 recettes système historiques et 13 recettes paquets par Debian,
+16 DOM, 21 HTTPS et 118 SQL/HTTP requis sur l'arbre exact. Debian 12 reste
+incompatible avec le PHP minimal du Web épinglé. Activation complète, fin de
+5C2/5C3/5C4/5D et intermittence DOM historique restent ouvertes. Sections suivantes
+historiques ; résultats finaux dans le checkpoint après gel documentaire.
+
 ## Reprise active — identité système dédiée
 
 Base collecteur `37de8a99` qualifiée au premier passage : Quality `36152239576`,

@@ -1,5 +1,13 @@
 # HESTIA Installer
 
+## Reprise active — paquets système officiels
+
+Le [lot paquets](docs/PHASE5_SYSTEM_PACKAGES.md) acquiert un plan Debian authentifié
+puis installe ses versions exactes hors réseau, avec services par défaut masqués.
+Adaptateurs privés uniquement ; activation Web et Phase 5 restent ouvertes.
+Lire le [handoff](docs/HANDOFF_WORK_20260925.md) et les preuves du commit exact.
+Les sections suivantes conservent l'historique.
+
 ## Reprise actuelle : 5C2a, puis 5C2b
 
 Sauvegarde privée du profil reconnu et restauration SQL/fichiers réellement

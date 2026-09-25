@@ -1,5 +1,22 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Nouveau checkpoint — acquisition et installation des paquets
+
+Base qualifiée `870560b61ebc271d8979741b1f6b074a76c93251`. Lire le
+[contrat paquets](PHASE5_SYSTEM_PACKAGES.md). Deux confirmations privées :
+acquisition officielle puis installation du digest figé hors réseau. Refus des
+paquets/services existants, upgrades, suppressions, hooks et policy arbitraires.
+Services par défaut durablement masqués ; reçu absent ou dérive = inspection
+manuelle, sans réparation automatique. Aucun flag final Web levé.
+
+Exiger 598 core, 47 recettes système historiques et 13 recettes paquets par
+Debian, 16 DOM, 21 HTTPS, 118 SQL/HTTP sans skip. Dix manifestes système identiques
+à Quality, réseau réellement déconnecté, échec de reçu après dpkg réellement
+exercé. Préserver la limite Debian 12/PHP 8.2 et l'intermittence DOM historique.
+Suite : activation TLS/proxy, producteurs/stockages complets, 5C2/5C3/5C4/5D.
+Aucune PR/promotion avant tous les contrôles et documentation terminée.
+Les sections suivantes sont historiques.
+
 ## Nouveau checkpoint — création du compte système
 
 Base qualifiée `37de8a99e66aeff24b3cb3a1958968f1f4df2ecc`. Lire
