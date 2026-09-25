@@ -1,0 +1,13 @@
+ARG DEBIAN=13
+FROM debian:${DEBIAN}-slim
+ENV DEBIAN_FRONTEND=noninteractive container=docker
+RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d \
+    && chmod 0755 /usr/sbin/policy-rc.d \
+    && apt-get update -qq \
+    && apt-get install -y --no-install-recommends systemd-sysv dbus python3 passwd \
+       php-fpm php-cli php-mysql apache2 ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /evidence
+COPY --chown=0:0 . /opt/hestia-installer
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

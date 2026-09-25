@@ -1,5 +1,19 @@
 # État du projet
 
+## Reprise active - barrière systemd des services enrôlés
+
+Le checkpoint inventaire `ed7707c9eb7f6314e5d3d3b899f0efe1cef92d53` est qualifié
+(Quality `36139574996`, SQL/HTTP `36139636592`, 506 core par Debian et 118 recettes).
+Le lot suivant ajoute une [barrière d’arrêt système](PHASE5_SYSTEM_DRAIN.md) :
+quatre unités explicitement enrôlées, condition de maintenance, arrêt Apache
+avant FPM, vérification des cgroups et reprise exacte après interruption.
+Candidat à qualifier : 524 core par Debian, dix recettes systemd par Debian,
+16 DOM, 21 HTTPS et 118 recettes SQL/HTTP. Les endpoints PHP et producteurs
+CLI/nettoyage de la recette système sont des fixtures, pas le Web installé.
+Le provisionnement, le nettoyage Debian natif, la reprise des services et le
+raccordement aux stockages/sauvegardes restent ouverts. Aucun gate final de
+Phase 5 n’est levé par cette seule barrière. Les sections suivantes sont historiques.
+
 ## Reprise active - inventaire des stockages et producteurs
 
 Le checkpoint coordonné `d2f2d0af85bbe4f6167bb1c96065c224f22fb383` est qualifié

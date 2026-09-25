@@ -1,5 +1,17 @@
 # Modèle de sécurité
 
+## Drainage systemd fermé et descendants
+
+La [barrière système](PHASE5_SYSTEM_DRAIN.md) exige les noms d’unités dérivés
+de l’instance, leurs fragments root protégés et un unique drop-in de condition
+lié au marqueur de maintenance. Elle refuse délégation, restart, config non
+rechargée, jobs en cours et politique de kill insuffisante. Un service arrêté
+avec PID zéro ne suffit pas : le cgroup récursif doit être vide et Result=success.
+Les sorties de systemctl ne sont pas réinjectées dans les erreurs. L’arrêt
+partiel conserve la maintenance ; la reprise explicite exige le même profil.
+Le provisionneur reste responsable de l’inventaire réel des producteurs et
+de leurs commandes. Ce lot n’installe aucune unité et ne redémarre aucun service.
+
 ## Stockages effectifs et producteurs hors guard PHP
 
 L’[inventaire contrôlé](PHASE5_STORAGE_INVENTORY.md) exige des observations
