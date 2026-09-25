@@ -71,7 +71,7 @@ La recette n'en déduit pas un inventaire exhaustif hôte.
 
 Conserver toutes les campagnes historiques sur le nouvel Installer : 628 core
 par Debian 12/13, 61 système et 13 paquets par Debian, 16 DOM, 21 HTTPS,
-118 SQL/HTTP, 14 helper proxy, 10 Web historique. Ajouter huit scénarios Debian 13
+118 SQL/HTTP, 14 helper proxy, 10 Web historique. Ajouter neuf scénarios Debian 13
 sans réseau, sous SQL fresh managed et vrais services Apache/FPM/TLS :
 
 1. Photo uploadée, servie et remplacée avec suppression de l'ancienne image.
@@ -82,12 +82,36 @@ sans réseau, sous SQL fresh managed et vrais services Apache/FPM/TLS :
 6. Arrêt/cgroups puis refus de redémarrage sous la même maintenance.
 7. Sauvegarde SQL/fichiers et relecture des données/session réellement restaurées.
 8. Conservation d'une session valide de huit heures sous ce profil managed.
+9. Refus d’un slot SQL copié dont le pointeur actif vise toujours l’original.
 
 Tous les manifests doivent désigner exactement le même arbre Installer gelé.
 Le banc `verification/*` matérialise séparément les deux commits Web complets ;
 son checkout technique n'est jamais une livraison produit. Les preuves finales
 et incidents éventuels sont remis dans le checkpoint compagnon, sans commit
 documentaire ultérieur maquillant l'arbre qualifié.
+
+## Incident de qualification conservé
+
+Le premier candidat `5dddcdcc` a passé les 628 core sous Debian 13, les recettes
+système et paquets sous Debian 12/13. Le core Debian 12 a rencontré un
+`SSLEOFError` lors de l’envoi du corps surdimensionné dans le test HTTP strict
+(run `36196621490`). Le serveur refuse normalement dès Content-Length puis
+ferme TLS ; le client envoyait encore le corps. Le test exige maintenant le
+413 exact, son diagnostic, Connection: close et l’absence de journal avant
+envoi du corps. Aucun retry, délai, exception avalée ou tolérance de statut
+additionnelle. Le code serveur est inchangé. La campagne complète doit être
+repassée sur l’arbre corrigé. L’intermittence DOM historique reste distincte.
+
+La revue du raccordement a également ajouté la reconstruction du pointeur
+d’activation exact, lié au chemin du slot, pour refuser une copie valide du
+slot vers une autre racine. La recette négative exige ce refus spécifique.
+
+Le premier banc métier `36196797191` a passé GED, import, gate commun,
+drainage/restart et session huit heures. Trois cas se sont arrêtés sur une
+attente incorrecte du banc : le helper profil réencode en WebP avec GD officiel,
+pas en PNG/JPEG. La recette exige maintenant le suffixe WebP, le MIME exact
+et la signature RIFF/WEBP en plus des octets servis. Aucun changement Web pour
+contourner ce résultat ; la restauration doit encore atteindre ses assertions.
 
 ## Frontières toujours ouvertes
 

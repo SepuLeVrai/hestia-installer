@@ -14,7 +14,7 @@ Le pin historique reste supporté. La reconnaissance des deux sources n'autorise
 aucune transition d'upgrade. Le Web candidat a sa Quality `36195113348` verte.
 L'ensemble Installer reste soumis aux campagnes sur son propre arbre gelé :
 628 core par Debian, 61 système et 13 paquets par Debian, 16 DOM, 21 HTTPS,
-118 SQL/HTTP, 14 helper proxy, 10 Web historique et 8 nouveaux scénarios de
+118 SQL/HTTP, 14 helper proxy, 10 Web historique et 9 nouveaux scénarios de
 stockage sous SQL managed, Apache/FPM 8.4 et TLS réels.
 
 Les services de ces recettes sont activés et drainés par le banc jetable.

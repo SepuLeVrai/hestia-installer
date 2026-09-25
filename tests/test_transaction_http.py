@@ -122,9 +122,18 @@ class TransactionHTTPTests(unittest.TestCase):
         self.login()
         for raw in ('{"modules":["core"],"modules":["web"]}', '{"modules":NaN}', '[]', 'null',
                     '{"modules":1e100000}', '{"modules":-1}', '{"modules":"é<script>"}',
-                    '{"modules":"' + 'x' * 17000 + '"}', '[' * 1000 + ']' * 1000, ''):
+                    '[' * 1000 + ']' * 1000, ''):
             status, _, _ = self.request("POST", "/api/installation/plan", raw=raw)
             self.assertIn(status, (400, 413))
+        # A declared oversized body must be rejected BEFORE receiving it. The
+        # old full-body send raced the server's deliberate TLS close on Python
+        # 3.11. Do not swallow SSL errors or retry: assert the early 413 itself.
+        oversized = '{"modules":"' + 'x' * 17000 + '"}'
+        status, payload, headers = self.request("POST", "/api/installation/plan",
+            headers={"Content-Length": str(len(oversized.encode()))})
+        self.assertEqual(status, 413)
+        self.assertEqual(payload, {"error": "Requête trop volumineuse"})
+        self.assertEqual(headers["Connection"], "close")
         self.assertFalse(self.journal.path.parent.exists())
 
     def test_duplicate_headers_and_host_mismatch_are_rejected(self):

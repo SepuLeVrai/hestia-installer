@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import struct
 import sys
 import time
@@ -94,12 +95,13 @@ class BusinessStorageLive(previous.DeployedWebLive):
         result = self.upload('/ajax/profile_photo_upload.php', {'csrf_token': self.csrf()}, 'photo', 'portrait.png', png(), 'image/png')
         self.assertEqual(result[0], 200)
         value = self.sql(query=f'SELECT photo_profil FROM `{self.db}`.UserInfo WHERE id_user=1')[0]['photo_profil']
-        self.assertRegex(value or '', r'^uploads/profiles/user_1_[a-f0-9]+[.](png|jpg)$')
+        self.assertRegex(value or '', r'^uploads/profiles/user_1_[a-f0-9]+[.]webp$')
         path = self.uploads / value.removeprefix('uploads/')
         self.assertTrue(path.is_file()); self.assertFalse((self.webroot / value).exists())
         self.assertEqual((path.stat().st_uid, path.stat().st_gid), (self.web.pw_uid, self.web.pw_gid))
         result = self.binary('/' + value); self.assertEqual(result[0], 200)
-        self.assertEqual(result[1], path.read_bytes()); self.assertTrue(result[2]['Content-Type'].startswith('image/'))
+        self.assertEqual(result[1], path.read_bytes()); self.assertEqual(result[2]['Content-Type'], 'image/webp')
+        self.assertEqual(result[1][:4], b'RIFF'); self.assertEqual(result[1][8:12], b'WEBP')
         return value, path
 
     def document(self):
@@ -228,6 +230,19 @@ class BusinessStorageLive(previous.DeployedWebLive):
     def test_business_managed_session_policy_and_valid_eight_hour_collection(self):
         self.test_deployed_collector_preserves_valid_eight_hour_session()
 
+    def test_business_copied_valid_slot_cannot_redirect_the_maintenance_gate(self):
+        self.ready()
+        base = self.root / 'cloned-configuration'; base.mkdir(mode=0o755)
+        copied = base / self.directory.name
+        shutil.copytree(self.directory, copied)
+        for path in (copied, *copied.rglob('*')):
+            original = self.directory / path.relative_to(copied)
+            info = original.stat(); os.chown(path, info.st_uid, info.st_gid)
+        other = h.HttpRuntime(replace(self.spec, maintenance_directory=copied / 'maintenance'))
+        with self.assertRaisesRegex(h.HttpRuntimeError, 'CONFIGURATION_BINDING_REQUIRED'):
+            other._verify_sealed_slot(self.web)
+        self.assertNotIn('/login.php', self.request('/index.php')[3]); self.immutable()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--web', type=Path, required=True)
@@ -237,8 +252,8 @@ if __name__ == '__main__':
     result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(BusinessStorageLive(name) for name in names))
     stable = source == quality.snapshot(ROOT); release = get_release(STORAGE_COMMIT)
     report = {'suite': 'External business storage with managed SQL and real Apache FPM TLS',
-        'tests': result.testsRun, 'expected': 8, 'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
-        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 8 and not result.skipped and stable else 'FAIL',
+        'tests': result.testsRun, 'expected': 9, 'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
+        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 9 and not result.skipped and stable else 'FAIL',
         'source_stable': stable, 'source_files': len(source), 'web_commit': release.commit, 'web_tree': release.tree,
         'database_profile': 'fresh_managed', 'service_activation_delivered': False,
         'storage_inventory_complete': False, 'complete_web_backup': False, 'application_installed': False, 'phase5_complete': False}

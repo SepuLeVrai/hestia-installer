@@ -191,16 +191,29 @@ class HttpRuntime:
         require(Path('/proc/1/comm').read_text().strip() == 'systemd'
                 and Path('/sys/fs/cgroup/cgroup.controllers').is_file(), 'HTTP_RUNTIME_SYSTEMD_REQUIRED')
         if self.spec.external_uploads:
-            release = f.get_release(STORAGE_COMMIT)
-            require(f._runtime_digest(self.spec.webroot) == release.runtime_sha256, 'SOURCE_PIN_MISMATCH')
-            # The shared gate belongs to the exact sealed configuration slot.
-            with fs._directory(self.spec.maintenance_directory.parent, readable_by=account.pw_gid) as conf:
-                with fs._directory(self.spec.webroot) as webfd, fs._directory(self.spec.webroot / 'includes') as inc:
-                    f._completed(conf, webfd, inc, account.pw_gid, commit=release.commit)
-                seal = f._json_read(conf, 'seal.json', account.pw_gid)
+            self._verify_sealed_slot(account)
+        return account, extension
+
+    def _verify_sealed_slot(self, account):
+        release = f.get_release(STORAGE_COMMIT)
+        require(f._runtime_digest(self.spec.webroot) == release.runtime_sha256, 'SOURCE_PIN_MISMATCH')
+        directory, gid = self.spec.maintenance_directory.parent, account.pw_gid
+        require(directory.name == fs.configuration_slot({'web': {'webroot': str(self.spec.webroot)}}),
+                'HTTP_RUNTIME_INSTANCE_MISMATCH')
+        # Reconstruct the activation pointer as well as checking its receipt:
+        # copying a valid slot elsewhere must not move HTTP maintenance away
+        # from the configuration actually used by the Web.
+        with fs._directory(directory, readable_by=gid) as conf:
+            with fs._directory(self.spec.webroot) as webfd, fs._directory(self.spec.webroot / 'includes') as inc:
+                f._completed(conf, webfd, inc, gid, commit=release.commit)
+                seal = f._json_read(conf, 'seal.json', gid)
                 require(seal['instance'] == self.spec.instance and seal['webroot'] == str(self.spec.webroot),
                         'HTTP_RUNTIME_INSTANCE_MISMATCH')
-        return account, extension
+                database = f._json_read(conf, 'database.json', gid)
+                expected = f._documents(self.spec.webroot, directory, gid, database,
+                                        f._read(conf, 'db.php', gid), self.spec.instance)
+                actual = (f._read(conf, 'seal.json', gid), f._read(webfd, 'install.lock', gid), f._read(inc, 'db.php', gid))
+                require(expected == actual, 'HTTP_RUNTIME_CONFIGURATION_BINDING_REQUIRED')
 
     def _dependency_hashes(self, extension):
         paths = [Path('/usr/bin/systemctl'), Path('/usr/sbin/apache2'),
