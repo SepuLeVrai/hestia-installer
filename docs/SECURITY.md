@@ -236,3 +236,13 @@ L'inventaire refuse les tests manquants/ignorés et les preuves de livraison inc
 le contenu et le mode Unix de chaque fichier. Le packaging ne remplace pas la
 revue sécurité des futurs adaptateurs. La protection GitHub de main est distincte
 du workflow et nécessite une configuration administrative vérifiée.
+# Maintenance et réparation privées en Phase 5
+
+Le [contrat de maintenance](PHASE5_MAINTENANCE.md) impose un prepend root-owned
+et une barrière coopérative commune à tous les producteurs du déploiement géré.
+Il ne prouve pas à lui seul le raccordement d'un service préexistant. La barrière
+reste après interruption ; seule une reprise explicite et journalisée la retire.
+[La réparation DEFINER](PHASE5C2_REPAIR.md) exige cette lease liée à l'instance,
+une sauvegarde de secours restaurée et une nouvelle preuve après mutation.
+Pas de retry aveugle, d'élargissement DML, de réinitialisation Admin ou de secret
+dans le journal. Ces APIs restent privées et non raccordées au routeur public.

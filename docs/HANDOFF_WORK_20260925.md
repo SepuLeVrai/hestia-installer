@@ -116,3 +116,18 @@ vont dans le rapport compagnon et les issues, pas dans un commit post-Quality.
 Écritures autorisées, promotion fast-forward force=false après Quality complète,
 HEAD relus et comparaison sans divergence. Aucun serveur/Gateway/APK touché.
 #13/#135 restent ouvertes. Ne pas annoncer5C2/5C/Phase5 terminées.
+# Checkpoints WORK après reprise
+
+La mission reste la fin de toute la Phase 5, sans déploiement de production.
+Main n'est pas promue. Le futur managed corrigé, la sauvegarde de secours et la
+barrière de maintenance sont qualifiés dans le checkpoint Installer
+`3d7440157a3251b54be820d1af5acaa8794a02f6` : Quality `36125259959`, recette technique
+`36125303870`, 91 scénarios SQL/HTTP distincts. Les branches Web verification
+contiennent seulement le banc et ne doivent jamais être fusionnées.
+
+Le candidat suivant livre [la réparation explicite](PHASE5C2_REPAIR.md), encore
+en qualification. Lire aussi [la maintenance](PHASE5_MAINTENANCE.md) et
+[le secours](PHASE5C2_RESCUE.md). Restent ensuite le périmètre mutable/sessions,
+la vraie transition de release, la reprise/rollback et le raccordement complet
+Apache/FPM/wizard Debian12/13. Les interruptions DDL de réparation restent
+interloquées pour inspection, sans reprise automatique. Ne pas déclarer terminé.

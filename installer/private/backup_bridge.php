@@ -361,6 +361,9 @@ function bk_verify(#[SensitiveParameter] array $v,bool $rescue=false): array {
     $q=$authority->prepare('SELECT COUNT(*) FROM mysql.global_priv WHERE User=?');$q->execute([$user]);bk_require((int)$q->fetchColumn()===0,'BACKUP_VERIFIER_CLEANUP_FAILED');
     return ['tables'=>$header['tables'],'rows'=>(string)$total,'logical_sha256'=>$logical,'server_version'=>$server['version'],'verification_objects_removed'=>true,'canonical_triggers_verified'=>5,'trigger_smoke_verified'=>5,'foreign_keys_verified'=>$foreignKeys];
 }
+// A trusted private bridge may reuse the closed snapshot/policy functions.
+// This constant is set only by Installer source, never by the JSON request.
+if(defined('HESTIA_BACKUP_FUNCTIONS_ONLY')&&HESTIA_BACKUP_FUNCTIONS_ONLY===true)return;
 $op='invalid';$id='';
 try {
     if(PHP_SAPI!=='cli')throw new RuntimeException('REQUEST_INVALID');

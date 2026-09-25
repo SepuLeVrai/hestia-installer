@@ -2,6 +2,13 @@
 
 ## Candidat WORK 5C2b
 
+Checkpoint maintenance `3d7440157a3251b54be820d1af5acaa8794a02f6` : Quality
+`36125259959` PASS et les cinq jobs de `36125303870` PASS. Artefacts relus :
+18 préparation, 21 finalisation, 15 précontrôles, 30 backup et7 maintenance,
+zéro erreur, échec ou skip. Le nettoyage SQL borné et vérifié résout le problème
+de banc détaillé ci-dessous. Neuf recettes [réparation](PHASE5C2_REPAIR.md) sont
+ajoutées dans le candidat suivant, qui nécessite sa propre qualification.
+
 Checkpoint secours `6cd77cac61c2f5c7256ad320e3bb3f5b954b7910` : Quality permanente
 `36124073968` verte. Recette technique `36124119321` : 30 backup, 21 finalisation,
 15 précontrôles PASS ; préparation SQL rouge sur le seul teardown du cas DDL

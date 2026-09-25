@@ -2,6 +2,12 @@
 
 ## Reprise WORK - candidat 5C2b en préparation
 
+Checkpoint maintenance `3d7440157a3251b54be820d1af5acaa8794a02f6` : Quality
+`36125259959` et recette SQL `36125303870` toutes vertes, 91 scénarios SQL/HTTP
+distincts (18+21+15+30+7). La réparation [DEFINER explicite](PHASE5C2_REPAIR.md)
+est maintenant implémentée comme nouveau candidat privé, en attente de sa
+qualification. Ni 5C2 ni Phase 5 ne sont closes ; aucune branche active promue.
+
 La sauvegarde de secours est implémentée et ses 30 recettes backup passent sur
 `6cd77cac61c2f5c7256ad320e3bb3f5b954b7910`. Une erreur de nettoyage de fixture
 SQL garde la campagne globale rouge, voir [QUALITY.md](QUALITY.md). La barrière
