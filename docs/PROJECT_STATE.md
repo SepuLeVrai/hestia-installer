@@ -7,7 +7,7 @@ paquets `36164840474`, SQL/proxy `36164923531`.
 Le [nouveau lot](PHASE5_WEB_DEPLOYMENT.md) déploie exclusivement l'arbre complet
 Web épinglé, sans exécution ni adoption. La recette assemble ce déploiement,
 SQL, Apache/FPM et TLS pour le login Admin, Dashboard, logout et les sessions
-1 h/4 h/8 h. Cible : 622 core par Debian, 61 système et 13 paquets par Debian,
+1 h/4 h/8 h. Cible : 623 core par Debian, 61 système et 13 paquets par Debian,
 16 DOM, 21 HTTPS, 118 SQL/HTTP, 14 cas helper proxy et 10 cas Web réel.
 Activation produit, stockages métier et fin de Phase 5 ouverts. Sections suivantes
 historiques ; preuves finales dans le checkpoint après gel.

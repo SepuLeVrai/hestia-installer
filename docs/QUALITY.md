@@ -2,7 +2,7 @@
 
 ## Déploiement protégé — Web réel sous services
 
-[Contrat et recette](PHASE5_WEB_DEPLOYMENT.md) : 622 core par Debian, 61 système
+[Contrat et recette](PHASE5_WEB_DEPLOYMENT.md) : 623 core par Debian, 61 système
 et 13 paquets par Debian, 16 DOM, 21 HTTPS, 118 SQL/HTTP, 14 cas helper proxy
 et 10 cas Web réel sous Apache/FPM/TLS. Qualification sur les sources exactes,
 sans skip. Login et politique de session ne valent pas activation produit,

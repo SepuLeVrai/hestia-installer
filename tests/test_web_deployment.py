@@ -40,6 +40,28 @@ class WebDeploymentTests(unittest.TestCase):
             self.assertIs(value[key], False)
         self.assertEqual(self.deploy.observe(), value)
 
+    def test_large_source_files_and_complete_manifest_use_deployment_bounds(self):
+        raw = b'asset-byte-' * 16000
+        (self.source / 'index.php').write_bytes(raw)
+        for index in range(200):
+            (self.source / ('asset-' + str(index).zfill(4) + '-' + 'a' * 64)).write_bytes(b'fixture')
+        def obj(kind, data): return hashlib.sha1(kind.encode() + b' ' + str(len(data)).encode() + b'\0' + data).digest()
+        subtree = obj('tree', b'100755 tool.sh\0' + obj('blob', (self.source / 'bin/tool.sh').read_bytes()))
+        entries = [(b'bin/', b'40000 bin\0' + subtree)]
+        for path in self.source.iterdir():
+            if path.is_file(): entries.append((path.name.encode(), b'100644 ' + path.name.encode() + b'\0' + obj('blob', path.read_bytes())))
+        tree = obj('tree', b''.join(value for _, value in sorted(entries))).hex()
+        with patch.multiple(w, WEB_TREE=tree, WEB_FILES=202):
+            plan = self.deploy._plan(self.deploy.prepare())
+            self.assertGreater(len(plan), 16384)
+            with patch.object(w, 'MAX_PLAN', 16384), self.assertRaisesRegex(w.WebDeploymentError, 'WEB_DEPLOYMENT_PLAN_LIMIT'):
+                self.deploy.create(confirmed=True)
+            self.assertFalse(self.spec.journal.exists()); self.assertFalse(self.spec.target.exists())
+            result = self.deploy.create(confirmed=True)
+            self.assertEqual(result['files'], 202); self.assertEqual(self.deploy.observe(), result)
+            self.assertEqual((self.spec.target / 'index.php').read_bytes(), raw)
+            self.assertEqual((self.spec.journal / 'deployment.attempt').read_bytes(), plan)
+
     def test_restrictive_caller_umask_does_not_break_explicit_permissions(self):
         old = os.umask(0o777)
         try: self.deploy.create(confirmed=True)
@@ -113,23 +135,23 @@ class WebDeploymentTests(unittest.TestCase):
             with patch.object(w, name, value), self.assertRaises(w.WebDeploymentError): self.deploy.prepare()
 
     def test_source_change_during_copy_keeps_partial_journal_and_never_replays(self):
-        original = w.h.f._write
+        original = w._write
         def changed(fd, name, data, gid, **kwargs):
             original(fd, name, data, gid, **kwargs)
             if name == 'deployment.attempt': (self.source / 'index.php').write_bytes(b'changed during copy')
-        with patch.object(w.h.f, '_write', side_effect=changed), self.assertRaises(w.WebDeploymentError): self.deploy.create(confirmed=True)
+        with patch.object(w, '_write', side_effect=changed), self.assertRaises(w.WebDeploymentError): self.deploy.create(confirmed=True)
         self.assertTrue((self.spec.journal / 'deployment.attempt').is_file())
         self.assertFalse((self.spec.journal / 'deployed.json').exists())
         self.assertEqual(w.WebDeploymentOperation(self.deploy).recover(None, 'apply').decision, RecoveryDecision.MANUAL)
         with self.assertRaises(w.WebDeploymentError): self.deploy.create(confirmed=True)
 
     def test_disk_or_receipt_failure_retains_footprint_without_success(self):
-        original = w.h.f._write
+        original = w._write
         for failure in ('index.php', 'deployed.json'):
             def fail(fd, name, data, gid, **kwargs):
                 if name == failure: raise OSError('private-path-and-token')
                 return original(fd, name, data, gid, **kwargs)
-            with patch.object(w.h.f, '_write', side_effect=fail), self.assertRaisesRegex(w.WebDeploymentError, '^WEB_DEPLOYMENT_INCOMPLETE$'):
+            with patch.object(w, '_write', side_effect=fail), self.assertRaisesRegex(w.WebDeploymentError, '^WEB_DEPLOYMENT_INCOMPLETE$'):
                 self.deploy.create(confirmed=True)
             self.assertFalse((self.spec.journal / 'deployed.json').exists())
             self.assertEqual(w.WebDeploymentOperation(self.deploy).recover(None, 'apply').decision, RecoveryDecision.MANUAL)
@@ -137,7 +159,7 @@ class WebDeploymentTests(unittest.TestCase):
 
     def test_lost_response_recovers_read_only_and_rollback_remains_manual(self):
         self.deploy.create(confirmed=True); operation = w.WebDeploymentOperation(self.deploy)
-        with patch.object(w.h.f, '_write', side_effect=AssertionError('no writes')):
+        with patch.object(w, '_write', side_effect=AssertionError('no writes')):
             self.assertEqual(operation.recover(None, 'apply').decision, RecoveryDecision.APPLIED)
         self.assertEqual(operation.recover(None, 'rollback').decision, RecoveryDecision.MANUAL)
 

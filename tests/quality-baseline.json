@@ -611,6 +611,7 @@
       "test_web_deployment.WebDeploymentTests.test_disk_or_receipt_failure_retains_footprint_without_success",
       "test_web_deployment.WebDeploymentTests.test_entry_byte_and_time_limits_are_closed",
       "test_web_deployment.WebDeploymentTests.test_existing_empty_targets_and_journals_are_not_adopted",
+      "test_web_deployment.WebDeploymentTests.test_large_source_files_and_complete_manifest_use_deployment_bounds",
       "test_web_deployment.WebDeploymentTests.test_lost_response_recovers_read_only_and_rollback_remains_manual",
       "test_web_deployment.WebDeploymentTests.test_paths_pins_and_overlap_are_rejected",
       "test_web_deployment.WebDeploymentTests.test_private_paths_are_not_in_reports_or_repr_and_forged_receipts_fail",

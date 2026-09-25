@@ -25,7 +25,7 @@ exécutable Git. Il n'y a aucune conversion récursive d'ownership d'une ancienn
 installation. Une umask restrictive n'altère pas ces modes explicites.
 Chaque copie vérifie son empreinte ; la source et la destination complètes sont
 relues avant le reçu. Limites : 10000 entrées, profondeur 64, 8 Mio par fichier,
-256 Mio au total, durée bornée des scans et de la copie à 45 secondes chacun.
+256 Mio au total, journal de plan borné à 4 Mio, durée bornée des scans et de la copie à 45 secondes chacun.
 
 `WEB_SOURCE_DEPLOYED` signifie seulement que le code exact est présent et
 protégé. Une réponse perdue est récupérable par observation, sans recopie.
@@ -68,7 +68,7 @@ Les 118 recettes SQL historiques restent obligatoires séparément.
 
 ## Gates et limites
 
-Qualification requise sur le même arbre : 622 core par Debian 12/13, 16 DOM,
+Qualification requise sur le même arbre : 623 core par Debian 12/13, 16 DOM,
 21 HTTPS, 61 recettes système et 13 paquets par Debian, 118 SQL/HTTP, 14 cas
 proxy avec le helper Web épinglé, puis les 10 cas du Web réellement déployé.
 Aucun skip, aucune retouche de pin. Résultats finaux et échecs éventuels dans le
@@ -88,3 +88,12 @@ NGINX/ACME, serveur métier, Gateway ni APK touché. Aucun succès d'un simple l
 ne met `application_installed`, `system_wiring_verified`,
 `writable_business_storage_ready` ou `complete_web_backup` à vrai. Phase 5
 reste ouverte ; l'intermittence navigateur historique reste non résolue.
+
+## Correction découverte pendant la qualification
+
+Le writer des secrets SQL limite volontairement ses fichiers à 16 Kio. Il ne
+convient ni aux assets Web ni au manifeste complet : le déploiement utilise
+désormais son propre writer exclusif et durable, avec ses limites 8 Mio/fichier
+et 4 Mio/plan. Le writer SQL reste inchangé. Une recette core exige un asset et
+un journal supérieurs à 16 Kio, puis la lecture exacte et le refus du plan
+surdimensionné avant réservation. La recette intégrée conserve les 1840 fichiers.

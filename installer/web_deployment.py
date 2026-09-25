@@ -19,6 +19,7 @@ WEB_FILES = 1840
 MAX_ENTRIES = 10000
 MAX_BYTES = 256 * 1024 * 1024
 MAX_SECONDS = 45
+MAX_PLAN = 4 * 1024 * 1024
 
 
 class WebDeploymentError(RuntimeError):
@@ -49,6 +50,21 @@ class DeploymentSpec:
 
 def _object(kind, data):
     return hashlib.sha1(kind.encode() + b' ' + str(len(data)).encode() + b'\0' + data).digest()
+
+
+def _write(fd, name, data, gid, *, mode=0o640):
+    """Exclusive source/journal writer; SQL configuration's 16 KiB cap is unrelated."""
+    require(gid == 0 and mode in (0o640, 0o644, 0o755) and len(data) <= h.p.MAX_FILE)
+    handle = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                     0o600, dir_fd=fd)
+    try:
+        offset = 0
+        while offset < len(data):
+            count = os.write(handle, data[offset:offset + 65536])
+            require(count > 0, 'WEB_DEPLOYMENT_WRITE_FAILED'); offset += count
+        os.fchown(handle, 0, 0); os.fchmod(handle, mode); h.fs._no_acl(handle); os.fsync(handle)
+    finally: os.close(handle)
+    os.fsync(fd)
 
 
 def _scan(root, *, deployed=False):
@@ -101,9 +117,11 @@ class WebDeployment:
     def __repr__(self): return '<WebDeployment exclusive pinned source copy>'
 
     def _plan(self, source):
-        return h.p._json({'version': 1, 'source': str(self.spec.source), 'target': str(self.spec.target),
+        raw = h.p._json({'version': 1, 'source': str(self.spec.source), 'target': str(self.spec.target),
             'journal': str(self.spec.journal), 'repository': self.spec.repository, 'commit': self.spec.commit,
             'snapshot': source})
+        require(len(raw) <= MAX_PLAN, 'WEB_DEPLOYMENT_PLAN_LIMIT')
+        return raw
 
     def prepare(self):
         try:
@@ -123,7 +141,7 @@ class WebDeployment:
                 os.chmod(self.spec.journal.name, 0o700, dir_fd=fd, follow_symlinks=False); os.fsync(fd)
             with h.fs._directory(self.spec.journal) as journal:
                 os.fchmod(journal, 0o700); os.fsync(journal)
-                h.f._write(journal, 'deployment.attempt', plan, 0)
+                _write(journal, 'deployment.attempt', plan, 0)
                 with h.fs._directory(self.spec.target.parent) as fd:
                     os.mkdir(self.spec.target.name, 0o755, dir_fd=fd)
                     os.chmod(self.spec.target.name, 0o755, dir_fd=fd, follow_symlinks=False); os.fsync(fd)
@@ -144,10 +162,10 @@ class WebDeployment:
                         raw = h.f._read(fd, original.name, info.st_gid, mode=stat.S_IMODE(info.st_mode), limit=h.p.MAX_FILE)
                     require(h.f._sha(raw) == meta['sha256'] and len(raw) == meta['bytes'], 'WEB_DEPLOYMENT_SOURCE_CHANGED')
                     target = self.spec.target / name
-                    with h.fs._directory(target.parent) as fd: h.f._write(fd, target.name, raw, 0, mode=meta['mode'])
+                    with h.fs._directory(target.parent) as fd: _write(fd, target.name, raw, 0, mode=meta['mode'])
                 require(_scan(self.spec.source) == source and _scan(self.spec.target, deployed=True) == source,
                         'WEB_DEPLOYMENT_SOURCE_CHANGED')
-                h.f._write(journal, 'deployed.json', h.p._json({'version': 1, 'plan_sha256': h.f._sha(plan),
+                _write(journal, 'deployed.json', h.p._json({'version': 1, 'plan_sha256': h.f._sha(plan),
                     'state': 'WEB_SOURCE_DEPLOYED'}), 0)
             return self.observe()
         except WebDeploymentError: raise
@@ -160,7 +178,7 @@ class WebDeployment:
             with h.fs._directory(self.spec.journal) as fd:
                 info = os.fstat(fd)
                 require((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (0, 0, 0o700))
-                require(h.f._read(fd, 'deployment.attempt', 0) == plan, 'WEB_DEPLOYMENT_DRIFT')
+                require(h.f._read(fd, 'deployment.attempt', 0, limit=MAX_PLAN) == plan, 'WEB_DEPLOYMENT_DRIFT')
                 require(h.f._json_read(fd, 'deployed.json', 0) == {'version': 1, 'plan_sha256': h.f._sha(plan),
                         'state': 'WEB_SOURCE_DEPLOYED'}, 'WEB_DEPLOYMENT_DRIFT')
             require(_scan(self.spec.target, deployed=True) == source, 'WEB_DEPLOYMENT_DRIFT')
