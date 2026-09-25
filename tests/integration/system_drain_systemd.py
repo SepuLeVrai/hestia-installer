@@ -75,7 +75,9 @@ class SystemDrainLive(unittest.TestCase):
         with socket.socket() as listener:
             listener.bind(('127.0.0.1', 0)); self.port = listener.getsockname()[1]
         self.write(self.root / 'web' / 'index.php', '<?php session_start(); $_SESSION["fixture"]=17; echo "ready";')
-        self.write(self.root / 'web' / 'upload.php', '<?php echo isset($_FILES["file"]) ? "uploaded" : "empty";')
+        self.write(self.root / 'web' / 'upload.php', '<?php file_put_contents('
+            + self.phpstr(self.root / 'data' / 'upload-executed')
+            + ',"ran"); echo isset($_FILES["file"]) ? "uploaded" : "empty";')
         self.write(self.root / 'web' / 'delay.php', '<?php file_put_contents(' + self.phpstr(self.root / 'data' / 'entered')
             + ',"entered"); usleep(900000); echo "done";')
         helper = self.root / 'orphan.py'
@@ -123,6 +125,8 @@ LoadModule mpm_event_module /usr/lib/apache2/modules/mod_mpm_event.so
 LoadModule authz_core_module /usr/lib/apache2/modules/mod_authz_core.so
 LoadModule proxy_module /usr/lib/apache2/modules/mod_proxy.so
 LoadModule proxy_fcgi_module /usr/lib/apache2/modules/mod_proxy_fcgi.so
+LoadModule reqtimeout_module /usr/lib/apache2/modules/mod_reqtimeout.so
+RequestReadTimeout header=2 body=1-2,MinRate=1024
 User {self.web.pw_name}
 Group {self.web.pw_name}
 ErrorLog "{self.root}/log/apache.log"
@@ -222,7 +226,7 @@ Delegate=no
         self.assertEqual(sessions, {p.name: p.read_bytes() for p in (self.root / 'data/sessions').iterdir()})
         self.assertEqual(self.scope.observe()['state'], 'MAINTENANCE_REQUIRED')
 
-    def test_partial_multipart_before_php_guard_is_drained_and_listener_closed(self):
+    def partial_multipart(self):
         stream = socket.create_connection(('127.0.0.1', self.port), timeout=5)
         self.addCleanup(stream.close)
         header = (f'POST /upload.php HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\n'
@@ -231,12 +235,31 @@ Delegate=no
         body = b'--hestia-boundary\r\nContent-Disposition: form-data; name="file"; filename="fixture.bin"\r\nContent-Type: application/octet-stream\r\n\r\n'
         stream.sendall(header + body + b'x' * (512 * 1024))
         until(lambda: any((self.root / 'data/uploads').iterdir()))
+        return stream
+
+    def test_partial_multipart_before_php_guard_is_drained_and_listener_closed(self):
+        self.partial_multipart()
         with self.drain.acquire(confirmed=True) as result:
             self.assert_stopped(result)
             snapshot = {p.name: p.stat().st_size for p in (self.root / 'data/uploads').iterdir()}
             time.sleep(.15)
             self.assertEqual(snapshot, {p.name: p.stat().st_size for p in (self.root / 'data/uploads').iterdir()})
-            self.assertFalse((self.root / 'data/entered').exists())
+            self.assertFalse((self.root / 'data/upload-executed').exists())
+
+    def test_unbounded_stalled_upload_is_refused_without_certifying_forced_stop(self):
+        # Preserve the first campaign's counterexample. No artificial increase
+        # of the stop deadline and no acceptance of systemd Result=timeout.
+        text = self.apache.read_text().replace('RequestReadTimeout header=2 body=1-2,MinRate=1024',
+                                              'RequestReadTimeout header=2 body=0')
+        self.write(self.apache, text)
+        command('/usr/sbin/apache2', '-t', '-f', str(self.apache))
+        command('systemctl', 'restart', self.drain.unit('apache'))
+        until(lambda: self.ready()); self.partial_multipart()
+        with self.assertRaisesRegex(s.SystemDrainError, 'NOT_EMPTY'):
+            self.drain.acquire(confirmed=True)
+        self.assertEqual(self.scope.observe()['state'], 'MAINTENANCE_REQUIRED')
+        self.assertEqual(s._show(self.drain.unit('apache'))['Result'], 'timeout')
+        self.assertFalse((self.root / 'data/upload-executed').exists())
 
     def test_detached_child_surviving_killed_php_worker_is_removed_by_cgroup_stop(self):
         outcome = []
@@ -364,8 +387,8 @@ if __name__ == '__main__':
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     source_stable = source == quality.snapshot(ROOT)
     report = {'suite': 'Real Debian systemd Apache FPM stop-only barrier', 'tests': result.testsRun,
-        'expected': 10, 'failures': len(result.failures), 'errors': len(result.errors),
-        'skips': len(result.skipped), 'status': 'PASS' if result.wasSuccessful() and result.testsRun == 10
+        'expected': 11, 'failures': len(result.failures), 'errors': len(result.errors),
+        'skips': len(result.skipped), 'status': 'PASS' if result.wasSuccessful() and result.testsRun == 11
         and not result.skipped and source_stable else 'FAIL', 'web_application_qualified': False,
         'native_session_cleaner_qualified': False, 'source_stable': source_stable, 'source_files': len(source)}
     args.report.parent.mkdir(parents=True, exist_ok=True)

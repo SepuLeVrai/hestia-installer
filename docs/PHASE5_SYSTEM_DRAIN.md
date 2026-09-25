@@ -95,7 +95,7 @@ Le workflow distinct `Installer system runtime Quality` utilise les paquets
 officiels Debian 12 et 13, un vrai systemd PID 1 et un cgroup v2 privé dans un
 conteneur jetable. Aucun montage du cgroup hôte, port exposé ou credential de
 dépôt n'est transmis au conteneur. Apache et FPM fonctionnent réellement.
-Les dix recettes par Debian exercent sessions, multipart partiel, enfant
+Les onze recettes par Debian exercent sessions, multipart partiel, enfant
 `setsid()` après SIGKILL d'un worker FPM, requête déjà protégée, SIGKILL du
 contrôleur, redémarrage refusé, dérive, service étranger préservé, reprise exacte
 et timeout d'arrêt refusé. Les octets et modes des sources sont comparés avant
@@ -105,7 +105,7 @@ et 21 HTTPS restent requis sur le commit exact.
 Les endpoints PHP, commandes CLI et processus de nettoyage de cette recette
 sont des **fixtures**. Le Web complet, le nettoyage Debian `phpsessionclean`,
 les timers/cron existants et les autres écrivains SQL ne sont pas qualifiés par
-ces dix tests. PHP 8.2 de Debian 12 peut qualifier cette barrière sans satisfaire
+ces onze tests. PHP 8.2 de Debian 12 peut qualifier cette barrière sans satisfaire
 la contrainte PHP >= 8.3 du Web épinglé. Ne pas confondre ces deux matrices.
 
 Le rapport `ENROLLED_SYSTEM_SERVICES_DRAINED` reste étroit :
@@ -124,3 +124,22 @@ Références techniques : [systemd.kill](https://www.freedesktop.org/software/sy
 [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html),
 [PHP-FPM](https://www.php.net/manual/en/install.fpm.configuration.php),
 [Apache mod_proxy_fcgi](https://httpd.apache.org/docs/2.4/mod/mod_proxy_fcgi.html).
+
+## Première campagne système et borne de réception HTTP
+
+Le candidat `349ce62e66e845efba6917ef6e9caddecd458e88` a exécuté neuf cas
+système réussis sur dix par Debian. La campagne `36142515676` a correctement
+refusé l’arrêt Apache après quatre secondes : le client multipart du banc
+laissait son corps ouvert sans aucune borne de réception HTTP. Le cgroup
+avait été éliminé par systemd, mais `Result=timeout` ne doit pas devenir un PASS.
+
+La recette positive charge désormais le module officiel `mod_reqtimeout` avec
+une limite de réception courte de une à deux secondes propre au banc, inférieure
+aux quatre secondes du délai d’arrêt de la fixture. Le client ne ferme pas
+artificiellement son upload pour aider le test. Un onzième cas désactive cette
+limite et conserve exactement le refus du client bloqué. Le code de drainage,
+le délai d’arrêt et le refus des arrêts forcés restent inchangés. Le marqueur
+du vrai endpoint upload prouve également que son code n’est pas entré.
+Le futur profil Apache devra définir ses propres bornes réalistes de réception
+et de drainage ; ces valeurs de test ne sont pas une configuration produit.
+Les fichiers corrigés nécessitent une nouvelle qualification complète.

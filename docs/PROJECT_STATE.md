@@ -7,7 +7,7 @@ Le checkpoint inventaire `ed7707c9eb7f6314e5d3d3b899f0efe1cef92d53` est qualifi�
 Le lot suivant ajoute une [barrière d’arrêt système](PHASE5_SYSTEM_DRAIN.md) :
 quatre unités explicitement enrôlées, condition de maintenance, arrêt Apache
 avant FPM, vérification des cgroups et reprise exacte après interruption.
-Candidat à qualifier : 524 core par Debian, dix recettes systemd par Debian,
+Candidat à qualifier : 524 core par Debian, onze recettes systemd par Debian,
 16 DOM, 21 HTTPS et 118 recettes SQL/HTTP. Les endpoints PHP et producteurs
 CLI/nettoyage de la recette système sont des fixtures, pas le Web installé.
 Le provisionnement, le nettoyage Debian natif, la reprise des services et le

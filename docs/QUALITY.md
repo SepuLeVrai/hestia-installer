@@ -5,7 +5,7 @@
 Base inventaire `ed7707c` qualifiée : Quality `36139574996`, SQL `36139636592`.
 Le [lot système](PHASE5_SYSTEM_DRAIN.md) ajoute 18 core obligatoires :
 **524 par Debian 12/13**. Le workflow supplémentaire `system-runtime.yml` est
-requis : dix scénarios avec systemd PID 1, Apache, FPM et cgroup v2 par Debian,
+requis : onze scénarios avec systemd PID 1, Apache, FPM et cgroup v2 par Debian,
 sans skip, sources stables. Il ne qualifie pas le Web complet sous PHP 8.2.
 Les 16 DOM, 21 HTTPS et 118 SQL/HTTP restent requis sur le commit gelé.
 Le gate Quality historique seul ne suffit donc pas à promouvoir ce candidat.

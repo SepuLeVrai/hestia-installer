@@ -8,7 +8,7 @@ Base exacte : `ed7707c9eb7f6314e5d3d3b899f0efe1cef92d53`, arbre
 Le nouveau candidat arrête seulement quatre unités déjà provisionnées,
 contrôle les cgroups et garde la maintenance après interruption. Aucun
 redémarrage ou déploiement implicite. Les tentatives servent à la reprise
-exacte des arrêts, jamais au rejeu SQL. Cible : 524 core par Debian, dix vrais
+exacte des arrêts, jamais au rejeu SQL. Cible : 524 core par Debian, onze vrais
 scénarios systemd par Debian, 16 DOM, 21 HTTPS et 118 SQL/HTTP.
 Prochaine frontière : vrais profils services/données, sessionclean natif,
 remise en service, raccordement sauvegarde puis vraie transition/rollback.
