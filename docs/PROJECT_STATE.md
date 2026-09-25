@@ -1,17 +1,21 @@
 # État du projet
 
-## Point de reprise - Étape 1 résiduelle 5B2.2
+## Point de reprise - 5B2.3, puis 5C
 
-5A, 5B1, 5B2.1 et 5B2.2a sont conservées. Ce lot assemble la préparation SQL
-fresh et la configuration privée : provisioning SQL local, ports explicites,
-TLS distant vérifié et privilèges séparés. Il ne livre pas 5B2.3.
-Le résultat maximal est DATABASE_CONFIGURATION_READY, sans activation ni lock Web.
-La preuve de publication est le commit contenant ce document et ses Quality réelles,
-pas les paragraphes historiques ou une ancienne campagne.
-Contrat : [PHASE5B22_DATABASE_PREPARATION.md](PHASE5B22_DATABASE_PREPARATION.md).
-Reprise : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md), puis dernier commentaire
-Installer #13/Web #135 pour les références finales et les limites mesurées.
-Le wizard affiche toujours « Sources prêtes ». Aucun serveur HESTIA déployé.
+La frontière privée5B est implémentée : préparation SQL, Assistant optionnel,
+activation des fichiers protégés et scellement install.lock. Le nouveau contrat
+est décrit dans [PHASE5B23_FINALIZATION.md](PHASE5B23_FINALIZATION.md).
+Résultat maximal WEB_FRESH_FINALIZED, configuration_activated=true,
+installation_sealed=true, application_installed=false et api_access=NOT_TESTED.
+Ce n'est pas une recette système5D : le wizard reste « Sources prêtes ».
+
+Compagnon Web épinglé : `46c03060625d4d53c675474b11aaa33007d9aad7`.
+La publication et sa qualification doivent être vérifiées dans les campagnes du
+commit et les derniers commentaires Installer #13 / Web #135. Les paragraphes
+ci-dessous sont l'historique, pas une preuve du statut distant du présent lot.
+Reprise : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md).
+Prochain chantier5C : upgrade/reprise/rollback. Services/écrans restent5D.
+Aucun serveur HESTIA, Gateway, APK ou base de production modifié.
 
 ## 2026-09-21
 

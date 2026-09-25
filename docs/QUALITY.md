@@ -1,19 +1,36 @@
 # Quality et non-régression de HESTIA Installer
 
-## Frontière couverte
+## Frontière couverte actuelle - 5B2.3
 
-Le socle actuel s'arrête à l'acquisition de sources. Les contrôles fresh/upgrade,
-reprise, retry et rollback concernent le bootstrap, le journal et l'acquisition.
-Ils ne constituent pas une validation d'installation SQL, Web, Gateway ou APK.
-Les adaptateurs des phases suivantes doivent ajouter leurs vrais tests système.
+Le cockpit public reste limité aux sources prêtes. Les API privées vont maintenant
+jusqu'au SQL fresh préparé, à l'Assistant optionnel, à l'activation et au scellement.
+La recette système et les écrans restent5D ; le nouvel upgrade reste5C.
+Contrat et limites : [PHASE5B23_FINALIZATION.md](PHASE5B23_FINALIZATION.md).
+Les sections datées plus bas décrivent l'historique, pas une qualification nouvelle.
+
+Le gel5B2.3 conserve353 core et ajoute37 unitaires :390 attendus. Les16 tests du
+gate sont inclus dans core et ne s'additionnent pas comme tests uniques. Les16 DOM
+et21 HTTPS natifs restent inchangés, avec les mêmes assertions et bornes. Les21
+nouveaux scénarios cross-dépôts SQL/TLS/HTTP et les18 anciens SQL/TLS sont des
+campagnes distinctes réelles, jamais assimilées à des mocks unitaires.
+
+La Quality Web reste complète (PHP8.3/8.4, Composer, PHP/JS, MariaDB11.4
+fresh/replay/upgrade, Apache interne). Son nouveau test de finalisation comporte27
+contrôles. Aucune évolution de schema.sql/install.php/migrations/version/vendor.
+Le smoke HTTP de finalisation est un test loopback sous identité Web, pas une
+recette Apache/FPM/HTTPS/proxy ou des fonctions GED/maintenance complètes.
+
+La publication, la réussite des runs et leurs versions réellement observées sont
+consignées dans les rapports compagnons et #13/#135 après la campagne finale.
+Ne pas reprendre un vert historique comme preuve ni annoncer un succès système.
 
 ## Commandes reproductibles
 
 Sur un environnement Debian de test jetable avec les outils requis :
 
 ```bash
-./scripts/quality-local.sh
-./scripts/quality-wizard.sh
+HESTIA_ACCOUNT_DB_TEST=1 ./scripts/quality-local.sh
+HESTIA_ACCOUNT_DB_TEST=1 ./scripts/quality-wizard.sh
 ```
 
 La première commande impose Python 3, Node, bash, OpenSSL et iproute2, contrôle

@@ -1,97 +1,102 @@
-# Handoff WORK - après l'étape 1 résiduelle 5B2.2
+# Handoff WORK - après 5B2.3, reprise 5C
 
-## Lire avant toute modification
+## Lire les références effectives avant toute modification
 
-Le dernier lot prépare le résiduel 5B2.2 depuis Installer
-`07d0da54c317420463a3699ee96dd6000afa6c31` et Web
-`dcb856bc5ef5f35006d2398289b49f5386dcc5f5`.
-Relire les HEAD réels main Installer, dev-Bastien/main Web, puis le dernier
-commentaire de livraison Installer #13 et Web #135 : ils portent les commits
-publiés, runs, ZIPs, empreintes et limites finales. La présence de ce document
-ne suffit pas à elle seule à prouver une CI réussie ou une promotion.
-Lire [PHASE5B22_DATABASE_PREPARATION.md](PHASE5B22_DATABASE_PREPARATION.md),
-[QUALITY.md](QUALITY.md), le nouveau contrat Web docs/INSTALLER_SQL_CONNECTION.md,
-installer/database_step.py et ses pins. Ne pas reprendre la tentative monolithique.
+Base de ce lot : Installer main `036cbfd4b581b2245fbe7b6974625e6b11820818`.
+Compagnon Web 5B2.3 : `46c03060625d4d53c675474b11aaa33007d9aad7`, arbre
+`aaac278270e0fd1169396945916dfe997ae078bf`.
+Relire les HEAD distants main Installer et dev-Bastien/main Web, puis les derniers
+commentaires de livraison Installer #13 / Web #135. Ils fournissent les commits
+finaux, runs, ZIPs et empreintes. Ce document gelé AVANT Quality n'est pas à lui
+seul la preuve d'une campagne réussie ou d'une promotion.
 
-## Acquis à préserver
+Lire [PHASE5B23_FINALIZATION.md](PHASE5B23_FINALIZATION.md),
+[PHASE5B22_DATABASE_PREPARATION.md](PHASE5B22_DATABASE_PREPARATION.md),
+[QUALITY.md](QUALITY.md), [PROJECT_STATE.md](PROJECT_STATE.md), puis côté Web
+`docs/INSTALLER_FINALIZATION.md` et `docs/INSTALLER_SHARED_ENGINE.md`.
+Ne reprendre ni ancienne tentative monolithique, ni branche verification/assembly.
 
-5A : validation fermée INPUT_ONLY. 5B1 : moteur SQL partagé unique fresh.
-5B2.1 : transport privé durci et interlock durable. 5B2.2a : audit/staging local
-historique compatible. Le présent lot assemble provisioning SQL managed,
-connexions/audit local ou remote TLS, fresh partagé et staging privé v2.
-L'API antérieure garde son pin et ses tests ; la nouvelle API a son pin propre.
-Aucun ancien ZIP ni branche technique ne doit être réappliqué sur main.
+## Frontière acquise à préserver
 
-Managed crée base et comptes sur un MariaDB local déjà opérationnel, avec une
-autorité explicite distincte de migration/application. Le compte applicatif est
-DML sur seul schéma. Le compte temporaire de migration créé est supprimé après
-succès ; les comptes existants fournis ne sont pas supprimés. Aucun secret
-privilégié durable. Ancêtres root-owned, ACL/liens/refus d'écrasement, fsync et
-configuration hors webroot. Remote exige CA protégée, TLS validé et REQUIRE SSL.
-Les cibles et clauses non reconnues sont refusées, pas assouplies.
+5A : validation INPUT_ONLY. 5B1 : moteur SQL fresh partagé unique.
+5B2.1 : transport privé et interlock. 5B2.2 : provisioning éventuel des objets SQL
+sur serveur déjà prêt, audit DML/migration, ports et TLS, fresh, configuration privée.
+5B2.3 : Assistant optionnel géré en JSON, activation cohérente et install.lock.
+Tous les anciens pins et tests sont conservés. La finalisation a son propre pin
+Web et vérifie tous les fichiers runtime de la source ET de la cible. Ne pas
+ajouter une allowlist générique ou accepter une empreinte inconnue pour avancer.
 
-Résultat maximal DATABASE_CONFIGURATION_READY, configuration_activated=false,
-application_installed=false. Le chargeur db.php préparé n'est PAS encore le
-includes/db.php actif. Aucun install.lock/Assistant/écran ajouté. Le wizard
-termine toujours par « Sources prêtes ». La préparation d'une configuration
-ne prouve pas le déploiement ou une recette HTTP complète.
+API privée : `FinalizationStep.finalize`, `observe`, `configure_assistant` dans
+`installer/finalization.py`. Aucun raccordement public/wizard n'est effectué.
+La configuration doit provenir de DATABASE_CONFIGURATION_READY et du vrai reçu
+SQL durable, pas de l'ancien audit seul. L'Admin est vérifié, jamais réinitialisé.
+Le compte d'application reste DML sur seul schéma ; aucun credential de migration
+ou d'autorité n'est requis ni conservé dans cette étape.
 
-## Prochaine exécution : uniquement étape 2 / 5B2.3
+Les sondes PHP sont non privilégiées. Le contrôle SQL tourne sur copie privée
+épinglée ; la sonde active tourne sous l'identité Web. La clé Assistant est une
+donnée0660 dans un dossier root-owned0750 hors webroot, jamais du PHP exécutable.
+Les anciennes priorités de clés et le RBAC demeurent pour les installations legacy.
+Géré : aucun fallback de clé, champ vide conserve, désactivation conserve la clé,
+effacement distinct et explicite via les helpers Web existants.
 
-Réutiliser et relire les mécanismes Assistant Web existants, les priorités des
-fichiers externes et les fonctions de gestion des clés. Prévoir désactivation
-explicite sans clé, configuration protégée avec clé, choix conserver/remplacer/
-désactiver sur existant. Un champ vide ne doit pas effacer une clé. Ne pas
-confondre format acceptable, stockage et accès API effectivement testé.
-Aucune exécution root d'un fichier de secret modifiable par le Web.
+État positif privé : WEB_FRESH_FINALIZED, configuration_activated=true,
+installation_sealed=true, application_installed=false,
+system_qualification_required=true, api_access=NOT_TESTED.
+Le wizard reste « Sources prêtes ». Aucun serveur HESTIA n'est déployé.
 
-Assembler ensuite l'activation des fichiers préparés, les vérifications de
-cohérence et le scellement install.lock. Ne pas installer ou neutraliser le
-formulaire historique après un simple audit SQL. Les interruptions doivent
-rester observables sans rejouer fresh ni écraser l'existant. Les secrets
-applicatifs durables survivent au nettoyage des credentials temporaires.
-Qualifier sur les sources exactes des deux dépôts, sans accepter un autre pin.
+## Attention à l'enveloppe avant de concevoir 5C
 
-Ne pas absorber upgrade 5C, Apache/PHP-FPM/identités système/écrans 5D. Les modes
-managed de cette étape ne créent pas encore le service MariaDB. Les autres
-phases Gateway/NGINX/APK/import restent indépendantes. Pas de compilation APK.
+includes/db.php est un pointeur root-owned sans credential. Il épingle le code
+activation.php, install.lock, seal.json, database.json, le CA et le chargeur privé.
+finalized.json lie les empreintes à la version de contrat et au commit Web.
+Une évolution de ces fichiers ne doit pas simplement écraser le pointeur ou les
+reçus pour faire passer observe : 5C doit prévoir sauvegarde, bascule contrôlée,
+vérification et remise en état de l'enveloppe avec les secrets durables préservés.
 
-## Quality et limites de reprise
+Il n'y a pas de transaction atomique SQL + fichiers. Une interruption après le
+sceau avant le reçu peut laisser un Web actif mais exige une action manuelle côté
+Installer. Une réponse perdue après reçu complet est observable sans rejeu. Les
+.attempt de finalisation ou réglage restent des interlocks, pas des autorisations
+implicites de retry. Pas d'effacement des preuves, credentials ou bases partielles.
 
-353 core attendus : 331 conservés +22 nouveaux. 16 tests du gate inclus aussi
-core, 16 DOM et21 HTTPS natifs. Cross-dépôts : 18 scénarios SQL/TLS sur le Web
-épinglé, puis Quality Web complète legacy fresh/upgrade. Lire les rapports réels
-pour versions PHP/MariaDB et campagnes ; ne pas recycler le vert d'une ancienne
-livraison. Les tests de connexion sous identité Web ne valent pas login HTTP.
-Le scénario de DDL partiel injecte une erreur dans une copie fixture repinnée,
-jamais dans les sources ou le pin livré. Aucune DB de production dans les tests.
+configure_assistant utilise un payload upgrade sans Admin pour des RÉGLAGES seuls
+sur une instance finalisée par 5B2.3. Ce n'est ni un moteur upgrade, ni l'adoption
+automatique d'une installation legacy. Le prochain chantier doit distinguer ces
+opérations explicitement et garder le refus de fresh sur une base existante.
 
-L'audit est ponctuel, ne certifie pas les objets DEFINER ou toutes les fonctions
-maintenance/restore avec DML. L'autorité managed exige un profil administratif
-ALL global avec GRANT OPTION, pas un calcul automatique du minimum de privilèges.
-La vérification des Host multiples avant création dépend de cette autorité ;
-l'audit des comptes existants ne prétend pas cet inventaire global.
-Une erreur/crash après réservation bloque le rejeu ; une base partielle et un
-compte temporaire peuvent subsister, sans rollback DDL atomique promis.
-Les essais TLS sont sur hostname/certificats/datadirs jetables locaux, pas le
-réseau réel de l'utilisateur. Consulter les limites de la recette finale.
+## Prochaine frontière : 5C uniquement
 
-La récidive responsive sur le premier candidat de cette étape a été diagnostiquée :
-la sonde observe innerHeight déjà actualisé mais body.minHeight encore ancien
-après deux frames. Le banc DOM attend maintenant la concordance du viewport CSS,
-comme le natif existant, sans attendre que les assertions de géométrie passent.
-Dix tailles sont parcourues trois fois, toutes les bornes et timeout conservés,
-aucun CSS/JS produit modifié. Lire docs/QUALITY.md et les preuves du diagnostic.
-Ne pas réintroduire une mesure après seulement deux frames, ni relancer en boucle.
+Concevoir et livrer le parcours upgrade réel intégré au contrat privé : versions
+sources explicitement supportées, plan inspectable, comptes de migration temporaires
+séparés du runtime DML, sauvegardes privées, reprise conservatrice après interruption
+et retour arrière vérifié. Relire le moteur Web réel avant d'annoncer un catalogue
+de versions supportées. Ne pas rejouer schema.sql, les seeds fresh ou la création
+d'Admin sur une base existante. Ne pas appeler les anciennes Quality une preuve du
+nouvel upgrade : ajouter les scénarios spécifiques et garder tous les historiques.
 
-## Autorisations et livraison
+Vérifier préservation des utilisateurs, mots de passe, RBAC, sessions, données,
+clé Assistant, paramètres et configuration SQL/TLS. Exercer erreurs SQL/permissions,
+réponses perdues, interruptions avant/après chaque frontière, restaurations et
+idempotence. Une transaction DDL fictive ou un rollback non testé est refusé.
+Raccorder ensuite en5D seulement les services/identités système, droits des données,
+écrans et recette système. Gateway/NGINX/APK/import restent d'autres phases.
 
-Bastien a autorisé l'écriture dans les dépôts concernés, fast-forward seulement
-après les Quality100%réussies. Aucun force push ou déploiement sur LAB-PAWEB30.
-Relire et comparer les HEAD avant promotion ; arrêter sur divergence inattendue.
-Ne fusionner aucune branche verification/assembly/anciens essais 5B complète.
-Livrer ZIPs légers avec fichiers complets, documentation /docs et handoff.
-Les octets et modes emballés sont ceux qualifiés. Aucune retouche après la
-campagne finale : sinon nouvelle qualification. Les métadonnées finales peuvent
-être dans le rapport compagnon et les issues sans changer les sources testées.
-Issues #13 et Web #135 restent ouvertes pour leurs frontières encore non livrées.
+## Quality, livraison et autorisations
+
+Attendus de5B2.3 :390 core (353 préservés +37 nouveaux),16 gate inclus aussi core,
+16 DOM,21 HTTPS natifs,21 nouveaux scénarios SQL/TLS/HTTP et18 historiques SQL/TLS,
+Quality Web complète et27 nouveaux contrôles PHP. Les scénarios croisés ont leur
+campagne distincte ; ne pas les compter dans les390, ni confondre PHP8.4/MariaDB11.8
+local avec la matrice distante PHP8.3/8.4/MariaDB11.4. Consulter les preuves finales.
+
+Les ZIPs doivent reconstruire les arbres exacts testés après application ET
+réapplication sur les bases. Documentation incluse dans le gel ; aucune retouche
+source après Quality sans tout requalifier. Métadonnées finales dans le rapport
+compagnon et les issues, pas un commit documentaire après qualification.
+
+Bastien autorise les écritures dans les dépôts concernés. Relecture des HEAD et
+comparaison avant promotion, fast-forward force=false seulement après qualification
+complète. Stop sur divergence inattendue. Aucun déploiement LAB-PAWEB30, aucune
+compilation APK, aucune fusion des branches techniques. #13/#135 restent ouvertes
+pour leurs frontières5C/5D encore non livrées. La Phase5 entière n'est pas terminée.
