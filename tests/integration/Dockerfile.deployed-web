@@ -1,0 +1,14 @@
+FROM debian:13-slim
+ENV DEBIAN_FRONTEND=noninteractive container=docker
+RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d \
+    && chmod 0755 /usr/sbin/policy-rc.d \
+    && apt-get update -qq \
+    && apt-get install -y --no-install-recommends systemd-sysv dbus python3 passwd util-linux \
+       php-fpm php-cli php-mysql php-mbstring php-curl php-xml php-zip php-gd \
+       apache2 nginx openssl ca-certificates mariadb-server \
+    && systemctl mask mariadb.service mysql.service mysqld.service apache2.service nginx.service php8.4-fpm.service \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /evidence
+COPY --chown=0:0 . /opt/hestia-installer
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

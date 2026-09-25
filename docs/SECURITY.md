@@ -1,5 +1,14 @@
 # Modèle de sécurité
 
+## Déploiement de code exclusif
+
+Le [déploiement protégé](PHASE5_WEB_DEPLOYMENT.md) vérifie l'arbre Git complet
+avant et après copie, réserve un journal durable, refuse les destinations
+existantes, liens et fichiers spéciaux et conserve le code root:root non
+inscriptible par le Web. Il n'exécute aucun contenu source. Les copies partielles
+ne sont ni supprimées ni rejouées automatiquement. Le reçu de copie vierge
+cesse volontairement d'être observable après ajout des pointeurs de finalisation.
+
 ## Profil proxy explicite
 
 Le [contrat TLS/proxy](PHASE5_PROXY_INGRESS.md) distingue l'adresse du pair de

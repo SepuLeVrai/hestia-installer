@@ -1,5 +1,14 @@
 # Quality et non-régression de HESTIA Installer
 
+## Déploiement protégé — Web réel sous services
+
+[Contrat et recette](PHASE5_WEB_DEPLOYMENT.md) : 622 core par Debian, 61 système
+et 13 paquets par Debian, 16 DOM, 21 HTTPS, 118 SQL/HTTP, 14 cas helper proxy
+et 10 cas Web réel sous Apache/FPM/TLS. Qualification sur les sources exactes,
+sans skip. Login et politique de session ne valent pas activation produit,
+stockages GED/photos inscriptibles ni fin de Phase 5. L'intermittence navigateur
+historique reste à résoudre. Résultats dans le checkpoint après gel.
+
 ## Interface proxy — nouvelle qualification requise
 
 Voir [le contrat et la recette TLS](PHASE5_PROXY_INGRESS.md). 608 core par Debian,

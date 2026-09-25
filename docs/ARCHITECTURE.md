@@ -1,5 +1,15 @@
 # Architecture HESTIA Installer
 
+## Déploiement protégé avant finalisation
+
+L'adaptateur privé [WebDeployment](PHASE5_WEB_DEPLOYMENT.md) consomme une source
+Web complète épinglée et crée exclusivement sa destination root:root ainsi que
+son journal hors racine publique. Il précède la finalisation SQL et le staging
+HTTP, sans exécuter ni démarrer l'application. Ses reçus ne remplacent pas ceux
+de finalisation/runtime : chaque frontière conserve son observation exacte.
+La nouvelle recette Web réel assemble ces contrats dans un environnement jetable ;
+l'orchestration de l'activation et la conversion des stockages restent ouvertes.
+
 ## Responsabilité
 
 `hestia-installer` orchestre les composants HESTIA. Il ne devient pas une copie des trois dépôts applicatifs.

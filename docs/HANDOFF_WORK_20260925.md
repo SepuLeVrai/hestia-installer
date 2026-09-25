@@ -1,5 +1,16 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Suite courante — déploiement protégé et Web réel
+
+Base proxy qualifiée `4d9f396e`. Le [lot déploiement](PHASE5_WEB_DEPLOYMENT.md)
+remplace la copie implicite des bancs par un adaptateur produit exclusif, lié
+aux 1840 fichiers de l'arbre Web exact. Une nouvelle recette exerce le vrai Web
+sous Apache/FPM/NGINX avec SQL et sessions. Les services sont démarrés seulement
+par le banc ; l'activation transactionnelle et les données métier inscriptibles
+restent ouvertes. Cible : 622 core par Debian, 61 système et 13 paquets par Debian,
+16 DOM, 21 HTTPS, 118 SQL/HTTP, 14 cas helper proxy et 10 Web réel. Ne pas confondre
+ce déploiement vierge avec une mise à jour ou une installation complètement prête.
+
 ## Suite courante — backend derrière TLS
 
 Base paquets qualifiée `15057f62`. Le [profil proxy](PHASE5_PROXY_INGRESS.md)
