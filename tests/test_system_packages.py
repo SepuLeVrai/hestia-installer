@@ -48,9 +48,13 @@ class PackageTests(unittest.TestCase):
     def test_simulation_extracts_exact_new_dependency_versions(self):
         raw = b'Reading package lists...\nInst liba:amd64 (1:2.3-4 Debian:13 [amd64])\nConf liba (1:2.3-4 Debian:13 [amd64])\n'
         self.assertEqual(s.simulation(raw, self.before), {'liba:amd64': '1:2.3-4'})
+        # Official APT's empty trailing set reports no consequential break.
+        raw = b'Inst libheif-plugin-dav1d (1.19.8-1+deb13u1 Debian:13/stable [amd64]) []\n'
+        self.assertEqual(s.simulation(raw, self.before), {'libheif-plugin-dav1d': '1.19.8-1+deb13u1'})
 
     def test_simulation_refuses_upgrade_downgrade_removal_and_adoption(self):
         for raw in (b'Inst base [1] (2 Debian:13 [amd64])', b'Inst base [1] (0 Debian:13 [amd64])',
+                    b'Inst added (2 Debian:13 [amd64]) [broken:amd64]', b'Inst base [1] (2 Debian:13 [amd64]) []',
                     b'Remv base [1]', b'Purg base [1]', b'Inst base:amd64 (1 Debian:13 [amd64])',
                     b'Inst added (2 Debian:13 [amd64])\nInst added (2 Debian:13 [amd64])', b'Conf base (1 Debian)'):
             with self.assertRaises(s.SystemPackagesError): s.simulation(raw, self.before)

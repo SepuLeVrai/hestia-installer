@@ -161,3 +161,12 @@ explicitement, sans accepter de hook ou de lien arbitraire. Régressions ajouté
 sur ce lien et sur tout ajout imprévu dans le répertoire de configuration APT
 privé. Les rapports de la recette restent écrits même si le préflight échoue.
 Le candidat corrigé exige une nouvelle campagne intégrale.
+
+Le candidat c2254760 a ensuite réussi les 13 cas paquets de Debian 12, mais
+refusé la simulation Trixie (run 36160251875). Le diagnostic 36160551845 relève
+le suffixe APT vide `[]` sur deux nouvelles dépendances libheif. Ce suffixe
+signale une rupture transitoire sans conséquence selon apt-get(8), pas une
+ancienne version. Le parseur accepte seulement ce suffixe vide ; une version
+antérieure avant les parenthèses, un paquet déjà présent, une suppression ou un
+ensemble non vide restent refusés. Régressions positives/négatives conservées ;
+aucune mise à niveau de paquet n'est autorisée par cette correction.

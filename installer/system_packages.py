@@ -62,7 +62,7 @@ def simulation(raw, before):
     for line in raw.decode().splitlines():
         if line.startswith(('Remv ', 'Purg ')): raise SystemPackagesError('SYSTEM_PACKAGES_REMOVAL_REFUSED')
         if not line.startswith('Inst '): continue
-        match = re.fullmatch(r'Inst (' + PACKAGE + r') \((' + VERSION + r') [^\r\n]+\)', line)
+        match = re.fullmatch(r'Inst (' + PACKAGE + r') \((' + VERSION + r') [^\r\n]+\)(?: \[\])?', line)
         require(match is not None, 'SYSTEM_PACKAGES_UPGRADE_REFUSED')
         name, version = match.groups()
         require(name not in result and all(key.split(':')[0] != name.split(':')[0] for key in before),
