@@ -1,0 +1,44 @@
+name: Official Debian package simulation diagnostic
+on:
+  push:
+    branches: ['verification/package-simulation-diagnostic-20260925']
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Capture exact official Trixie simulation with no dpkg installation
+        run: |
+          set -Eeuo pipefail
+          mkdir -p evidence
+          docker build --build-arg DEBIAN=13 -f tests/integration/Dockerfile.packages -t simulation-diagnostic .
+          docker run --rm -i simulation-diagnostic python3 - <<'PY' | tee evidence/simulation.txt
+          import sys
+          from pathlib import Path
+          from unittest.mock import patch
+          sys.path.insert(0, '/opt/hestia-installer')
+          from installer import system_packages as s
+          original = s.simulation
+          def inspect(raw, before):
+              print(raw.decode(), flush=True)
+              for row in raw.decode().splitlines():
+                  if row.startswith('Inst '):
+                      import re
+                      match = re.fullmatch(r'Inst (' + s.PACKAGE + r') \((' + s.VERSION + r') [^\r\n]+\)', row)
+                      if match is None: print('REJECTED LINE:', repr(row), flush=True)
+              raise RuntimeError('Diagnostic stops before any archive download or installation')
+          with patch.object(s, 'simulation', side_effect=inspect):
+              try: s.SystemPackages('b9d741051d9e4d679f53ce292990ab78', nginx=True).acquire(confirmed=True)
+              except s.SystemPackagesError as e: print(str(e), flush=True)
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: package-simulation-diagnostic-debian-13
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7
