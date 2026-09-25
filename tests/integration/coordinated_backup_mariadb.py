@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import subprocess
 import sys
 import unittest
 from unittest.mock import patch
@@ -21,6 +22,7 @@ from installer import maintenance as m
 from installer import php_transport as p
 from installer import upgrade_backup as b
 import maintenance_mariadb as previous
+from database_step_mariadb import literal
 
 WEB = None
 
@@ -36,6 +38,9 @@ class CoordinatedLive(previous.MaintenanceLive):
     def ready(self, remote=False):
         if remote:
             self.remote()
+            self.tls.sql([f'CREATE USER {self.auth_account} IDENTIFIED BY {literal(self.authority._password)} REQUIRE SSL',
+                          f'GRANT ALL PRIVILEGES ON *.* TO {self.auth_account} WITH GRANT OPTION'])
+            self.addCleanup(lambda: self.tls.sql([f'DROP USER IF EXISTS {self.auth_account}']))
             self.finish()
         else:
             self.managed_ready()
@@ -266,11 +271,18 @@ class CoordinatedLive(previous.MaintenanceLive):
 
     def test_coordinated_remote_tls_preserved_for_both_sql_reads(self):
         self.ready(remote=True)
-        before = self.logical_dump()
+        # Compare the actual TLS fixture's database, not the separate local
+        # server also created by the shared integration harness.
+        def source_digest():
+            command = ['mariadb-dump', '--no-defaults', '--socket=' + self.tls.socket, '--user=root',
+                       '--skip-comments', '--skip-dump-date', '--skip-lock-tables', '--skip-add-locks',
+                       '--compact', '--order-by-primary', '--hex-blob', self.db]
+            return hashlib.sha256(subprocess.check_output(command, stderr=subprocess.PIPE, timeout=30)).hexdigest()
+        before = source_digest()
         with self.scope.acquire(confirmed=True) as lease:
             result = self.execute(lease)
             self.assertEqual(result['state'], 'COORDINATED_BACKUP_RESTORE_VERIFIED', result)
-            self.assertEqual(before, self.logical_dump())
+            self.assertEqual(before, source_digest())
             self.assertEqual(result['trigger_smoke_verified'], 5)
             self.assertFalse(result['apply_allowed'])
 

@@ -82,3 +82,15 @@ Les six suites historiques restent requises : 18 préparation, 21 finalisation,
 avec les dix nouveaux. Les résultats du commit gelé seront joints au checkpoint
 compagnon ; les anciens runs verts ne qualifient pas ce nouveau code.
 La Phase 5 et 5C2 restent ouvertes, sans PR ni promotion des branches actives.
+
+## Première campagne et correction de fixture TLS
+
+Le candidat `b7599ae4fd59377249ec7e775e083fc2408fff96` a passé Quality
+`36135640207` (488 core par Debian, 16 DOM, 21 HTTPS). La recette
+`36135725181` a passé neuf cas coordonnés sur dix ; le cas distant était refusé
+car le banc créait l'autorité de sauvegarde uniquement sur son serveur local.
+La fixture crée désormais cette autorité avec REQUIRE SSL sur son serveur TLS
+jetable et la supprime au nettoyage. La comparaison de préservation utilise
+également le socket privé de ce serveur, distinct de celui du banc local.
+Aucun droit produit, contrôle TLS ou assertion n'est supprimé ou assoupli.
+Les fichiers corrigés doivent repasser les deux campagnes complètes.
