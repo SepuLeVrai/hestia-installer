@@ -1,31 +1,36 @@
 # Quality et non-régression de HESTIA Installer
 
-## Frontière couverte actuelle - 5C1
+## Frontière couverte actuelle - 5C2a
 
-La Phase 5B reste acquise. Le présent lot ajoute un précontrôle d'upgrade réel et
-non mutant, pas une exécution de migration. Contrat et limites :
-[PHASE5C_UPGRADE.md](PHASE5C_UPGRADE.md). Le wizard reste « Sources prêtes ».
-Le rapport UPGRADE_PREFLIGHT_READY garde apply_allowed=false ; sauvegarde,
-restauration, bascule et retour arrière restent les lots 5C2/5C3/5C4.
+Contrat : [PHASE5C2_BACKUP.md](PHASE5C2_BACKUP.md). Sauvegarde privée bornée,
+restauration SQL sur serveur jetable sans TCP et relecture réelle des fichiers.
+Ni upgrade, ni retour arrière vers la source, ni réactivation HTTP ou écrans.
+5C2b reste requis : la recette reproduit le DEFINER orphelin du fresh managed,
+erreur1449, et vérifie le refus de certification sans réparation implicite.
+Les tests des étapes précédentes restent conservés, avec cette réserve nouvelle.
 
-La baseline conserve les 390 tests core de 5B2.3 et ajoute 25 tests : 415 attendus.
-Les 16 tests du gate sont également dans core et ne s'additionnent pas. Les 16 DOM
-et 21 HTTPS natifs gardent leurs assertions, seuils et délais. Aucun asset modifié.
+Baseline : **456 core attendus, 415 conservés +41 nouveaux**. Les 16 tests du gate
+sont inclus dans core, pas à additionner. 16 DOM et21 HTTPS natifs inchangés.
+20 nouveaux scénarios SQL/TLS/HTTP indépendants, plus18 SQL/TLS,21 finalisation,
+15 précontrôles historiques. Le core teste les frontières simulées explicitement ;
+les restaurations, triggers, FK, flottants et verrous SQL sont testés réellement
+dans la recette opt-in séparée. Un refus attendu de managed n'est pas un PASS
+fonctionnel de ce parcours ; il matérialise une limite à résoudre dans5C2b.
 
-La nouvelle recette indépendante tests/integration/upgrade_preflight_mariadb.py
-exécute 15 scénarios SQL/TLS/HTTP réels sur le Web épinglé. Les 18 SQL/TLS et les
-21 finalisations SQL/TLS/HTTP historiques sont conservées. Les tests réels restent
-séparés des mocks de protocole/permissions. Ils vérifient les parcours fresh de
-préparation puis l'inspection upgrade, pas un moteur d'upgrade encore absent.
+La recette positive compare les données et DDL relus, restaure les cinq triggers,
+exécute leurs effets avec quatre droits DML et contrôle les FK. Elle couvre aussi
+Unicode, long texte, BIGINT maximal, FLOAT/DOUBLE, binaires/NUL, doublons, champs
+vides, TLS, altération, disque, décès de processus et libération du verrou global.
+Les sessions HTTP existantes sont préservées sur la source ; leurs fichiers
+externes et une réactivation HTTP du clone ne sont pas déclarés restaurés.
 
-Le Web reste au commit 46c03060625d4d53c675474b11aaa33007d9aad7. Aucun nouveau run
-Web n'est déduit de la réussite de sa campagne 5B2.3 ; aucun fichier Web, schema.sql,
-install.php, migration, seed, version ou vendor ne change. Les recettes locales
-ne valent ni réseau d'entreprise ni recette système Apache/FPM/proxy/5D.
-
-Les campagnes, rapports stricts et limites finales sont consignés dans les preuves
-compagnons et #13/#135. Les sources/docs/permissions sont gelées avant la campagne
-finale. Tout changement postérieur impose une nouvelle qualification.
+Web inchangé46c03060625d4d53c675474b11aaa33007d9aad7 : pas de nouveau run Web
+revendiqué. Aucune évolution schema.sql/install.php/migrations/seeds/version/UI.
+Les versions exactes et les résultats des campagnes finales sont dans les preuves,
+pas déduits du seul document. PHP8.4.24/MariaDB11.8.6 local ne vaut pas matrice
+SQL/TLS exhaustive ; les Quality core Debian12/13 et navigateur restent requises.
+Sources, docs et modes gelés avant la campagne finale. Tout changement ultérieur
+impose une nouvelle qualification. Un dump ou un hash seul ne suffit jamais.
 
 ## Commandes reproductibles
 

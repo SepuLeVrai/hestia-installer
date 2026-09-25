@@ -1,5 +1,15 @@
 # HESTIA Installer
 
+## Reprise actuelle : 5C2a, puis 5C2b
+
+Sauvegarde privée du profil reconnu et restauration SQL/fichiers réellement
+vérifiée sur cible isolée : [contrat](docs/PHASE5C2_BACKUP.md).
+**5C2 reste ouverte** : DEFINER orphelins du fresh managed détectés et refusés,
+correction explicite à traiter en5C2b avant5C3. Aucun upgrade, serveur ou écran
+nouveau. Lire [le handoff](docs/HANDOFF_WORK_20260925.md) et les preuves du commit.
+Les sections plus anciennes ci-dessous décrivent les frontières précédentes.
+
+
 Orchestrateur d'installation one-shot pour l'écosystème HESTIA.
 
 Ce dépôt est le quatrième composant transverse du projet HESTIA. Il coordonne sans les dupliquer :

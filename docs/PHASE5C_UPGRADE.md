@@ -1,5 +1,15 @@
 # Phase 5C - Upgrade, sauvegarde, reprise et retour arrière
 
+## Point courant - 5C2a, puis 5C2b
+
+5C1 est publiée au commit Installer `c0dcb902663130302599635b36c7fb8deab80a47`.
+Le présent lot ajoute [5C2a](PHASE5C2_BACKUP.md), sauvegarde privée et restauration
+isolée du profil accepté. **5C2 n'est pas terminée** : la recette a révélé le
+DEFINER orphelin du fresh managed (erreur réelle 1449) ; il est refusé, pas réparé.
+5C2b doit traiter ce défaut explicitement et qualifier managed avant 5C3.
+Le périmètre mutable/GED/sessions externes et les services ne sont pas certifiés.
+Les sections 5C1 ci-dessous décrivent toujours son API inchangée.
+
 ## Découpage retenu après la clôture de 5B
 
 Le lot précédent est publié : Installer `fe912b7a7ce2622734d0b508683de3b4e55dc2dd`
@@ -9,8 +19,9 @@ système de bout en bout restent 5D. Aucune adoption implicite d'une instance le
 
 | Sous-lot | Frontière | Statut du présent gel |
 | --- | --- | --- |
-| 5C1 | Précontrôle réel, inventaire borné, rapport immuable et non exécutable | Implémenté ici ; publication/Quality à vérifier sur le commit |
-| 5C2 | Sauvegardes privées et preuve de restauration sur cible isolée | À réaliser |
+| 5C1 | Précontrôle réel, inventaire borné, rapport immuable et non exécutable | Publiée et qualifiée sur c0dcb902 |
+| 5C2a | Sauvegarde privée et restauration SQL/fichiers du profil accepté | Implémentée ici ; Quality/publication à vérifier |
+| 5C2b | DEFINER managed durables, parcours correspondant et clôture 5C2 | À réaliser avant 5C3 |
 | 5C3 | Catalogue de transitions explicites, migration et bascule contrôlée | À réaliser |
 | 5C4 | Reprise, réponse perdue, retour arrière et qualification globale 5C | À réaliser |
 

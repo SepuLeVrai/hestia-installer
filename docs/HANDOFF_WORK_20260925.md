@@ -1,107 +1,110 @@
-# Handoff WORK - 5C1, prochaine frontière 5C2
+# Handoff WORK - 5C2a, prochaine frontière 5C2b
 
-## Références et état réel
+## Références à relire
 
-Base de ce lot : Installer main `fe912b7a7ce2622734d0b508683de3b4e55dc2dd`
-(arbre `e8c20a88ad1ace36f69f2a80d5c7243626504207`). Le Web main/dev-Bastien reste
-`46c03060625d4d53c675474b11aaa33007d9aad7` (arbre `aaac278270e0fd1169396945916dfe997ae078bf`).
-Relire les HEAD et les derniers commentaires Installer #13 / Web #135 pour les
-références publiées et les campagnes finales. Ce document gelé avant Quality ne
-constitue pas à lui seul une preuve de promotion ou d'une campagne réussie.
+Base Installer : c0dcb902663130302599635b36c7fb8deab80a47, arbre
+9d9a13fbd94f954894e6a65c9434632a5b98b3a6. Web main/dev-Bastien inchangées :
+46c03060625d4d53c675474b11aaa33007d9aad7, arbre aaac278270e0fd1169396945916dfe997ae078bf.
+Le nouveau HEAD et les campagnes réussies se lisent dans le commit publié et les
+derniers commentaires Installer #13 / Web #135. Ce fichier gelé avant Quality
+ne prouve pas une promotion à lui seul. Ne pas reprendre une branche technique.
 
-La Phase 5B est terminée dans son périmètre privé. Ce lot ajoute 5C1 seulement :
-précontrôle réel non mutant d'une instance scellée 5B2.3, inventaire SQL borné et
-rapport immuable non exécutable. La Phase 5C complète reste ouverte.
-
-Lire [PHASE5C_UPGRADE.md](PHASE5C_UPGRADE.md), [QUALITY.md](QUALITY.md),
-[PROJECT_STATE.md](PROJECT_STATE.md), puis les contrats 5B
-[PHASE5B23_FINALIZATION.md](PHASE5B23_FINALIZATION.md) et
+Lire [PHASE5C2_BACKUP.md](PHASE5C2_BACKUP.md), [PHASE5C_UPGRADE.md](PHASE5C_UPGRADE.md),
+[QUALITY.md](QUALITY.md), [PROJECT_STATE.md](PROJECT_STATE.md), puis les contrats
+5B [PHASE5B23_FINALIZATION.md](PHASE5B23_FINALIZATION.md) et
 [PHASE5B22_DATABASE_PREPARATION.md](PHASE5B22_DATABASE_PREPARATION.md).
-Côté Web : docs/INSTALLER_FINALIZATION.md, docs/INSTALLER_SHARED_ENGINE.md et
-includes/installation. Ne pas repartir d'une branche verification/assembly.
 
-## Découpage à conserver
+## État réel et découpage
 
-- 5C1 : inspection et rapport, implémentés dans ce lot.
-- 5C2 : sauvegardes privées et restauration réellement vérifiée sur cible isolée.
-- 5C3 : catalogue de transitions explicites, migration et bascule contrôlée.
-- 5C4 : reprise, retour arrière, fautes injectées et qualification globale 5C.
+5C1 reste l'inspection non mutante. 5C2a ajoute UpgradeBackup.create_and_verify,
+backup_runtime.py et le worker backup_bridge.php, sans route ou bouton public.
+Périmètre : instance SEALED_5B23 exacte, données SQL InnoDB, cinq triggers
+canoniques avec DEFINER valide, déploiement root-owned non mutable et enveloppe
+privée. Source non modifiée ; restauration dans une nouvelle MariaDB sans TCP.
 
-5D conserve les services/identités système, les écrans et la recette système.
-Gateway, NGINX, APK et import restent leurs phases distinctes. Aucun déploiement
-sur LAB-PAWEB30 ni compilation APK autorisé par ce point de reprise.
+Résultat limité BACKUP_RESTORE_VERIFIED, backup_verified=true, restauration SQL
+et fichiers privés prouvée, trigger_smoke_verified=5. Mais apply_allowed,
+restore_to_original_allowed, rollback_verified, web_activation_verified et
+application_installed restent faux. Fichiers métier modifiables refusés,
+sessions PHP externes non copiées ; aucun reset Admin, migration ou activation.
+Les comptes d'authentification SQL source ne sont pas exportés.
 
-## API 5C1 et garde-fous
+**5C2 n'est pas clôturée. Prochaine exécution : 5C2b**, pas 5C3.
+5C3 reste migrations/bascule,5C4 reprise/rollback/qualification,5D services/écrans.
+Les anciennes garanties sont conservées mais un cas non couvert précédemment est
+maintenant signalé comme défaut bloquant de managed.
 
-`UpgradePreflight.inspect` dans installer/upgrade_preflight.py accepte uniquement
-le mode upgrade, Assistant preserve, aucun Admin ni clé fournis, et le secret du
-compte applicatif. Les identités privilégiées et les requêtes de modification sont
-refusées. Les pins 5B sont conservés ; aucun fallback de version/empreinte.
+## Défaut réel à traiter avant clôture de 5C2
 
-Profil source reconnu : SEALED_5B23, commit Web ci-dessus,
-APP_VERSION=3.0.0.0-stable-20260914. La source cible est actuellement identique.
-Ce n'est ni un upgrade 2.x/3.x générique, ni une adoption legacy, ni une migration.
+La recette test_backup_managed_orphaned_definers_are_not_certified_or_repaired
+reproduit fresh managed5B2.2, finalize5B2.3 puis une invocation réelle du trigger.
+Les cinq triggers gardent le compte de migration temporaire comme DEFINER alors
+que ce compte a été supprimé. INSERT Ged_Legacy_Stat échoue avec MariaDB1449.
+BACKUP_DEFINER_MISSING bloque la sauvegarde certifiée, sans créer de compte.
+C'est une fixture jetable, pas une inspection ou modification de LAB-PAWEB30.
 
-État positif : UPGRADE_PREFLIGHT_READY. apply_allowed, backup_verified,
-rollback_verified, preservation_verified et application_installed restent faux.
-Le catalogue de transitions est NOT_DELIVERED. Le wizard reste « Sources prêtes ».
-`plan_sha256` identifie un JSON immuable, pas une permission ou un plan applicable.
-Ne pas consommer ce rapport comme preuve actuelle lors d'une future mutation.
+5C2b doit concevoir puis qualifier des DEFINER durables, séparés du compte runtime
+DML et de l'autorité/migration éphémère. Aucun élargissement caché des quatre
+GRANT applicatifs. Éviter un compte root/global ou un compte de migration durable
+comme raccourci. Prévoir identité non connectable, droits stricts, responsabilité
+et nettoyage explicites. Vérifier aussi les cas refusés et l'exécution métier.
 
-Le compte DML reste distinct du futur compte de migration. Les sondes PHP sont
-non privilégiées, le transport borné et les secrets hors arguments/logs. La sonde
-SQL utilise READ ONLY avec snapshot et requêtes fixes. Aucun secret PHP modifiable
-par le Web n'est évalué sous root. Clé Assistant : donnée JSON privée, conservée,
-aucun appel API ; un champ vide ne vaut pas une demande d'effacement.
+Distinguer le provisioning futur de la réparation d'une instance déjà affectée.
+La réparation éventuelle doit être volontaire, contrôlée et documentée, jamais
+un effet secondaire de backup ou de preflight. Préserver le refus de fresh sur
+existant, les .attempt, sources épinglées et l'enveloppe d'activation.
+L'audit actuel de DEFINER ne reconnaît que le profil provisioning existant sur
+seul schéma ; adapter son contrat au nouveau profil seulement avec preuves,
+pas avec une règle générique pour faire passer les tests.
 
-L'inventaire est borné et visible par le seul compte applicatif. Ses compteurs et
-son empreinte partielle ne prouvent ni les objets DEFINER/triggers/routines, ni
-une sauvegarde cohérente globale. Les données peuvent évoluer après observation.
-Les métadonnées et l'enveloppe sont recontrôlées, mais ce n'est pas un verrou de
-maintenance. Une interruption brutale peut laisser du staging temporaire de code.
+## Sauvegarde et sécurité à préserver
 
-## Prochaine exécution : 5C2 seulement
+Consentements exacts confirmed=true et allow_global_read_lock=true. Verrou
+FLUSH TABLES WITH READ LOCK temporaire sur tout le serveur, donc risque de
+blocage des écritures des autres bases : pas d'exécution implicite.
+Autorité fournie ALL global/GRANT OPTION, distincte du DML, uniquement stdin.
+Ne pas présenter ce profil administratif comme un minimum universel.
 
-Concevoir et qualifier les sauvegardes privées, avec vérification effective par
-restauration dans une base/cible jetable distincte. Inclure l'enveloppe d'activation
-et les secrets durables dans des fichiers protégés, jamais dans le rapport public.
-Rendre explicites les limites et préconditions pour les données non transactionnelles,
-les vues/routines/triggers/événements et les écritures Web concurrentes. Un simple
-dump présent ou son hash ne prouve pas une restauration utilisable.
+Source contrôlée via préflight, compte, SQL/TLS, fichiers, verrou Assistant et
+relectures. Worker OS non privilégié, sorties/délais/volumes bornés, erreurs fixes.
+Archive NDJSON privée : DDL, cellules hex/NULL, flottants préservés en DOUBLE
+natif +17 chiffres. Tri des longs textes sans dépendre de max_sort_length.
+Les mutations SQL ne touchent que le serveur vérificateur nouvellement créé.
 
-Déterminer et vérifier les privilèges des identités temporaires de sauvegarde ou
-migration, sans élargir les GRANT applicatifs. Refuser une cible de restauration
-préexistante, même vide, sauf contrat de retour arrière explicitement vérifié.
-Garder les credentials éphémères hors journal, ps, logs et URL. Aucun effacement
-ou écrasement implicite de données pour faire passer un test.
+Vérificateur : version serveur exactement égale, nouveau datadir privé, socket
+sans TCP, nouveaux comptes/scéma uniquement, import sans droits globaux du
+restaurateur, triggers canoniques sous identités ACCOUNT LOCK. Comparaison des
+lignes/DDL, FK, puis cinq effets de triggers avec compte DML. Aucun credential
+source dans le vérificateur. Nettoyage contrôlé des objets et du processus.
 
-Préserver utilisateurs, mots de passe, RBAC, sessions, paramètres, clé Assistant,
-configuration SQL/TLS et fichiers. Ne pas rejouer schema.sql, seeds fresh ou création
-Admin sur l'existant. Ne pas déclarer 5C3/5C4 livrées avec la seule sauvegarde.
+Fichiers : slots0700, blobs/manifeste/reçu0600. Copier octets/modes/uid/gid,
+config SQL/TLS, CA, Assistant, pointeur, lock, sceau et reçus ; aucune clé effacée
+sur champ vide. Les pointeurs restaurés sont des DONNÉES, jamais exécutés dans
+le clone. Le périmètre mutable/GED/sessions externes n'est pas certifié par ce lot.
+Les futures étapes devront réévaluer ces préconditions, pas déduire une sauvegarde
+globale d'un résultat scoped. Aucun hash seul ne vaut preuve de restauration.
 
-## Enveloppe 5B à ne pas contourner
-
-includes/db.php épingle activation.php, install.lock, seal.json, database.json,
-le CA et le chargeur privé. finalized.json lie le tout au runtime et au commit.
-Ne pas écraser pointeur, reçus ou empreintes pour faire réussir observe. La future
-bascule doit avoir une sauvegarde, une validation et un retour arrière cohérents.
-
-Un crash entre sceau et reçu peut laisser le Web actif avec action manuelle exigée.
-Les anciens .attempt sont des interlocks, pas des autorisations implicites de retry.
-Aucune transaction atomique SQL+fichiers ni rollback DDL fictif. Le précontrôle 5C1
-ne nettoie, n'adopte, ne répare et ne relance aucun de ces états partiels.
+Échec : BACKUP_INCOMPLETE, reçu de succès non publié, source intacte, artefacts
+partiels privés conservés. SIGKILL peut laisser du staging ou un reçu après une
+vraie vérification ; aucune récupération automatique/permission de retry implicite.
+Pas de rollback DDL atomique, pas de réactivation Web et pas d'effacement crypto.
 
 ## Quality et livraison
 
-Attendus 5C1 : 415 core (390 conservés +25), 16 gate également inclus dans core,
-16 DOM et 21 HTTPS natifs inchangés. Nouvelle recette réelle 15 SQL/TLS/HTTP ;
-18 SQL/TLS et 21 finalisation historiques conservés et réexécutables séparément.
-Ne pas assimiler recette locale et matrice distante, ni nouveau précontrôle et
-exécution de migrations. Le Web est inchangé ; son ancien run n'est pas une
-nouvelle campagne de cette livraison. Aucune modification schema.sql/install.php.
+456 core attendus :415 conservés+41nouveaux,16gate inclus dans core,16DOM et21HTTPS
+natifs historiques. Nouvelle recette20scénarios SQL/TLS/HTTP, séparée des54anciens
+(18SQL/TLS+21finalisation+15précontrôle). Le refus attendu des DEFINER absents ne
+signifie pas que managed est devenu fonctionnel. Consulter les preuves finales.
 
-Documentation incluse au gel testé, ZIPs légers de fichiers complets, application
-puis réapplication vérifiées sur la base exacte. Pas de retouche après la campagne
-finale. Métadonnées de publication dans le rapport compagnon et les issues.
-Bastien autorise les écritures ; promotion fast-forward force=false après Quality
-complète. Relire les HEAD et stopper sur divergence inattendue. #13/#135 ouvertes.
+PHP8.4.24/MariaDB11.8.6 local ne vaut pas matrice SQL exhaustive. Web inchangé,
+aucune ancienne campagne Web recyclée en preuve d'un nouveau changement. Aucun
+schema.sql/install.php/migration/seed/version modifié dans5C2a.5C2b devra les
+mettre à jour intégralement si sa correction le nécessite.
+
+Docs/README/baseline et fichiers complets gelés avant Quality. ZIP léger exact,
+application et réapplication sur sa base, sources/modes identiques. Toute retouche
+après campagne impose nouvelle qualification. Les métadonnées finales et SHA/runs
+vont dans le rapport compagnon et les issues, pas dans un commit post-Quality.
+Écritures autorisées, promotion fast-forward force=false après Quality complète,
+HEAD relus et comparaison sans divergence. Aucun serveur/Gateway/APK touché.
+#13/#135 restent ouvertes. Ne pas annoncer5C2/5C/Phase5 terminées.

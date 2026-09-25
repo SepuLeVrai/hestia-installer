@@ -1,24 +1,27 @@
 # État du projet
 
-## Point de reprise - 5C1, prochaine étape 5C2
+## Point de reprise - 5C2a, prochaine frontière 5C2b
 
-5B est terminée dans son périmètre privé : fresh préparé, Assistant optionnel,
-activation cohérente et scellement. Ce lot ajoute le précontrôle 5C1 non mutant
-sur une instance 5B2.3 connue, avec inventaire SQL réel et rapport immuable.
-Le résultat UPGRADE_PREFLIGHT_READY conserve apply_allowed=false ; aucune migration,
-sauvegarde ou restauration n'est déclarée réalisée. Le catalogue de transitions
-reste NOT_DELIVERED et la source cible est actuellement identique.
+5C1 est publiée au commit c0dcb902663130302599635b36c7fb8deab80a47. Le présent lot
+ajoute une sauvegarde SQL privée avec restauration réelle dans une MariaDB neuve
+sans TCP, copie vérifiée du déploiement root-owned et de l'enveloppe privée.
+Contrat et limites : [PHASE5C2_BACKUP.md](PHASE5C2_BACKUP.md).
 
-Découpage : [PHASE5C_UPGRADE.md](PHASE5C_UPGRADE.md). Suite : 5C2 sauvegarde et preuve
-de restauration, 5C3 upgrade/bascule, 5C4 reprise/rollback/qualification globale.
-Services/écrans restent 5D, le wizard « Sources prêtes » et application_installed=false.
-Web inchangé : `46c03060625d4d53c675474b11aaa33007d9aad7` sur main/dev-Bastien.
-Base Installer : `fe912b7a7ce2622734d0b508683de3b4e55dc2dd`.
+**5C2 reste ouverte** : la recette révèle des DEFINER orphelins dans le fresh SQL
+managed du pin précédent. Erreur1449 reproduite ; BACKUP_DEFINER_MISSING refuse
+une certification trompeuse. Aucune réparation implicite ou mutation de la source.
+5C2b doit traiter ce défaut avant5C3, sans élargir le compte applicatif DML.
 
-Relire HEAD, derniers commentaires #13/#135 et Quality du commit pour sa publication
-réelle. Reprise : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md).
-Les sections suivantes sont historiques. Aucun serveur HESTIA, Gateway, APK ou
-base de production modifié ; aucun fichier Web, schéma ou migration modifié ici.
+Un résultat BACKUP_RESTORE_VERIFIED certifie le profil SQL/fichiers décrit, pas
+une restauration du service. apply_allowed, rollback_verified, web_activation_verified
+et application_installed restent faux. Les fichiers métier modifiables et sessions
+PHP externes ne sont pas déclarés sauvegardés. Wizard toujours « Sources prêtes ».
+
+Web inchangé46c03060625d4d53c675474b11aaa33007d9aad7. Aucun changement schema.sql,
+install.php, migration, seed, version, Gateway ou APK ; aucun déploiement serveur.
+Relire HEAD, campagnes et derniers commentaires #13/#135 pour les preuves finales.
+Reprise : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md).
+Les sections suivantes sont l'historique, pas le statut du nouveau lot.
 
 ## 2026-09-21
 
