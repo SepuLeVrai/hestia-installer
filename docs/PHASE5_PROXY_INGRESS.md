@@ -26,7 +26,9 @@ protocole transmis exactement `https`. Une enveloppe manquante ou invalide est
 refusée. Les modules supplémentaires font partie du plan et de ses empreintes.
 Un changement de proxy ou de réseaux invalide l'observation du staging.
 
-Après l'autorisation, Apache retire les en-têtes de forwarding et fournit
+Après l'autorisation, Apache retire les variables HTTP de forwarding à la
+frontière FastCGI (sans priver les redirections internes DirectoryIndex de leurs
+entrées d'autorisation) et fournit
 `REMOTE_ADDR` canonique et `HTTPS=on` à FPM. La liste de proxies côté PHP est
 vide : `clear_env=yes` et aucune déclaration FPM de cette variable (FPM refuse
 une valeur `env[...]` vide). Il ne doit pas y avoir une seconde interprétation de la chaîne. Le

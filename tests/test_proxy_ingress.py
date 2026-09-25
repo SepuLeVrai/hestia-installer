@@ -80,8 +80,9 @@ class ProxyIngressTests(unittest.TestCase):
         directives = self.policy.apache_directives()
         self.assertIn('RemoteIPInternalProxy 127.0.0.2/32', directives)
         self.assertIn('ProxyFCGISetEnvIf "true" HTTPS "on"', directives)
-        for header in ('Forwarded', 'X-Forwarded-For', 'X-Forwarded-Proto', 'X-Forwarded-Host', 'X-Real-IP'):
-            self.assertIn('RequestHeader unset ' + header, directives)
+        for header in ('FORWARDED', 'X_FORWARDED_FOR', 'X_FORWARDED_PROTO', 'X_FORWARDED_HOST', 'X_REAL_IP'):
+            self.assertIn('ProxyFCGISetEnvIf "true" !HTTP_' + header, directives)
+        self.assertNotIn('RequestHeader unset', directives)
 
     def test_repr_does_not_publish_network_configuration(self):
         for value in ('127.0.0.2', '192.0.2.0/24', '2001:db8::/32'):

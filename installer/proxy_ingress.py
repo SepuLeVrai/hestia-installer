@@ -66,16 +66,17 @@ class ProxyIngress:
 '''
 
     def apache_directives(self):
-        # RequestHeader runs at fixups, AFTER remoteip and authorization.
-        # No second interpretation by PHP or the Web security helpers.
+        # Keep the authorization inputs available to DirectoryIndex internal
+        # redirects. Remove them only at the FastCGI boundary, not from Apache's
+        # request headers. PHP must never interpret a second forwarding chain.
         return f'''RemoteIPHeader X-Forwarded-For
 RemoteIPInternalProxy {self.proxy_address}/32
-RequestHeader unset Forwarded
-RequestHeader unset X-Forwarded-For
-RequestHeader unset X-Forwarded-Proto
-RequestHeader unset X-Forwarded-Host
-RequestHeader unset X-Forwarded-Port
-RequestHeader unset X-Real-IP
+ProxyFCGISetEnvIf "true" !HTTP_FORWARDED
+ProxyFCGISetEnvIf "true" !HTTP_X_FORWARDED_FOR
+ProxyFCGISetEnvIf "true" !HTTP_X_FORWARDED_PROTO
+ProxyFCGISetEnvIf "true" !HTTP_X_FORWARDED_HOST
+ProxyFCGISetEnvIf "true" !HTTP_X_FORWARDED_PORT
+ProxyFCGISetEnvIf "true" !HTTP_X_REAL_IP
 ProxyFCGISetEnvIf "true" HTTPS "on"
 '''
 
