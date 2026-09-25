@@ -141,6 +141,27 @@ class HttpRuntimeTests(unittest.TestCase):
              self.assertRaisesRegex(h.HttpRuntimeError, '^HTTP_RUNTIME_PRECONDITION_FAILED$'):
             self.runtime.prepare()
 
+    def test_system_binary_budget_accepts_large_extensions_but_stays_bounded(self):
+        root = self.source(); path = root / 'extension.so'
+        path.write_bytes(b'x' * (9 * 1024 * 1024)); path.chmod(0o644)
+        value = h._system_file_digest(path)
+        self.assertEqual(value['sha256'], h.f._sha(path.read_bytes()))
+        with path.open('wb') as out: out.truncate(h.MAX_SYSTEM_FILE + 1)
+        with self.assertRaises(Exception): h._system_file_digest(path)
+        self.assertEqual(h.p.MAX_FILE, 8 * 1024 * 1024)
+
+    def test_system_dependency_proof_binds_modes_and_refuses_links_write_bits_and_acl(self):
+        root = self.source(); path = root / 'index.php'
+        first = h._system_file_digest(path); path.chmod(0o444)
+        self.assertNotEqual(first, h._system_file_digest(path))
+        path.chmod(0o666)
+        with self.assertRaises(Exception): h._system_file_digest(path)
+        path.chmod(0o644); os.link(path, root / 'alias')
+        with self.assertRaises(Exception): h._system_file_digest(path)
+        (root / 'alias').unlink()
+        with patch.object(h.fs, '_no_acl', side_effect=OSError('synthetic-acl')):
+            with self.assertRaises(Exception): h._system_file_digest(path)
+
     def test_mutation_failure_keeps_closed_diagnostic_and_never_calls_service_start(self):
         with patch.object(self.runtime, 'prepare', side_effect=OSError('private-token')), \
              patch.object(h, '_command') as command, \

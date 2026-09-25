@@ -97,7 +97,7 @@ fabrique pas de service CLI ou de nettoyeur vide pour prétendre la compléter.
 
 ## Qualification requise
 
-16 tests core supplémentaires portent le total à **540 par Debian**. Ils couvrent
+18 tests core supplémentaires portent le total à **542 par Debian**. Ils couvrent
 grammaire, identités, absence de consentement, commandes, source immuable,
 permissions/liens/FIFO, erreurs privées, validation et récupération sans rejeu.
 
@@ -135,3 +135,18 @@ sous le Webroot), sauvegarde complète 5C2, vraie transition 5C3, rollback/recov
 5C4 et wizard 5D. Les flags `system_wiring_verified`, `application_installed` et
 `complete_web_backup` restent faux. Pas de PR/fast-forward avant l'ensemble des
 Quality requises et la documentation achevée ; aucun accès production/LAB-PAWEB30.
+
+## Diagnostic de la première campagne Debian 13
+
+Le candidat `f2432979` passe Quality `36147225337` et les 23 recettes système
+Debian 12. Le système `36147225231` échoue côté Debian 13 avant réservation.
+Le diagnostic ciblé `36147579492` confirme les préconditions hôte, puis un refus
+dans le lecteur de dépendances : le budget 8 Mio des sources PHP avait été
+réutilisé à tort pour les extensions système, dont une dépasse cette taille.
+Le lecteur système possède désormais sa propre borne de 32 Mio, avec les mêmes
+refus de liens, droits non protégés et lecture instable, plus refus des ACL et
+empreinte des permissions/groupe. Le budget des sources et les pins historiques
+ne changent pas. Deux régressions supplémentaires couvrent un binaire de 9 Mio,
+le dépassement de 32 Mio et l'intégrité. La taille des extensions officielles
+est enregistrée par le banc ; toutes les Quality doivent être rejouées sur le
+nouveau commit exact. La branche diagnostic est technique et ne doit pas être fusionnée.

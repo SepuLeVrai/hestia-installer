@@ -54,6 +54,9 @@ class HttpRuntimeLive(unittest.TestCase):
                 '/usr/sbin/nologin', 'hestia-runtime-test')
         cls.account = pwd.getpwnam('hestia-runtime-test')
         cls.family = '8.4' if Path('/usr/sbin/php-fpm8.4').is_file() else '8.2'
+        extension = Path('/usr/lib/php') / {'8.2': '20220829', '8.4': '20240924'}[cls.family]
+        print('Official PHP extension sizes:', json.dumps({name: (extension / (name + '.so')).stat().st_size
+                                                          for name in h.EXTENSIONS}, sort_keys=True))
 
     def setUp(self):
         self.instance = os.urandom(16).hex()

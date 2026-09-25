@@ -3,8 +3,8 @@
 ## Lot runtime Apache/FPM — candidat à qualifier
 
 Base `e86ecd7c` : Quality `36142987500`, système `36142986888`, SQL `36143203828`
-verts. Le [runtime privé généré](PHASE5_HTTP_RUNTIME.md) ajoute 16 tests core :
-**540 par Debian 12/13**. Le workflow système doit réussir **11 drainage + 12
+verts. Le [runtime privé généré](PHASE5_HTTP_RUNTIME.md) ajoute 18 tests core :
+**542 par Debian 12/13**. Le workflow système doit réussir **11 drainage + 12
 runtime** sur chaque Debian, avec manifestes de sources stables distincts.
 Les 16 DOM, 21 HTTPS et 118 SQL/HTTP restent obligatoires sur le commit exact.
 Aucun skip, ni ancien résultat reporté comme preuve du nouveau candidat.

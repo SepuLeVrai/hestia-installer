@@ -8,7 +8,7 @@ Le [nouveau lot](PHASE5_HTTP_RUNTIME.md) prépare deux services isolés et cinq
 répertoires PHP privés sous maintenance durable. Pas de démarrage produit,
 de création de compte ni d'installation de paquets. L'observation refuse toute
 dérive et ne rejoue pas une préparation partielle. Candidat à qualifier :
-540 core par Debian 12/13, 11 + 12 recettes système par Debian, 16 DOM,
+542 core par Debian 12/13, 11 + 12 recettes système par Debian, 16 DOM,
 21 HTTPS, 118 SQL/HTTP. Debian 12/PHP 8.2 reste une qualification d'infrastructure,
 pas du Web qui exige PHP >= 8.3. Nettoyeur, activation, stockages exhaustifs,
 5C2 complète, 5C3/5C4 et 5D restent ouverts. Les sections suivantes sont historiques.

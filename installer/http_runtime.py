@@ -30,6 +30,7 @@ EXTENSIONS = ('mysqlnd', 'pdo', 'mysqli', 'pdo_mysql', 'ctype', 'iconv', 'filein
               'mbstring', 'curl', 'dom', 'simplexml', 'xml', 'xmlreader', 'xmlwriter', 'zip', 'gd', 'tokenizer')
 DATA = ('sessions', 'tmp', 'upload-tmp', 'imports', 'log')
 MODULES = ('mpm_event', 'authz_core', 'proxy', 'proxy_fcgi', 'reqtimeout', 'headers', 'dir', 'mime')
+MAX_SYSTEM_FILE = 32 * 1024 * 1024
 
 
 class HttpRuntimeError(RuntimeError):
@@ -128,6 +129,16 @@ def _code_digest(root: Path, web_gid: int) -> str:
     return digest.hexdigest()
 
 
+def _system_file_digest(path: Path) -> dict:
+    """System binaries have a separate bounded budget from PHP source inputs."""
+    p._safe_path(path, directory=False)
+    with fs._directory(path.parent) as fd:
+        info = os.stat(path.name, dir_fd=fd, follow_symlinks=False)
+        mode = stat.S_IMODE(info.st_mode)
+        data = f._read(fd, path.name, info.st_gid, mode=mode, limit=MAX_SYSTEM_FILE)
+        return {'sha256': f._sha(data), 'uid': info.st_uid, 'gid': info.st_gid, 'mode': mode}
+
+
 class HttpRuntime:
     def __init__(self, spec: RuntimeSpec):
         require(type(spec) is RuntimeSpec, 'HTTP_RUNTIME_INPUT_REJECTED')
@@ -168,7 +179,7 @@ class HttpRuntime:
                  Path('/usr/sbin/php-fpm' + self.spec.php_family), Path('/etc/mime.types')]
         paths += [extension / (name + '.so') for name in EXTENSIONS]
         paths += [Path('/usr/lib/apache2/modules/mod_' + name + '.so') for name in MODULES]
-        return {str(path): f._sha(p._read_file(path)) for path in paths}
+        return {str(path): _system_file_digest(path) for path in paths}
 
     def _scope(self, account):
         return m.MaintenanceScope(self.spec.root / 'maintenance', account.pw_gid, self.spec.instance)

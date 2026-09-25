@@ -195,6 +195,8 @@
       "test_http_runtime.HttpRuntimeTests.test_source_digest_binds_addition_content_and_permissions",
       "test_http_runtime.HttpRuntimeTests.test_source_refuses_symlink_directories_fifos_and_writable_ancestors",
       "test_http_runtime.HttpRuntimeTests.test_source_refuses_writable_unreadable_setid_and_linked_files",
+      "test_http_runtime.HttpRuntimeTests.test_system_binary_budget_accepts_large_extensions_but_stays_bounded",
+      "test_http_runtime.HttpRuntimeTests.test_system_dependency_proof_binds_modes_and_refuses_links_write_bits_and_acl",
       "test_http_runtime.HttpRuntimeTests.test_typed_operation_recovers_only_observed_staging_and_never_replays",
       "test_http_runtime.HttpRuntimeTests.test_typed_validation_rechecks_plan_and_refuses_incomplete_or_changed_receipts",
       "test_httpd.HTTPSBootstrapTests.test_bootstrap_code_cannot_be_reused",
