@@ -68,7 +68,7 @@ class FinalizationIntegration(previous.DatabaseStepIntegration):
         return self.final.configure_assistant(self.existing(action,key),config_root=self.output,confirmed=True)
 
     @contextmanager
-    def http(self):
+    def http(self, *, prepend=None):
         sessions=self.root/'sessions';sessions.mkdir(exist_ok=True)
         os.chown(sessions,self.web.pw_uid,self.web.pw_gid);sessions.chmod(0o700)
         with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
@@ -76,6 +76,7 @@ class FinalizationIntegration(previous.DatabaseStepIntegration):
         command=['setpriv','--reuid='+str(self.web.pw_uid),'--regid='+str(self.web.pw_gid),'--clear-groups','--no-new-privs',
                  str(self.runtime.php),'-d','display_errors=0','-d','log_errors=1','-d','zend.exception_ignore_args=1',
                  '-d','session.save_path='+str(sessions),'-S','127.0.0.1:'+str(port),'-t',str(self.webroot)]
+        if prepend is not None:command[command.index('-S'):command.index('-S')]=['-d','auto_prepend_file='+str(prepend)]
         process=subprocess.Popen(command,stdin=subprocess.DEVNULL,stdout=log,stderr=log,cwd=self.webroot,
             env={'PATH':'/usr/bin:/bin','LANG':'C','TZ':'UTC'},start_new_session=True)
         opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))

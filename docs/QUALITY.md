@@ -2,6 +2,15 @@
 
 ## Candidat WORK 5C2b
 
+Checkpoint secours `6cd77cac61c2f5c7256ad320e3bb3f5b954b7910` : Quality permanente
+`36124073968` verte. Recette technique `36124119321` : 30 backup, 21 finalisation,
+15 précontrôles PASS ; préparation SQL rouge sur le seul teardown du cas DDL
+partiel, après ses assertions réussies. Le contrôleur de nettoyage jetable
+dépasse cinq secondes pour DROP DATABASE. Son budget de destruction est séparé
+à 30 secondes avec vérification d'absence, sans changer les délais produit ni
+ceux des autres sondes. Le prochain gel doit repasser toutes les suites.
+La [maintenance](PHASE5_MAINTENANCE.md) ajoute sept scénarios réels en préparation.
+
 Checkpoint `12a7e8a045b4f62c22b314173ea0900f512f52de` : Quality `36123060501`
 PASS, sources stables, 456 core par Debian12/13, 16 DOM et21 HTTPS, zéro échec,
 erreur ou skip. Les 18 SQL/TLS, 21 finalisation et15 précontrôles sont relus PASS

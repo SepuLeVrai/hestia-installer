@@ -2,6 +2,12 @@
 
 ## Reprise WORK - candidat 5C2b en préparation
 
+La sauvegarde de secours est implémentée et ses 30 recettes backup passent sur
+`6cd77cac61c2f5c7256ad320e3bb3f5b954b7910`. Une erreur de nettoyage de fixture
+SQL garde la campagne globale rouge, voir [QUALITY.md](QUALITY.md). La barrière
+de [maintenance coordonnée](PHASE5_MAINTENANCE.md) est le candidat suivant ; elle
+doit être qualifiée puis raccordée au service réel avant toute clôture 5C/5D.
+
 Checkpoint futur managed : `12a7e8a045b4f62c22b314173ea0900f512f52de`, Quality
 `36123060501` verte (456 core Debian12/13, 16 DOM, 21 HTTPS). Les recettes SQL
 18 préparation, 21 finalisation, 15 précontrôles et24 backup sont vertes et relues

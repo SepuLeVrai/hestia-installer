@@ -89,11 +89,11 @@ class SqlAccountsMariaDBTests(ProtectedConfigurationFixture, unittest.TestCase):
         finally: super().tearDownClass()
 
     @classmethod
-    def sql(cls, statements=(), query=None):
+    def sql(cls, statements=(), query=None, *, timeout=5):
         value = {'socket': cls.socket, 'statements': list(statements)}
         if query is not None: value['query'] = query
         run = subprocess.run(['php', '-d', 'display_errors=0', '-d', 'log_errors=0', '-r', CONTROLLER],
-            input=json.dumps(value).encode(), capture_output=True, timeout=5)
+            input=json.dumps(value).encode(), capture_output=True, timeout=timeout)
         if run.returncode: raise RuntimeError(run.stderr.decode() if run.stderr.startswith(b'FIXTURE_SQL_FAILED_') else 'FIXTURE_CONTROLLER_FAILED')
         return json.loads(run.stdout)
 
@@ -116,9 +116,14 @@ class SqlAccountsMariaDBTests(ProtectedConfigurationFixture, unittest.TestCase):
 
     def tearDown(self):
         try:
+            # Disposal is not a product request: cross-repository fixtures can
+            # have 129 InnoDB tables to unlink/fsync. Run 36124119321 passed the
+            # partial-DDL assertions then timed out solely in this cleanup.
+            # Keep the default five-second controller and all product deadlines.
             self.sql([f'DROP DATABASE IF EXISTS `{self.db}`', f'DROP USER IF EXISTS {self.app_account}',
                 f'DROP USER IF EXISTS {self.migration_account}', f"DROP USER IF EXISTS '{self.app}'@'%'",
-                f'DROP ROLE IF EXISTS `{self.role}`'])
+                f'DROP ROLE IF EXISTS `{self.role}`'],timeout=30)
+            self.assertEqual(self.sql(query=f"SELECT COUNT(*) n FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='{self.db}'")[0]['n'],0)
         finally: super().tearDown()
 
     def audit(self, payload=None):
