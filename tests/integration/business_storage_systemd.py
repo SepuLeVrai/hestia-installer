@@ -27,7 +27,7 @@ import deployed_web_systemd as previous
 from installer import backup_files as files, coordinated_backup as backup
 from installer import finalization as f, http_runtime as h, php_transport as p, system_drain as drain
 from installer.web_releases import STORAGE_COMMIT, get_release
-from http_runtime_systemd import command
+from http_runtime_systemd import command, until
 
 
 def png():
@@ -136,6 +136,21 @@ class BusinessStorageLive(previous.DeployedWebLive):
         self.assertEqual(h._code_digest(self.webroot, self.web.pw_gid), self.code_before)
         self.assertEqual(self.observe()['state'], 'WEB_FRESH_FINALIZED')
 
+    def restart_fixture_services(self):
+        # Type=simple start completion precedes socket/application readiness.
+        # Use the same bounded real HTTP readiness condition as initial start;
+        # never retry the subsequent data/session assertions.
+        for role in ('php', 'apache'): command('systemctl', 'start', self.http_runtime.unit(role))
+        def ready():
+            try: return self.request('/login.php')[0] == 200
+            except (OSError, urllib.error.URLError): return False
+        until(ready, timeout=12)
+        for role in ('php', 'apache'):
+            value = drain._show(self.http_runtime.unit(role))
+            self.assertEqual(value['ActiveState'], 'active'); self.assertNotEqual(value['MainPID'], '0')
+        result = self.request('/index.php')
+        self.assertEqual(result[0], 200); self.assertNotIn('/login.php', result[3])
+
     def test_business_photo_replacement_uses_external_root_and_deletes_old_image(self):
         self.ready(); old, path = self.photo(); new, _ = self.photo()
         self.assertNotEqual(old, new); self.assertFalse(path.exists()); self.immutable()
@@ -184,8 +199,7 @@ class BusinessStorageLive(previous.DeployedWebLive):
                 command('systemctl', 'start', unit)
                 self.assertEqual(drain._show(unit)['ActiveState'], 'inactive')
             lease.resume(confirmed=True)
-        for role in ('php', 'apache'): command('systemctl', 'start', self.http_runtime.unit(role))
-        self.assertNotIn('/login.php', self.request('/index.php')[3]); self.immutable()
+        self.restart_fixture_services(); self.immutable()
 
     def test_business_backup_restores_real_uploaded_files_and_session_under_common_gate(self):
         self.ready(); relative, photo = self.photo(); doc, document, doc_data = self.document()
@@ -221,8 +235,7 @@ class BusinessStorageLive(previous.DeployedWebLive):
             self.assertEqual(photo.read_bytes(), photo_bytes); self.assertEqual(document.read_bytes(), doc_data)
             self.assertEqual(imported.read_bytes(), import_data); self.assertEqual(current.read_bytes(), session_bytes)
             lease.resume(confirmed=True)
-        for role in ('php', 'apache'): command('systemctl', 'start', self.http_runtime.unit(role))
-        self.assertNotIn('/login.php', self.request('/index.php')[3])
+        self.restart_fixture_services()
         self.assertEqual(self.binary('/' + relative)[:2], (200, photo_bytes))
         self.assertEqual(self.binary('/index.php?page=ged_download&id=' + str(doc['id_document']))[:2], (200, doc_data))
         self.immutable()

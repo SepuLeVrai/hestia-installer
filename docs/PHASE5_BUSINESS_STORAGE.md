@@ -121,6 +121,22 @@ de restauration l'exige. Les contrôles produit et la relecture finale des
 fichiers/session ne sont pas assouplis. Une nouvelle qualification intégrale
 du même arbre corrigé est requise.
 
+Le troisième banc `36197753079` restaure les octets et permissions attendus,
+puis échoue avec 502 lors de la relecture HTTP après `systemctl start` : une
+unité Type=simple n'est pas une preuve de disponibilité HTTP. La recette emploie
+désormais la même condition HTTP bornée à 12 secondes que le démarrage initial,
+puis vérifie les unités actives, le PID, le 200 et la session authentifiée avant
+les assertions de données, qui ne sont pas réessayées.
+
+La Quality `36197681703` passe les deux core mais révèle un débordement mesuré
+dans le test de formulaire juste après changement de viewport. Cette recette
+ne synchronisait pas les unités CSS dynamiques comme les recettes plan/native.
+Elle attend maintenant les dimensions d'entrée et min-height effectivement
+appliqués, jamais un débordement devenu conforme, puis conserve l'assertion
+de largeur et la vérification des champs/boutons sur trois cycles. Aucun délai
+fixe ou timeout augmenté, aucune modification CSS. Ce cas est distinct du test
+historique `test_raw_error_text_is_never_injected_or_displayed`, toujours ouvert.
+
 ## Frontières toujours ouvertes
 
 `application_installed`, `system_wiring_verified`, `writable_business_storage_ready`,

@@ -393,14 +393,22 @@ class BrowserWizardTests(unittest.TestCase):
 
     def test_forms_remain_accessible_across_viewports(self):
         self.page.locator("#next-button").click(); self.step(1)
-        for width, height in ((1366,768),(1024,768),(768,1024),(390,844),(320,568)):
-            self.page.set_viewport_size({"width":width,"height":height})
-            self.page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
-            self.assertLessEqual(self.page.evaluate("document.documentElement.scrollWidth"), width + 1)
-            self.page.locator("#github-credential").fill("z" * 255)
-            expect(self.page.locator("#github-credential")).to_have_value("z" * 255)
-            self.page.locator("#validate-github").scroll_into_view_if_needed()
-            expect(self.page.locator("#validate-github")).to_be_visible()
+        for cycle in range(3):
+            for width, height in ((1366,768),(1024,768),(768,1024),(390,844),(320,568)):
+                with self.subTest(cycle=cycle, width=width, height=height):
+                    self.page.set_viewport_size({"width":width,"height":height})
+                    # Synchronize the requested INPUT, as in the plan/native
+                    # recipes. Do not wait for the overflow assertion to pass.
+                    self.page.wait_for_function("""({width,height}) =>
+                        innerWidth === width && innerHeight === height &&
+                        Math.round(parseFloat(getComputedStyle(document.body).minHeight)) === height
+                    """, arg={"width": width, "height": height})
+                    self.page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+                    self.assertLessEqual(self.page.evaluate("document.documentElement.scrollWidth"), width + 1)
+                    self.page.locator("#github-credential").fill("z" * 255)
+                    expect(self.page.locator("#github-credential")).to_have_value("z" * 255)
+                    self.page.locator("#validate-github").scroll_into_view_if_needed()
+                    expect(self.page.locator("#validate-github")).to_be_visible()
         self.assertEqual(self.fake.archive_requests, [])
 
     def test_expired_session_is_rejected_by_https_without_replay(self):
