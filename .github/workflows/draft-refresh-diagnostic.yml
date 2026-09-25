@@ -1,0 +1,79 @@
+name: Draft refresh bounded diagnostic
+on:
+  push:
+    branches: ['verification/phase5-draft-refresh-diagnostic-20260925']
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: debian:13-slim
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install official disposable browser
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -Eeuo pipefail
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ca-certificates git python3 python3-venv nodejs chromium openssl iproute2
+          python3 -m venv /opt/quality-venv
+          echo /opt/quality-venv/bin >> "$GITHUB_PATH"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install pinned test dependencies
+        run: python3 -m pip install --disable-pip-version-check -r requirements-quality.txt
+      - name: Trace twelve bounded synthetic draft refresh cases without changing assertions
+        run: |
+          set -Eeuo pipefail
+          mkdir -p quality-results
+          cat > /tmp/draft-diagnostic.py <<'PY'
+          import json, os, sys, unittest
+          sys.path.insert(0, os.path.join(os.getcwd(), 'tests'))
+          import browser_wizard as b
+          import browser_native as n
+          original_http = b.BrowserWizardTests.http
+          def http(self, path, options=None):
+              if path == '/api/wizard/draft' and options:
+                  print('DRAFT_REQUEST', json.dumps(json.loads(options.get('body','{}')), sort_keys=True), flush=True)
+              return original_http(self, path, options)
+          b.BrowserWizardTests.http = http
+          original_modules = b.BrowserWizardTests.modules
+          def modules(self):
+              original_modules(self)
+              self.page.evaluate("""() => {
+                  window.__draftEvents = [];
+                  document.addEventListener('change', e => {
+                    window.__draftEvents.push({id:e.target.id, value:e.target.value,
+                    checked:e.target.checked, mode:document.querySelector('#installation-mode')?.value});
+                  }, true);
+              }""")
+          b.BrowserWizardTests.modules = modules
+          def traced(original):
+              def refresh(self):
+                  if self.page and not self.page.is_closed():
+                      print('BEFORE_REFRESH', type(self).__name__, self.page.evaluate("""() => ({
+                        events:window.__draftEvents, mode:document.querySelector('#installation-mode')?.value,
+                        requests:window.__requests, step:document.body.dataset.wizardStep})"""), flush=True)
+                      print('SAVED_DRAFT', json.loads(self.http('/api/wizard/state')['body']).get('draft'), flush=True)
+                  return original(self)
+              return refresh
+          b.BrowserWizardTests.refresh = traced(b.BrowserWizardTests.refresh)
+          n.NativeBrowserTests.refresh = traced(n.NativeBrowserTests.refresh)
+          name='test_draft_refresh_empty_selection_and_advanced_ref'
+          suite=unittest.TestSuite([b.BrowserWizardTests(name) for _ in range(6)] + [n.NativeBrowserTests(name) for _ in range(6)])
+          result=unittest.TextTestRunner(verbosity=2).run(suite)
+          print(json.dumps({'diagnostic_only':True,'tests':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),'skips':len(result.skipped)}))
+          sys.exit(0 if result.wasSuccessful() and result.testsRun==12 and not result.skipped else 1)
+          PY
+          python3 /tmp/draft-diagnostic.py 2>&1 | tee quality-results/draft-diagnostic.log
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: draft-refresh-diagnostic
+          path: quality-results/
+          retention-days: 7
