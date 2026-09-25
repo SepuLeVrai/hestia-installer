@@ -104,3 +104,13 @@ drainage réel de ces producteurs. Le contrat immuable actuel, les pins, l'UX,
 le Web, Gateway et APK ne sont pas modifiés par ce lot. Aucune clôture 5C2/5D,
 PR, promotion ou intervention sur un serveur existant n'en découle.
 Les résultats finaux sont livrés dans le checkpoint compagnon après gel.
+
+## Première campagne et correction du banc
+
+Le candidat c5462be24adebe6299926c3cba94ffc9bc766ed8 a passé Quality36138926817
+(506 core par Debian, 16 DOM, 21 HTTPS). La recette36138993018 a terminé les
+assertions des huit nouveaux cas, puis leur nettoyage a échoué avec MariaDB1064.
+Le dictionnaire de configuration du banc utilisait `self.app`, déjà réservé au
+nom du compte SQL par la fixture héritée. Il devient `self.storage_app_config`.
+Le contrôleur, la suppression des comptes et toutes les assertions restent
+conservés. Les fichiers corrigés exigent une nouvelle qualification complète.

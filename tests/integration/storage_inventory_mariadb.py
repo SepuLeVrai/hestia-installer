@@ -37,7 +37,7 @@ class StorageLive(previous.CoordinatedLive):
         self.ready()
         self.temporary = self.make_directory('dedicated-tmp')
         self.env = {key: '' for key in s.ENVIRONMENT}
-        self.app = {key: '' for key in s.APP_CONFIG}
+        self.storage_app_config = {key: '' for key in s.APP_CONFIG}
         self.constants = {'HESTIA_IMPORT_STORAGE': None}
         self.inventory = s.StorageInventory(WEB, repository=p.WEB_REPOSITORY, commit=f.WEB_COMMIT)
 
@@ -83,7 +83,7 @@ class StorageLive(previous.CoordinatedLive):
             '"session.save_path"=>session_save_path(),"session.gc_maxlifetime"=>ini_get("session.gc_maxlifetime"),'
             '"effective_sys_temp_dir"=>sys_get_temp_dir(),"upload_tmp_dir"=>ini_get("upload_tmp_dir"),'
             '"error_log"=>ini_get("error_log")],JSON_THROW_ON_ERROR);')
-        return s.StorageFacts(self.webroot, self.directory, dict(self.env), dict(self.constants), dict(self.app),
+        return s.StorageFacts(self.webroot, self.directory, dict(self.env), dict(self.constants), dict(self.storage_app_config),
                               php, ai_file, ai_usage)
 
     def mapped(self, facts=None):
@@ -121,7 +121,7 @@ class StorageLive(previous.CoordinatedLive):
         self.env['HESTIA_MOBILE_RELEASE_DIR'] = str(env_root)
         self.sql([f"INSERT INTO `{self.db}`.App_Config(cle,valeur) VALUES('HESTIA_MOBILE_RELEASE_DIR',{literal(str(db_root))}) ON DUPLICATE KEY UPDATE valeur=VALUES(valeur)"])
         observed = self.sql(query=f"SELECT valeur FROM `{self.db}`.App_Config WHERE cle='HESTIA_MOBILE_RELEASE_DIR'")[0]['valeur']
-        self.app['HESTIA_MOBILE_RELEASE_DIR'] = observed
+        self.storage_app_config['HESTIA_MOBILE_RELEASE_DIR'] = observed
         before = self.logical_dump()
         actual = self.probe('require APP_ROOT."/includes/functions.php";require APP_ROOT."/includes/db.php";'
                             'require APP_ROOT."/includes/mobile_updates.php";echo json_encode(hestia_mobile_update_configured_path());')
@@ -136,7 +136,7 @@ class StorageLive(previous.CoordinatedLive):
         legacy = self.webroot / 'uploads/ged_legacy/retained'
         legacy.mkdir(parents=True, mode=0o755)
         self.env['HESTIA_GED_LEGACY_ROOTS'] = str(external)
-        self.app['security.ged_legacy_roots'] = 'retained'
+        self.storage_app_config['security.ged_legacy_roots'] = 'retained'
         self.sql([f"INSERT INTO `{self.db}`.App_Config(cle,valeur) VALUES('security.ged_legacy_roots','retained') ON DUPLICATE KEY UPDATE valeur=VALUES(valeur)"])
         before = self.logical_dump()
         actual = self.probe('require APP_ROOT."/includes/functions.php";require APP_ROOT."/includes/db.php";'
