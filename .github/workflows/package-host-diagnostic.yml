@@ -1,0 +1,49 @@
+name: Official Debian package host diagnostic
+on:
+  push:
+    branches: ['verification/package-host-diagnostic-20260925']
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        debian: ['12', '13']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Inspect actual official Debian prerequisites
+        env:
+          DEBIAN_VERSION: ${{ matrix.debian }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p evidence
+          docker build --build-arg "DEBIAN=$DEBIAN_VERSION" -f tests/integration/Dockerfile.packages -t host-diagnostic .
+          docker run --rm --network none -i host-diagnostic python3 - <<'PY' | tee evidence/host.json
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, '/opt/hestia-installer')
+          from installer.system_packages import _dpkg_line
+          paths = [Path('/etc/dpkg/dpkg.cfg'), *Path('/etc/dpkg/dpkg.cfg.d').iterdir()]
+          values = {}
+          for path in paths:
+              lines = [l.strip() for l in path.read_text().splitlines() if l.strip() and not l.lstrip().startswith('#')]
+              values[str(path)] = [{'line': l, 'accepted': _dpkg_line(l)} for l in lines]
+          keys = []
+          for path in sorted(Path('/usr/share/keyrings').glob('debian-archive-keyring.*')):
+              st = path.lstat()
+              keys.append({'path': str(path), 'mode': oct(st.st_mode), 'uid': st.st_uid, 'gid': st.st_gid, 'links': st.st_nlink,
+                           'target': os.readlink(path) if path.is_symlink() else None, 'bytes': st.st_size})
+          print(json.dumps({'dpkg': values, 'keys': keys}, indent=2))
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: package-host-diagnostic-debian-${{ matrix.debian }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7
