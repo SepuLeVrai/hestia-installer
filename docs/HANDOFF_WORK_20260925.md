@@ -1,5 +1,17 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Suite courante — backend derrière TLS
+
+Base paquets qualifiée `15057f62`. Le [profil proxy](PHASE5_PROXY_INGRESS.md)
+est explicite et lié au staging : contrôle séparé du pair/clients, suppression
+des headers non fiables et normalisation avant PHP. Le frontal rendu reste à
+intégrer au cycle de vie ; module global NGINX/ACME hors périmètre. Recettes
+NGINX/Apache/FPM réelles, puis helper Web épinglé, sans base réelle. 608 core,
+61 système et 13 paquets par Debian ; 16 DOM, 21 HTTPS, 118 SQL/HTTP et 14 cas
+helper Web requis sur l'arbre final. L'orchestration d'activation/restauration,
+les stockages/productions exhaustifs, l'upgrade réel et le wizard restent ouverts.
+Aucune clôture Phase 5 ni promotion sur le seul succès de cette interface.
+
 ## Nouveau checkpoint — acquisition et installation des paquets
 
 Base qualifiée `870560b61ebc271d8979741b1f6b074a76c93251`. Lire le

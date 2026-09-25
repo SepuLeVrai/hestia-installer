@@ -1,5 +1,16 @@
 # État du projet
 
+## Reprise active — interface TLS/proxy du backend
+
+Base paquets `15057f62` qualifiée : Quality `36160960174`, système
+`36160960191`, paquets `36160960155`, SQL/HTTP `36161088874`.
+Le [lot proxy](PHASE5_PROXY_INGRESS.md) sépare pair déclaré et allowlist clients,
+normalise IP/HTTPS vers PHP et fournit un bloc NGINX sans installer le module
+global NGINX/ACME. Sources à qualifier : 608 core par Debian, 61 recettes système
+et 13 paquets par Debian, 16 DOM, 21 HTTPS, 118 SQL/HTTP et 14 cas avec le helper
+Web réel. Activation complète, stockages exhaustifs, wizard et fin de Phase 5
+restent ouverts. Sections suivantes historiques ; résultats dans le checkpoint.
+
 ## Reprise active — paquets Debian officiels
 
 Base identité `870560b61ebc271d8979741b1f6b074a76c93251` qualifiée : Quality

@@ -25,6 +25,7 @@ from installer import system_drain as drain
 from installer.model import Receipt, ResourceSpec, StepSpec
 from installer.operations import Operation, Recovery, RecoveryDecision
 from installer.preflight import read_os_release
+from installer.proxy_ingress import ProxyIngress
 
 EXTENSIONS = ('mysqlnd', 'pdo', 'mysqli', 'pdo_mysql', 'ctype', 'iconv', 'fileinfo',
               'mbstring', 'curl', 'dom', 'simplexml', 'xml', 'xmlreader', 'xmlwriter', 'zip', 'gd', 'tokenizer')
@@ -59,8 +60,10 @@ class RuntimeSpec:
     hostname: str = field(repr=False)
     port: int
     php_family: str
+    ingress: ProxyIngress | None = field(default=None, repr=False)
 
     def __post_init__(self):
+        require(self.ingress is None or type(self.ingress) is ProxyIngress, 'HTTP_RUNTIME_INPUT_REJECTED')
         require(type(self.instance) is str and re.fullmatch(r'[a-f0-9]{32}', self.instance) is not None,
                 'HTTP_RUNTIME_INPUT_REJECTED')
         root, web = _path(self.root, maximum=75), _path(self.webroot, dots=True)
@@ -151,6 +154,9 @@ class HttpRuntime:
         require(role in ('apache', 'php'), 'HTTP_RUNTIME_INPUT_REJECTED')
         return 'hestia-' + self.spec.instance + '-' + role + '.service'
 
+    def _modules(self):
+        return MODULES + (('remoteip', 'authz_host') if self.spec.ingress is not None else ())
+
     def _host(self):
         require(os.geteuid() == 0, 'HTTP_RUNTIME_ROOT_REQUIRED')
         system = read_os_release()
@@ -167,7 +173,7 @@ class HttpRuntime:
         extension = Path('/usr/lib/php') / {'8.2': '20220829', '8.4': '20240924'}[expected]
         for name in EXTENSIONS:
             p._safe_path(extension / (name + '.so'), directory=False, system=True)
-        for name in MODULES:
+        for name in self._modules():
             p._safe_path(Path('/usr/lib/apache2/modules/mod_' + name + '.so'), directory=False, system=True)
         p._safe_path(Path('/etc/mime.types'), directory=False)
         require(Path('/proc/1/comm').read_text().strip() == 'systemd'
@@ -178,7 +184,7 @@ class HttpRuntime:
         paths = [Path('/usr/bin/systemctl'), Path('/usr/sbin/apache2'),
                  Path('/usr/sbin/php-fpm' + self.spec.php_family), Path('/etc/mime.types')]
         paths += [extension / (name + '.so') for name in EXTENSIONS]
-        paths += [Path('/usr/lib/apache2/modules/mod_' + name + '.so') for name in MODULES]
+        paths += [Path('/usr/lib/apache2/modules/mod_' + name + '.so') for name in self._modules()]
         return {str(path): _system_file_digest(path) for path in paths}
 
     def _scope(self, account):
@@ -186,6 +192,9 @@ class HttpRuntime:
 
     def _files(self, account, extension):
         spec = self.spec; root, web = str(spec.root), str(spec.webroot)
+        trusted_proxies = '""' if spec.ingress is not None else '127.0.0.1/32'
+        access = (spec.ingress.apache_access(spec.hostname, spec.port) if spec.ingress is not None
+                  else f'  Require expr "%{{HTTP_HOST}} == \'{spec.hostname}\' || %{{HTTP_HOST}} == \'{spec.hostname}:{spec.port}\'"\n')
         ini = ('[PHP]\nexpose_php=Off\ndisplay_errors=Off\nlog_errors=On\n'
             + 'date.timezone=UTC\nmemory_limit=256M\nmax_execution_time=20\n'
             + 'upload_max_filesize=64M\npost_max_size=66M\nuser_ini.filename=\n'
@@ -216,7 +225,7 @@ env[TMP] = {root}/data/tmp
 env[TEMP] = {root}/data/tmp
 env[HOME] = {root}/data/tmp
 env[HESTIA_IMPORT_STORAGE] = {root}/data/imports
-env[HESTIA_TRUSTED_PROXIES] = 127.0.0.1/32
+env[HESTIA_TRUSTED_PROXIES] = {trusted_proxies}
 php_admin_value[auto_prepend_file] = {root}/maintenance/request_guard.php
 php_admin_value[session.save_handler] = files
 php_admin_value[session.save_path] = {root}/data/sessions
@@ -234,7 +243,7 @@ ServerTokens Prod
 DefaultRuntimeDir "{root}/run"
 PidFile "{root}/run/apache.pid"
 Listen 127.0.0.1:{spec.port}
-''' + ''.join(f'LoadModule {name}_module /usr/lib/apache2/modules/mod_{name}.so\n' for name in MODULES) + f'''User {spec.service_user}
+''' + ''.join(f'LoadModule {name}_module /usr/lib/apache2/modules/mod_{name}.so\n' for name in self._modules()) + f'''User {spec.service_user}
 Group #{account.pw_gid}
 ErrorLog "{root}/log/apache.log"
 LogLevel warn
@@ -252,8 +261,7 @@ DirectoryIndex index.php
   Options None
   AllowOverride None
   CGIPassAuth On
-  Require expr "%{{HTTP_HOST}} == '{spec.hostname}' || %{{HTTP_HOST}} == '{spec.hostname}:{spec.port}'"
-  <FilesMatch "\\.php$">
+{access}  <FilesMatch "\\.php$">
     SetHandler "proxy:unix:{root}/run/php.sock|fcgi://localhost/"
   </FilesMatch>
 </Directory>
@@ -277,6 +285,8 @@ Header always set X-Content-Type-Options "nosniff"
 Header always set Referrer-Policy "strict-origin-when-cross-origin"
 Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
 '''
+        if spec.ingress is not None:
+            apache += spec.ingress.apache_directives()
         files = {spec.root / 'conf/php.ini': ini.encode(), spec.root / 'conf/fpm.conf': fpm.encode(),
                  spec.root / 'conf/apache.conf': apache.encode()}
         starts = {'apache': f'/usr/sbin/apache2 -DFOREGROUND -f {root}/conf/apache.conf',

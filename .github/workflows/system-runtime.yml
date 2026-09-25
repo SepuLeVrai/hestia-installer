@@ -83,6 +83,12 @@ jobs:
           docker exec -e HESTIA_SERVICE_IDENTITY_TEST=1 hestia-system-runtime \
             python3 /opt/hestia-installer/tests/integration/service_identity_systemd.py \
             --report /evidence/service-identity.json 2>&1 | tee evidence/service-identity.log
+      - name: Exercise declared proxy, separate client allowlist and real TLS
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_PROXY_INGRESS_TEST=1 hestia-system-runtime \
+            python3 /opt/hestia-installer/tests/integration/proxy_ingress_systemd.py \
+            --report /evidence/proxy-ingress.json 2>&1 | tee evidence/proxy-ingress.log
       - name: Preserve non-secret evidence and remove disposable container
         if: always()
         run: |

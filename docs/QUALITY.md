@@ -1,5 +1,14 @@
 # Quality et non-régression de HESTIA Installer
 
+## Interface proxy — nouvelle qualification requise
+
+Voir [le contrat et la recette TLS](PHASE5_PROXY_INGRESS.md). 608 core par Debian,
+61 système (47 historiques + 14 proxy) et 13 paquets par Debian, 16 DOM, 21 HTTPS,
+118 SQL/HTTP et 14 recettes proxy avec le helper Web exact sur Debian 13.
+Aucun skip, pin assoupli ou booléen d'installation accepté. Le banc est jetable,
+hors réseau après construction ; il ne qualifie pas un certificat public ACME
+ni une activation métier. Preuves exactes dans le checkpoint après gel.
+
 ## Lot paquets officiels — candidat à qualifier
 
 [Contrat](PHASE5_SYSTEM_PACKAGES.md) : **600 core par Debian**, dont 24 nouveaux

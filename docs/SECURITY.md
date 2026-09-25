@@ -1,5 +1,14 @@
 # Modèle de sécurité
 
+## Profil proxy explicite
+
+Le [contrat TLS/proxy](PHASE5_PROXY_INGRESS.md) distingue l'adresse du pair de
+connexion de l'allowlist clients. Apache normalise REMOTE_ADDR/HTTPS avant PHP
+et retire le forwarding ; le frontal remplace les headers client. L'adresse
+loopback n'est pas une authentification de processus : l'hôte local est dans
+la frontière de confiance. Aucun isolement multi-tenant, certificat public ou
+renouvellement ACME n'est implicite. Le backend demeure inaccessible au réseau.
+
 ## Provisionnement de l’identité locale
 
 [ServiceIdentity](PHASE5_SERVICE_IDENTITY.md) réserve un journal root:root 0700
