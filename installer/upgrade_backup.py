@@ -38,7 +38,7 @@ ERRORS = frozenset({'REQUEST_INVALID','SQL_TARGET_INVALID','SQL_CA_INVALID','SQL
     'BACKUP_SPECIAL_OBJECTS_UNSUPPORTED','BACKUP_LIMIT','BACKUP_CHANNEL_FAILED','BACKUP_SOURCE_CHANGED','BACKUP_ARCHIVE_INVALID',
     'BACKUP_VERIFIER_VERSION_MISMATCH','BACKUP_VERIFIER_NOT_ISOLATED','BACKUP_VERIFIER_TARGET_OCCUPIED','BACKUP_RESTORE_WARNING',
     'BACKUP_RESTORE_MISMATCH','BACKUP_VERIFIER_CLEANUP_FAILED','BACKUP_WORKER_FAILED','BACKUP_TRIGGER_PROFILE_REJECTED',
-    'BACKUP_DEFINER_PROFILE_REJECTED','BACKUP_DEFINER_MISSING','BACKUP_TRIGGER_RESTORE_MISMATCH','BACKUP_ROW_ORDER_COLLISION','BACKUP_NUMERIC_UNSUPPORTED','BACKUP_FOREIGN_KEY_MISMATCH','BACKUP_TRIGGER_SMOKE_FAILED'})
+    'BACKUP_DEFINER_PROFILE_REJECTED','BACKUP_DEFINER_MISSING','BACKUP_RESCUE_PROFILE_REJECTED','BACKUP_TRIGGER_RESTORE_MISMATCH','BACKUP_ROW_ORDER_COLLISION','BACKUP_NUMERIC_UNSUPPORTED','BACKUP_FOREIGN_KEY_MISMATCH','BACKUP_TRIGGER_SMOKE_FAILED'})
 
 
 class UpgradeBackupError(RuntimeError):
@@ -198,7 +198,7 @@ def _worker_stage(runtime: p.PhpRuntime, source: Path, stage: Path, ca: bytes | 
             f._write(fd,'ca.pem',ca,runtime.worker_gid)
 
 
-def _restore(runtime: p.PhpRuntime, source: Path, slot: Path, request_id: str, sha256: str, cancel=None) -> dict:
+def _restore(runtime: p.PhpRuntime, source: Path, slot: Path, request_id: str, sha256: str, cancel=None, *, rescue: bool = False) -> dict:
     with tempfile.TemporaryDirectory(prefix='bv-', dir=runtime.run_root) as tmp:
         stage = Path(tmp)
         _worker_stage(runtime,source,stage,None)
@@ -209,7 +209,7 @@ def _restore(runtime: p.PhpRuntime, source: Path, slot: Path, request_id: str, s
         target.chmod(0o640)
         require(_hash(target)==sha256,'BACKUP_ARCHIVE_INVALID')
         with br.verification_server(runtime,stage,cancel=cancel):
-            request = {'version':1,'operation':'verify','request_id':request_id,'archive_sha256':sha256,'password':os.urandom(32).hex()}
+            request = {'version':1,'operation':'verify_rescue' if rescue else 'verify','request_id':request_id,'archive_sha256':sha256,'password':os.urandom(32).hex()}
             code, raw = p._exchange(p._command(runtime,stage),p._json(request),stage,runtime.timeout_seconds,cancel)
             try:
                 response = strict_json_loads(raw)
@@ -263,6 +263,26 @@ class UpgradeBackup:
 
     def create_and_verify(self, payload: dict, authority: d.SqlAuthorityCredentials, *, config_root: Path,
                           backup_root: Path, confirmed: bool, allow_global_read_lock: bool, cancel=None) -> BackupVerification:
+        return self._create(payload,authority,config_root=config_root,backup_root=backup_root,confirmed=confirmed,
+                            allow_global_read_lock=allow_global_read_lock,cancel=cancel,orphan=None)
+
+    def create_rescue_and_verify(self, payload: dict, authority: d.SqlAuthorityCredentials, *, config_root: Path,
+                                backup_root: Path, expected_orphaned_definer: str, confirmed: bool,
+                                allow_global_read_lock: bool, cancel=None) -> BackupVerification:
+        """Capture the explicitly named historical defect without repairing it.
+
+        Separate receipt and archive format: never certifies an operational
+        source or authorizes apply. All ordinary object/file guards still apply.
+        """
+        require(type(expected_orphaned_definer) is str
+            and re.fullmatch(r'[A-Za-z0-9_]{1,32}@127\.0\.0\.1',expected_orphaned_definer) is not None
+            and expected_orphaned_definer.split('@')[0]!='root'
+            and not expected_orphaned_definer.startswith('hdf_'),'BACKUP_RESCUE_PROFILE_REJECTED')
+        return self._create(payload,authority,config_root=config_root,backup_root=backup_root,confirmed=confirmed,
+                            allow_global_read_lock=allow_global_read_lock,cancel=cancel,orphan=expected_orphaned_definer)
+
+    def _create(self, payload: dict, authority: d.SqlAuthorityCredentials, *, config_root: Path, backup_root: Path,
+                confirmed: bool, allow_global_read_lock: bool, cancel, orphan: str | None) -> BackupVerification:
         started=False
         try:
             require(confirmed is True and allow_global_read_lock is True,'BACKUP_CONSENT_REQUIRED')
@@ -284,6 +304,12 @@ class UpgradeBackup:
                 current=f.FinalizationStep(self.runtime,self.source,repository=p.WEB_REPOSITORY,commit=f.WEB_COMMIT)
                 current._sources(web)
                 database,loader,ca=f._prepared(config,value,directory,conf,gid)
+                if orphan is not None:
+                    # Existing payloads intentionally use existing_local, even
+                    # after managed fresh. Read the retained provisioning receipt.
+                    require(config['database']['mode']=='existing_local' and database['host']=='127.0.0.1'
+                        and f._json_read(conf,'state.json',gid)['migration_retained'] is False,
+                        'BACKUP_RESCUE_PROFILE_REJECTED')
                 completed=f._completed(conf,webfd,inc,gid)
                 try:
                     u._shared_file(conf,'assistant-edit.lock',0,stack,mode=0o600,limit=0)
@@ -317,6 +343,8 @@ class UpgradeBackup:
                         target['tls_ca_file']=str(stage/'ca.pem')
                     request={'version':1,'operation':'export','request_id':run_id,'target':target,
                         'authority':{'user':authority._user,'password':authority._password}}
+                    if orphan is not None:
+                        request.update(operation='export_rescue',expected_orphaned_definer=orphan)
                     fd=os.open(slot/'database.ndjson',os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
                     with os.fdopen(fd,'wb') as output:
                         code,sql_sha,sql_bytes=br.capture(p._command(self.runtime,stage),p._json(request),stage,output,self.runtime.timeout_seconds,cancel=cancel)
@@ -336,6 +364,8 @@ class UpgradeBackup:
                     'source_webroot':str(web),'source_configuration':str(directory),'source_state_root':str(self.runtime.state_root),
                     'database_sha256':sql_sha,'database_bytes':sql_bytes,'fresh_attempt_name':'fresh-'+key+'.attempt',
                     'fresh_attempt_sha256':f._sha(journal),'files':records}
+                if orphan is not None:
+                    manifest.update(version=2,purpose='ORPHANED_DEFINER_RESCUE',expected_orphaned_definer=orphan)
                 _new_file(slot/'manifest.json',p._json(manifest))
                 # Work ONLY from saved copies. The verifier receives no source connection or authority credential.
                 _verify_files(slot,records)
@@ -345,7 +375,8 @@ class UpgradeBackup:
                 restored_journal,_=_file(slot/'journal-restore-check')
                 require(hmac.compare_digest(restored_journal,journal),'BACKUP_FILE_RESTORE_MISMATCH')
                 (slot/'journal-restore-check').unlink()
-                verified=_restore(self.runtime,self.source,slot,run_id,sql_sha,cancel)
+                verified=(_restore(self.runtime,self.source,slot,run_id,sql_sha,cancel) if orphan is None
+                    else _restore(self.runtime,self.source,slot,run_id,sql_sha,cancel,rescue=True))
                 require(verified['logical_sha256']==last['logical_sha256'] and verified['tables']==last['tables']
                     and verified['rows']==last['rows'] and _hash(slot/'database.ndjson')==sql_sha,'BACKUP_RESTORE_MISMATCH')
                 require(cancel is None or not cancel.is_set(),'BACKUP_INTERRUPTED')
@@ -357,12 +388,16 @@ class UpgradeBackup:
                     'scope':'SQL_ROOT_OWNED_WEB_AND_PRIVATE_ENVELOPE',
                     'limitations':['NO_MUTABLE_BUSINESS_FILE_TREES','NO_EXTERNAL_PHP_SESSION_STORAGE',
                         'ONLY_FIVE_CANONICAL_SCOPED_DEFINER_TRIGGERS','POINT_IN_TIME_NOT_LIVE_SYNCHRONIZATION','NO_WEB_REACTIVATION_OR_UPGRADE']}
+                if orphan is not None:
+                    result.update(state='RESCUE_RESTORE_VERIFIED',backup_verified=False,rescue_restoration_verified=True,
+                        operational_source_verified=False,source_definers_missing=True,purpose='ORPHANED_DEFINER_RESCUE')
+                    result['limitations'].append('SOURCE_TRIGGERS_STILL_ORPHANED_NO_REPAIR_AUTHORIZED')
                 with fs._directory(slot/'files') as fd:
                     os.fsync(fd)
                 with fs._directory(slot) as fd:
                     os.fsync(fd)
                 os.fsync(backupfd)
-                _new_file(slot/'verified.json',p._json(result))
+                _new_file(slot/('verified.json' if orphan is None else 'rescue-verified.json'),p._json(result))
                 with fs._directory(slot) as fd:os.fsync(fd)
                 return BackupVerification(p._json(result))
         except Exception as error:
@@ -372,6 +407,7 @@ class UpgradeBackup:
                 # this exclusive slot's receipt is removed, never its archive.
                 try:
                     (slot/'verified.json').unlink(missing_ok=True)
+                    (slot/'rescue-verified.json').unlink(missing_ok=True)
                     with fs._directory(slot) as fd:os.fsync(fd)
                 except OSError:
                     pass

@@ -62,9 +62,10 @@ reconstruit explicitement l'état de l'ancienne version, dont la reproduction
 indépendante est enregistrée ci-dessus. Les nouveaux cas positifs exécutent le
 provisioning corrigé et une restauration réelle distincte.
 
-La réparation consentie de l'existant, sa sauvegarde de secours sans dépendance
-circulaire, puis les fichiers métier/sessions, upgrade, reprise et rollback
-restent à réaliser. Ce correctif ne suffit pas à clore 5C2 ou toute la Phase 5.
+La [sauvegarde de secours](PHASE5C2_RESCUE.md) est maintenant un candidat séparé
+en qualification. La réparation consentie de l'existant, puis les fichiers
+métier/sessions, upgrade, reprise et rollback restent à réaliser.
+Ce correctif ne suffit pas à clore 5C2 ou toute la Phase 5.
 
 ## Qualification requise
 

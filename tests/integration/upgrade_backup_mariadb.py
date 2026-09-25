@@ -68,6 +68,79 @@ class BackupLive(previous.UpgradePreflightLive):
                 f"CREATE OR REPLACE DEFINER=`{self.migration}`@`127.0.0.1` TRIGGER `{row['TRIGGER_NAME']}` {row['ACTION_TIMING']} {row['EVENT_MANIPULATION']} ON `{row['EVENT_OBJECT_TABLE']}` FOR EACH ROW {row['ACTION_STATEMENT']}"]
         self.sql(statements)
         self.assertEqual(self.sql(query=query),rows)
+        self.sql([f"DROP USER `{self.definer_user()}`@'localhost'"])
+
+    def rescue_run(self, **kwargs):
+        values=dict(config_root=self.output,backup_root=self.backups,confirmed=True,allow_global_read_lock=True,
+            expected_orphaned_definer=self.migration+'@127.0.0.1')
+        values.update(kwargs)
+        return self.backup.create_rescue_and_verify(self.existing(),self.authority,**values).report()
+
+    def orphaned_ready(self):
+        self.managed_ready();self.legacy_orphaned_fixture()
+
+    def test_backup_rescue_restores_data_without_certifying_or_repairing_source(self):
+        self.orphaned_ready();before=self.logical_dump();files=self.files();result=self.rescue_run()
+        self.assertEqual(result['state'],'RESCUE_RESTORE_VERIFIED',result)
+        self.assertTrue(result['rescue_restoration_verified']);self.assertTrue(result['database_restoration_verified'])
+        self.assertEqual(result['trigger_smoke_verified'],5)
+        for key in ('backup_verified','operational_source_verified','apply_allowed','rollback_verified','web_activation_verified'):
+            self.assertFalse(result[key])
+        slot=self.backups/result['backup_id']
+        self.assertFalse((slot/'verified.json').exists());self.assertTrue((slot/'rescue-verified.json').exists())
+        header=json.loads((slot/'database.ndjson').read_bytes().splitlines()[0])
+        self.assertEqual(header['version'],2);self.assertEqual(header['purpose'],'ORPHANED_DEFINER_RESCUE')
+        self.assertEqual(before,self.logical_dump());self.assertEqual(files,self.files())
+        self.assertEqual(self.sql(query=f"SELECT COUNT(*) n FROM mysql.global_priv WHERE User='{self.migration}'")[0]['n'],0)
+        self.assertEqual(self.backup_run()['code'],'BACKUP_DEFINER_MISSING')
+        # A rescue cannot pass the ordinary archive verifier by changing only the caller.
+        with self.assertRaisesRegex(b.UpgradeBackupError,'BACKUP_ARCHIVE_INVALID'):
+            b._restore(self.runtime,WEB,slot,result['backup_id'],result['database_sha256'])
+
+    def test_backup_rescue_requires_exact_known_orphan_and_both_consents(self):
+        self.orphaned_ready();before=self.logical_dump()
+        result=self.rescue_run(expected_orphaned_definer='other_missing@127.0.0.1')
+        self.assertEqual(result['code'],'BACKUP_RESCUE_PROFILE_REJECTED',result)
+        for value in ('root@127.0.0.1',self.definer_user()+'@127.0.0.1',self.migration+'@localhost','x;DROP USER root',None):
+            with self.assertRaisesRegex(b.UpgradeBackupError,'BACKUP_RESCUE_PROFILE_REJECTED'):
+                self.rescue_run(expected_orphaned_definer=value)
+        for key in ('confirmed','allow_global_read_lock'):
+            for value in (False,1,'true',None):
+                with self.assertRaisesRegex(b.UpgradeBackupError,'BACKUP_CONSENT_REQUIRED'):
+                    self.rescue_run(**{key:value})
+        self.assertEqual(before,self.logical_dump())
+
+    def test_backup_rescue_nonmanaged_source_is_not_adopted(self):
+        self.finish();before=self.logical_dump()
+        with self.assertRaisesRegex(b.UpgradeBackupError,'BACKUP_RESCUE_PROFILE_REJECTED'):
+            self.rescue_run()
+        self.assertEqual(before,self.logical_dump());self.assertFalse(list(self.backups.iterdir()))
+
+    def test_backup_rescue_existing_identity_is_not_adopted(self):
+        self.orphaned_ready()
+        self.sql([f"CREATE USER `{self.migration}`@'127.0.0.2' ACCOUNT LOCK"])
+        try:
+            result=self.rescue_run();self.assertEqual(result['code'],'BACKUP_RESCUE_PROFILE_REJECTED',result)
+            self.assertFalse((self.backups/result['backup_id']/'rescue-verified.json').exists())
+        finally:self.sql([f"DROP USER `{self.migration}`@'127.0.0.2'"])
+
+    def test_backup_rescue_unknown_trigger_is_rejected_without_mutation(self):
+        self.orphaned_ready()
+        self.sql([f'USE `{self.db}`', 'SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci',
+            f"CREATE OR REPLACE DEFINER=`{self.migration}`@'127.0.0.1' TRIGGER trg_hestia_page_segment_bi BEFORE INSERT ON P_Activite FOR EACH ROW SET NEW.id_segment=NEW.id_segment"])
+        before=self.logical_dump();result=self.rescue_run()
+        self.assertEqual(result['code'],'BACKUP_TRIGGER_PROFILE_REJECTED',result)
+        self.assertEqual(before,self.logical_dump())
+
+    def test_backup_rescue_corruption_never_produces_a_recovery_receipt(self):
+        self.orphaned_ready();restore=b._restore
+        def corrupt(runtime,source,slot,*args,**kwargs):
+            with (slot/'database.ndjson').open('ab') as file:file.write(b'corrupt\n')
+            return restore(runtime,source,slot,*args,**kwargs)
+        with patch.object(b,'_restore',side_effect=corrupt):result=self.rescue_run()
+        self.assertEqual(result['state'],'BACKUP_INCOMPLETE',result)
+        self.assertFalse(result['backup_verified'])
+        self.assertFalse((self.backups/result['backup_id']/'rescue-verified.json').exists())
 
     def managed_ready(self):
         self.managed()

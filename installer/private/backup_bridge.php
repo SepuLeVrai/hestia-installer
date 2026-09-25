@@ -91,6 +91,17 @@ function bk_triggers(PDO $pdo,bool $auditDefiners=true): array {
     }
     return $rows;
 }
+function bk_orphaned_triggers(PDO $pdo,mixed $expected): array {
+    // Explicit recovery evidence only. This never creates an account on source.
+    bk_require(is_string($expected)&&preg_match('/^([A-Za-z0-9_]{1,32})@127\.0\.0\.1$/D',$expected,$m)===1
+        &&$m[1]!=='root'&&!str_starts_with($m[1],'hdf_'),'BACKUP_RESCUE_PROFILE_REJECTED');
+    $rows=bk_triggers($pdo,false);
+    foreach($rows as $row)bk_require($row['DEFINER']===$expected,'BACKUP_RESCUE_PROFILE_REJECTED');
+    $q=$pdo->prepare('SELECT COUNT(*) FROM mysql.global_priv WHERE User=?');$q->execute([$m[1]]);
+    $count=(int)$q->fetchColumn();$q->closeCursor();
+    bk_require($count===0,'BACKUP_RESCUE_PROFILE_REJECTED');
+    return $rows;
+}
 function bk_restore_triggers(PDO $authority,array $triggers): array {
     $canonical=bk_canonical_triggers();bk_require(count($triggers)===5,'BACKUP_TRIGGER_PROFILE_REJECTED');$created=[];
     $authority->exec('USE backup_verify');
@@ -230,14 +241,15 @@ function bk_trigger_smoke(PDO $pdo): void {
     } finally {if($pdo->inTransaction())$pdo->rollBack();}
 }
 
-function bk_export(#[SensitiveParameter] array $v): void {
+function bk_export(#[SensitiveParameter] array $v,bool $rescue=false): void {
     $locker=null;$pdo=null;$locked=false;$bytes=0;
     $emit=static function(array $line) use (&$bytes): void {
         $raw=bk_json($line)."\n";bk_require(strlen($raw)<=BK_MAX_LINE && ($bytes+=strlen($raw))<=BK_MAX_BYTES,'BACKUP_LIMIT');
         $offset=0;while($offset<strlen($raw)) { $n=fwrite(STDOUT,substr($raw,$offset));bk_require(is_int($n)&&$n>0,'BACKUP_CHANNEL_FAILED');$offset+=$n; }
     };
     try {
-        bk_require(array_keys($v)===['authority','operation','request_id','target','version'] && $v['version']===1,'REQUEST_INVALID');
+        $keys=$rescue?['authority','expected_orphaned_definer','operation','request_id','target','version']:['authority','operation','request_id','target','version'];
+        bk_require(array_keys($v)===$keys && $v['version']===1,'REQUEST_INVALID');
         $locker=bk_connection($v['target'],$v['authority']);bk_authority($locker,$v['authority'],$v['target']['tls_required']);
         $identity=bk_identity($locker);bk_require($identity['db']===$v['target']['name']);
         $locker->exec('SET SESSION lock_wait_timeout=5');
@@ -248,18 +260,21 @@ function bk_export(#[SensitiveParameter] array $v): void {
         bk_require(bk_identity($pdo)===$identity,'BACKUP_SOURCE_CHANGED');bk_session($pdo);
         $pdo->exec('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
         $pdo->exec('START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT');bk_require($pdo->inTransaction());
-        $tables=bk_profile($pdo);$triggers=bk_triggers($pdo);
+        if($rescue){$tables=bk_profile($pdo);$triggers=bk_orphaned_triggers($pdo,$v['expected_orphaned_definer']);}
+        else {$tables=bk_profile($pdo);$triggers=bk_triggers($pdo);}
         $db=bk_all($pdo,'SELECT DEFAULT_CHARACTER_SET_NAME AS charset,DEFAULT_COLLATION_NAME AS collation FROM information_schema.SCHEMATA WHERE SCHEMA_NAME=DATABASE()',1)[0];
         bk_require($db===['charset'=>'utf8mb4','collation'=>'utf8mb4_unicode_ci']);
         bk_require(bk_scalar($pdo,"SELECT valeur FROM App_Config WHERE cle='APP_VERSION'")===HESTIA_INSTALL_VERSION_KEY,'BACKUP_SOURCE_CHANGED');
-        $emit(['type'=>'header','version'=>1,'request_id'=>$v['request_id'],'release'=>HESTIA_INSTALL_VERSION_KEY,'server_version'=>$identity['version'],'database'=>$db,'tables'=>count($tables),'triggers'=>$triggers]);
+        $header=['type'=>'header','version'=>$rescue?2:1,'request_id'=>$v['request_id'],'release'=>HESTIA_INSTALL_VERSION_KEY,'server_version'=>$identity['version'],'database'=>$db,'tables'=>count($tables),'triggers'=>$triggers];
+        if($rescue)$header['purpose']='ORPHANED_DEFINER_RESCUE';
+        $emit($header);
         $summary=[];$total=0;
         foreach($tables as $t) {
             $emit(['type'=>'table','name'=>$t['name'],'columns'=>$t['columns'],'ddl_base64'=>base64_encode($t['ddl'])]);
             $s=bk_table($pdo,$t,$emit);bk_require(($total+=(int)$s['rows'])<=BK_MAX_ROWS,'BACKUP_LIMIT');$summary[]=$s;
             $emit(['type'=>'end_table',...$s]);
         }
-        bk_require(bk_profile($pdo)===$tables && bk_triggers($pdo)===$triggers,'BACKUP_SOURCE_CHANGED');
+        bk_require(bk_profile($pdo)===$tables && ($rescue?bk_orphaned_triggers($pdo,$v['expected_orphaned_definer']):bk_triggers($pdo))===$triggers,'BACKUP_SOURCE_CHANGED');
         bk_require($pdo->rollBack());$locker->exec('UNLOCK TABLES');$locked=false;
         $emit(['type'=>'complete','request_id'=>$v['request_id'],'tables'=>count($tables),'rows'=>(string)$total,'logical_sha256'=>hash('sha256',bk_json([$summary,$triggers]))]);
     } finally {
@@ -276,15 +291,18 @@ function bk_socket(#[SensitiveParameter] string $user,#[SensitiveParameter] stri
         PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false,
         PDO::MYSQL_ATTR_MULTI_STATEMENTS=>false,PDO::MYSQL_ATTR_LOCAL_INFILE=>false,PDO::ATTR_TIMEOUT=>5]);
 }
-function bk_verify(#[SensitiveParameter] array $v): array {
+function bk_verify(#[SensitiveParameter] array $v,bool $rescue=false): array {
     bk_require(array_keys($v)===['archive_sha256','operation','password','request_id','version'] && $v['version']===1
         && preg_match('/^[a-f0-9]{64}$/D',$v['archive_sha256'])===1 && preg_match('/^[a-f0-9]{64}$/D',$v['password'])===1,'REQUEST_INVALID');
     $path=__DIR__.'/database.ndjson';$info=lstat($path);
     bk_require(is_array($info)&&($info['mode']&0170000)===0100000&&$info['uid']===0&&($info['mode']&07022)===0&&$info['nlink']===1
         &&$info['size']>0&&$info['size']<=BK_MAX_BYTES&&hash_file('sha256',$path)===$v['archive_sha256'],'BACKUP_ARCHIVE_INVALID');
     $handle=fopen($path,'rb');$header=bk_line($handle);
-    bk_require(array_keys($header)===['type','version','request_id','release','server_version','database','tables','triggers']&&$header['type']==='header'
-        &&$header['version']===1&&$header['request_id']===$v['request_id']&&$header['release']===HESTIA_INSTALL_VERSION_KEY
+    $keys=['type','version','request_id','release','server_version','database','tables','triggers'];
+    if($rescue)$keys[]='purpose';
+    bk_require(array_keys($header)===$keys&&$header['type']==='header'
+        &&$header['version']===($rescue?2:1)&&(!$rescue||$header['purpose']==='ORPHANED_DEFINER_RESCUE')
+        &&$header['request_id']===$v['request_id']&&$header['release']===HESTIA_INSTALL_VERSION_KEY
         &&$header['database']===['charset'=>'utf8mb4','collation'=>'utf8mb4_unicode_ci']&&is_int($header['tables'])&&$header['tables']>=6&&$header['tables']<=512,'BACKUP_ARCHIVE_INVALID');
     $authority=bk_socket('root','');$server=bk_identity($authority);
     bk_require($server['version']===$header['server_version'],'BACKUP_VERIFIER_VERSION_MISMATCH');
@@ -354,15 +372,15 @@ try {
     $raw=stream_get_contents(STDIN,16385);bk_require(is_string($raw)&&strlen($raw)<=16384,'REQUEST_INVALID');
     $v=json_decode($raw,true,12,JSON_THROW_ON_ERROR);bk_require(is_array($v)&&bk_json($v)===$raw,'REQUEST_INVALID');
     bk_require(isset($v['request_id'])&&is_string($v['request_id'])&&preg_match('/^[a-f0-9]{32}$/D',$v['request_id'])===1,'REQUEST_INVALID');$id=$v['request_id'];$op=$v['operation']??'invalid';
-    if($op==='export'){bk_export($v);exit(0);}
-    bk_require($op==='verify','REQUEST_INVALID');$result=bk_verify($v);
+    if(in_array($op,['export','export_rescue'],true)){bk_export($v,$op==='export_rescue');exit(0);}
+    bk_require(in_array($op,['verify','verify_rescue'],true),'REQUEST_INVALID');$result=bk_verify($v,$op==='verify_rescue');
     echo bk_json(['version'=>1,'request_id'=>$id,'ok'=>true,'result'=>$result,'error'=>null]);
 } catch(Throwable $error) {
     $known=['REQUEST_INVALID','SQL_TARGET_INVALID','SQL_CA_INVALID','SQL_CREDENTIAL_INVALID','SQL_DRIVER_REQUIRED','SQL_CONNECTION_FAILED','SQL_TLS_CONNECTION_FAILED',
         'BACKUP_PROFILE_REJECTED','BACKUP_AUTHORITY_REJECTED','AUDIT_UNAVAILABLE','BACKUP_SPECIAL_OBJECTS_UNSUPPORTED','BACKUP_LIMIT','BACKUP_CHANNEL_FAILED',
-        'BACKUP_SOURCE_CHANGED','BACKUP_ARCHIVE_INVALID','BACKUP_VERIFIER_VERSION_MISMATCH','BACKUP_VERIFIER_NOT_ISOLATED','BACKUP_VERIFIER_TARGET_OCCUPIED',
+        'BACKUP_SOURCE_CHANGED','BACKUP_ARCHIVE_INVALID','BACKUP_RESCUE_PROFILE_REJECTED','BACKUP_VERIFIER_VERSION_MISMATCH','BACKUP_VERIFIER_NOT_ISOLATED','BACKUP_VERIFIER_TARGET_OCCUPIED',
         'BACKUP_RESTORE_WARNING','BACKUP_RESTORE_MISMATCH','BACKUP_VERIFIER_CLEANUP_FAILED','BACKUP_TRIGGER_PROFILE_REJECTED',
         'BACKUP_DEFINER_PROFILE_REJECTED','BACKUP_DEFINER_MISSING','BACKUP_TRIGGER_RESTORE_MISMATCH','BACKUP_ROW_ORDER_COLLISION','BACKUP_NUMERIC_UNSUPPORTED','BACKUP_FOREIGN_KEY_MISMATCH','BACKUP_TRIGGER_SMOKE_FAILED'];
     $code=in_array($error->getMessage(),$known,true)?$error->getMessage():'BACKUP_WORKER_FAILED';
-    echo bk_json(['version'=>1,'request_id'=>$id,'ok'=>false,'result'=>null,'error'=>$code]).($op==='export'?"\n":'');exit(20);
+    echo bk_json(['version'=>1,'request_id'=>$id,'ok'=>false,'result'=>null,'error'=>$code]).(in_array($op,['export','export_rescue'],true)?"\n":'');exit(20);
 }

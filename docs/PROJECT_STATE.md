@@ -2,6 +2,12 @@
 
 ## Reprise WORK - candidat 5C2b en préparation
 
+Checkpoint futur managed : `12a7e8a045b4f62c22b314173ea0900f512f52de`, Quality
+`36123060501` verte (456 core Debian12/13, 16 DOM, 21 HTTPS). Les recettes SQL
+18 préparation, 21 finalisation, 15 précontrôles et24 backup sont vertes et relues
+dans les artefacts de `36123155845`. Aucune promotion. Le lot suivant prépare la
+[sauvegarde de secours explicite](PHASE5C2_RESCUE.md), qualification distincte.
+
 La mission porte sur la fin de 5C puis 5D. Le candidat courant prépare la
 [correction DEFINER](PHASE5C2_DEFINER.md) pour les futurs fresh managed, avec
 restauration isolée du profil durable. Qualification et promotion restent à

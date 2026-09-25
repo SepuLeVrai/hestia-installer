@@ -2,6 +2,13 @@
 
 ## Candidat WORK 5C2b
 
+Checkpoint `12a7e8a045b4f62c22b314173ea0900f512f52de` : Quality `36123060501`
+PASS, sources stables, 456 core par Debian12/13, 16 DOM et21 HTTPS, zéro échec,
+erreur ou skip. Les 18 SQL/TLS, 21 finalisation et15 précontrôles sont relus PASS
+dans les artefacts du run technique `36123155845`, ainsi que les 24 backup PASS.
+L'extension [secours](PHASE5C2_RESCUE.md) ajoute ensuite six recettes SQL : elle
+n'est pas couverte par ces résultats antérieurs et attend sa propre campagne.
+
 Le [correctif DEFINER](PHASE5C2_DEFINER.md) conserve les suites historiques et
 ajoute quatre recettes SQL réelles (24 backup au total). La qualification du
 candidat est en cours ; les preuves 5C2a ci-dessous ne qualifient pas le correctif.
