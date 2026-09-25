@@ -65,6 +65,12 @@ jobs:
           docker exec -e HESTIA_SYSTEMD_DRAIN_TEST=1 hestia-system-runtime \
             python3 /opt/hestia-installer/tests/integration/system_drain_systemd.py \
             --report /evidence/system-drain.json 2>&1 | tee evidence/system-drain.log
+      - name: Exercise generated dedicated runtime, permissions and closed staging
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_HTTP_RUNTIME_TEST=1 hestia-system-runtime \
+            python3 /opt/hestia-installer/tests/integration/http_runtime_systemd.py \
+            --report /evidence/http-runtime.json 2>&1 | tee evidence/http-runtime.log
       - name: Preserve non-secret evidence and remove disposable container
         if: always()
         run: |

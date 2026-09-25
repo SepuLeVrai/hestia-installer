@@ -1,5 +1,19 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Nouveau checkpoint — runtime HTTP préparé sous maintenance
+
+Repartir de la base qualifiée `e86ecd7cfabebcfcb141ee2cc66ca9a27eec814d`.
+Le lot [PHASE5_HTTP_RUNTIME.md](PHASE5_HTTP_RUNTIME.md) fournit un adaptateur
+privé de staging Apache/FPM et cinq répertoires PHP dédiés. Il ne crée pas les
+comptes, n'installe pas les paquets et ne démarre aucun service. Récupération
+par observation exacte, empreinte partielle conservée, pas de suppression/rejeu.
+Avant toute promotion : 540 core par Debian, 11 + 12 recettes systemd par Debian,
+16 DOM, 21 HTTPS et 118 SQL/HTTP, toutes sans skip sur le commit gelé et avec
+sources stables. Preuves finales et ZIP exact dans le checkpoint compagnon.
+Le nettoyage natif, activation Web/TLS, données exhaustives, 5C2/5C3/5C4 et 5D
+restent à compléter ; PHP 8.2 Debian 12 ne qualifie pas le Web complet.
+Les sections suivantes décrivent les checkpoints antérieurs.
+
 ## Reprise active - arrêt contrôlé des services
 
 Base exacte : `ed7707c9eb7f6314e5d3d3b899f0efe1cef92d53`, arbre

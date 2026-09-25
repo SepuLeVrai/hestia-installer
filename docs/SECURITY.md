@@ -1,5 +1,17 @@
 # Modèle de sécurité
 
+## Préparation exclusive du runtime HTTP
+
+Le [staging Apache/FPM](PHASE5_HTTP_RUNTIME.md) exige une identité dédiée
+préexistante, un code immuable protégé et des chemins fixes. Il réserve les
+ressources sans adoption ni écrasement, pose la maintenance avant les unités,
+puis teste les configurations. Aucun start n'est produit. Configurations,
+dépendances, source, propriétaires et gate sont liés au journal privé et
+recontrôlés en lecture. Un échec conserve les ressources partielles ; une reprise
+incertaine est manuelle. INI et pool isolés, directives PHP administratives,
+Host fermé, chemins privés refusés et absence de `.htaccess` héritée bornent le
+profil. Nettoyeur, activation et qualification du Web complet restent requis.
+
 ## Drainage systemd fermé et descendants
 
 La [barrière système](PHASE5_SYSTEM_DRAIN.md) exige les noms d’unités dérivés
