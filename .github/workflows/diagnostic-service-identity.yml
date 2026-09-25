@@ -1,0 +1,48 @@
+name: Diagnose service identity command
+on:
+  push:
+    branches: ['verification/identity-command-diagnostic-20260925']
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        debian: ['12', '13']
+    container: debian:${{ matrix.debian }}-slim
+    steps:
+      - run: apt-get update -qq && apt-get install -y --no-install-recommends python3 passwd ca-certificates git
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Measure exact and targeted corrected command in disposable account database
+        run: |
+          python3 - <<'PY'
+          import json,os,pwd,subprocess
+          from pathlib import Path
+          from installer.service_identity import ServiceIdentity
+          rows=[]
+          for variant in ('exact', 'without-mail-override'):
+              identity=ServiceIdentity(os.urandom(16).hex()); argv=identity._argv()
+              if variant=='without-mail-override':
+                  at=argv.index('CREATE_MAIL_SPOOL=no'); del argv[at-1:at+1]
+              result=subprocess.run(argv,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30,env={'PATH':'/usr/sbin:/usr/bin','LANG':'C'})
+              row={'variant':variant,'returncode':result.returncode,'stderr':result.stderr.decode()[:2048]}
+              try:
+                  account=pwd.getpwnam(identity.user)
+                  row['created']=True; row['uid']=account.pw_uid; row['gid']=account.pw_gid; row['home']=account.pw_dir;row['shell']=account.pw_shell
+                  row['locked']=next(r.split(':')[1] for r in Path('/etc/shadow').read_text().splitlines() if r.startswith(identity.user+':'))=='!'
+                  row['mail_created']=(Path('/var/mail')/identity.user).exists()
+              except KeyError: row['created']=False
+              rows.append(row)
+          Path('identity-command-diagnostic.json').write_text(json.dumps(rows,indent=2)+'\n');print(json.dumps(rows))
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: identity-command-diagnostic-debian-${{ matrix.debian }}
+          path: identity-command-diagnostic.json
+          if-no-files-found: error
+          retention-days: 7
