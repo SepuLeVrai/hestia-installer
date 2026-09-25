@@ -9,6 +9,14 @@ Ce dépôt est le quatrième composant transverse du projet HESTIA. Il coordonne
 - MOBILE : `SepuLeVrai/hestia-apk`
 - INSTALLER : `SepuLeVrai/hestia-installer`
 
+## État de livraison
+
+Le wizard public s'arrête à « Sources prêtes ». La frontière privée 5B est livrée.
+5C1 ajoute un précontrôle SQL réel et un rapport non exécutable ; les sauvegardes,
+l'upgrade et le rollback restent 5C2 à 5C4. Les services et écrans restent 5D.
+Consulter [l'état du projet](docs/PROJECT_STATE.md), le
+[découpage 5C](docs/PHASE5C_UPGRADE.md) et le [handoff WORK](docs/HANDOFF_WORK_20260925.md).
+
 ## Cible
 
 L'opérateur lance :

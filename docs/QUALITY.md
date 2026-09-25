@@ -1,28 +1,31 @@
 # Quality et non-régression de HESTIA Installer
 
-## Frontière couverte actuelle - 5B2.3
+## Frontière couverte actuelle - 5C1
 
-Le cockpit public reste limité aux sources prêtes. Les API privées vont maintenant
-jusqu'au SQL fresh préparé, à l'Assistant optionnel, à l'activation et au scellement.
-La recette système et les écrans restent5D ; le nouvel upgrade reste5C.
-Contrat et limites : [PHASE5B23_FINALIZATION.md](PHASE5B23_FINALIZATION.md).
-Les sections datées plus bas décrivent l'historique, pas une qualification nouvelle.
+La Phase 5B reste acquise. Le présent lot ajoute un précontrôle d'upgrade réel et
+non mutant, pas une exécution de migration. Contrat et limites :
+[PHASE5C_UPGRADE.md](PHASE5C_UPGRADE.md). Le wizard reste « Sources prêtes ».
+Le rapport UPGRADE_PREFLIGHT_READY garde apply_allowed=false ; sauvegarde,
+restauration, bascule et retour arrière restent les lots 5C2/5C3/5C4.
 
-Le gel5B2.3 conserve353 core et ajoute37 unitaires :390 attendus. Les16 tests du
-gate sont inclus dans core et ne s'additionnent pas comme tests uniques. Les16 DOM
-et21 HTTPS natifs restent inchangés, avec les mêmes assertions et bornes. Les21
-nouveaux scénarios cross-dépôts SQL/TLS/HTTP et les18 anciens SQL/TLS sont des
-campagnes distinctes réelles, jamais assimilées à des mocks unitaires.
+La baseline conserve les 390 tests core de 5B2.3 et ajoute 25 tests : 415 attendus.
+Les 16 tests du gate sont également dans core et ne s'additionnent pas. Les 16 DOM
+et 21 HTTPS natifs gardent leurs assertions, seuils et délais. Aucun asset modifié.
 
-La Quality Web reste complète (PHP8.3/8.4, Composer, PHP/JS, MariaDB11.4
-fresh/replay/upgrade, Apache interne). Son nouveau test de finalisation comporte27
-contrôles. Aucune évolution de schema.sql/install.php/migrations/version/vendor.
-Le smoke HTTP de finalisation est un test loopback sous identité Web, pas une
-recette Apache/FPM/HTTPS/proxy ou des fonctions GED/maintenance complètes.
+La nouvelle recette indépendante tests/integration/upgrade_preflight_mariadb.py
+exécute 15 scénarios SQL/TLS/HTTP réels sur le Web épinglé. Les 18 SQL/TLS et les
+21 finalisations SQL/TLS/HTTP historiques sont conservées. Les tests réels restent
+séparés des mocks de protocole/permissions. Ils vérifient les parcours fresh de
+préparation puis l'inspection upgrade, pas un moteur d'upgrade encore absent.
 
-La publication, la réussite des runs et leurs versions réellement observées sont
-consignées dans les rapports compagnons et #13/#135 après la campagne finale.
-Ne pas reprendre un vert historique comme preuve ni annoncer un succès système.
+Le Web reste au commit 46c03060625d4d53c675474b11aaa33007d9aad7. Aucun nouveau run
+Web n'est déduit de la réussite de sa campagne 5B2.3 ; aucun fichier Web, schema.sql,
+install.php, migration, seed, version ou vendor ne change. Les recettes locales
+ne valent ni réseau d'entreprise ni recette système Apache/FPM/proxy/5D.
+
+Les campagnes, rapports stricts et limites finales sont consignés dans les preuves
+compagnons et #13/#135. Les sources/docs/permissions sont gelées avant la campagne
+finale. Tout changement postérieur impose une nouvelle qualification.
 
 ## Commandes reproductibles
 

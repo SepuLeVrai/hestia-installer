@@ -1,21 +1,24 @@
 # État du projet
 
-## Point de reprise - 5B2.3, puis 5C
+## Point de reprise - 5C1, prochaine étape 5C2
 
-La frontière privée5B est implémentée : préparation SQL, Assistant optionnel,
-activation des fichiers protégés et scellement install.lock. Le nouveau contrat
-est décrit dans [PHASE5B23_FINALIZATION.md](PHASE5B23_FINALIZATION.md).
-Résultat maximal WEB_FRESH_FINALIZED, configuration_activated=true,
-installation_sealed=true, application_installed=false et api_access=NOT_TESTED.
-Ce n'est pas une recette système5D : le wizard reste « Sources prêtes ».
+5B est terminée dans son périmètre privé : fresh préparé, Assistant optionnel,
+activation cohérente et scellement. Ce lot ajoute le précontrôle 5C1 non mutant
+sur une instance 5B2.3 connue, avec inventaire SQL réel et rapport immuable.
+Le résultat UPGRADE_PREFLIGHT_READY conserve apply_allowed=false ; aucune migration,
+sauvegarde ou restauration n'est déclarée réalisée. Le catalogue de transitions
+reste NOT_DELIVERED et la source cible est actuellement identique.
 
-Compagnon Web épinglé : `46c03060625d4d53c675474b11aaa33007d9aad7`.
-La publication et sa qualification doivent être vérifiées dans les campagnes du
-commit et les derniers commentaires Installer #13 / Web #135. Les paragraphes
-ci-dessous sont l'historique, pas une preuve du statut distant du présent lot.
-Reprise : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md).
-Prochain chantier5C : upgrade/reprise/rollback. Services/écrans restent5D.
-Aucun serveur HESTIA, Gateway, APK ou base de production modifié.
+Découpage : [PHASE5C_UPGRADE.md](PHASE5C_UPGRADE.md). Suite : 5C2 sauvegarde et preuve
+de restauration, 5C3 upgrade/bascule, 5C4 reprise/rollback/qualification globale.
+Services/écrans restent 5D, le wizard « Sources prêtes » et application_installed=false.
+Web inchangé : `46c03060625d4d53c675474b11aaa33007d9aad7` sur main/dev-Bastien.
+Base Installer : `fe912b7a7ce2622734d0b508683de3b4e55dc2dd`.
+
+Relire HEAD, derniers commentaires #13/#135 et Quality du commit pour sa publication
+réelle. Reprise : [HANDOFF_WORK_20260925.md](HANDOFF_WORK_20260925.md).
+Les sections suivantes sont historiques. Aucun serveur HESTIA, Gateway, APK ou
+base de production modifié ; aucun fichier Web, schéma ou migration modifié ici.
 
 ## 2026-09-21
 

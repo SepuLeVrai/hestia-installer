@@ -1,102 +1,107 @@
-# Handoff WORK - après 5B2.3, reprise 5C
+# Handoff WORK - 5C1, prochaine frontière 5C2
 
-## Lire les références effectives avant toute modification
+## Références et état réel
 
-Base de ce lot : Installer main `036cbfd4b581b2245fbe7b6974625e6b11820818`.
-Compagnon Web 5B2.3 : `46c03060625d4d53c675474b11aaa33007d9aad7`, arbre
-`aaac278270e0fd1169396945916dfe997ae078bf`.
-Relire les HEAD distants main Installer et dev-Bastien/main Web, puis les derniers
-commentaires de livraison Installer #13 / Web #135. Ils fournissent les commits
-finaux, runs, ZIPs et empreintes. Ce document gelé AVANT Quality n'est pas à lui
-seul la preuve d'une campagne réussie ou d'une promotion.
+Base de ce lot : Installer main `fe912b7a7ce2622734d0b508683de3b4e55dc2dd`
+(arbre `e8c20a88ad1ace36f69f2a80d5c7243626504207`). Le Web main/dev-Bastien reste
+`46c03060625d4d53c675474b11aaa33007d9aad7` (arbre `aaac278270e0fd1169396945916dfe997ae078bf`).
+Relire les HEAD et les derniers commentaires Installer #13 / Web #135 pour les
+références publiées et les campagnes finales. Ce document gelé avant Quality ne
+constitue pas à lui seul une preuve de promotion ou d'une campagne réussie.
 
-Lire [PHASE5B23_FINALIZATION.md](PHASE5B23_FINALIZATION.md),
-[PHASE5B22_DATABASE_PREPARATION.md](PHASE5B22_DATABASE_PREPARATION.md),
-[QUALITY.md](QUALITY.md), [PROJECT_STATE.md](PROJECT_STATE.md), puis côté Web
-`docs/INSTALLER_FINALIZATION.md` et `docs/INSTALLER_SHARED_ENGINE.md`.
-Ne reprendre ni ancienne tentative monolithique, ni branche verification/assembly.
+La Phase 5B est terminée dans son périmètre privé. Ce lot ajoute 5C1 seulement :
+précontrôle réel non mutant d'une instance scellée 5B2.3, inventaire SQL borné et
+rapport immuable non exécutable. La Phase 5C complète reste ouverte.
 
-## Frontière acquise à préserver
+Lire [PHASE5C_UPGRADE.md](PHASE5C_UPGRADE.md), [QUALITY.md](QUALITY.md),
+[PROJECT_STATE.md](PROJECT_STATE.md), puis les contrats 5B
+[PHASE5B23_FINALIZATION.md](PHASE5B23_FINALIZATION.md) et
+[PHASE5B22_DATABASE_PREPARATION.md](PHASE5B22_DATABASE_PREPARATION.md).
+Côté Web : docs/INSTALLER_FINALIZATION.md, docs/INSTALLER_SHARED_ENGINE.md et
+includes/installation. Ne pas repartir d'une branche verification/assembly.
 
-5A : validation INPUT_ONLY. 5B1 : moteur SQL fresh partagé unique.
-5B2.1 : transport privé et interlock. 5B2.2 : provisioning éventuel des objets SQL
-sur serveur déjà prêt, audit DML/migration, ports et TLS, fresh, configuration privée.
-5B2.3 : Assistant optionnel géré en JSON, activation cohérente et install.lock.
-Tous les anciens pins et tests sont conservés. La finalisation a son propre pin
-Web et vérifie tous les fichiers runtime de la source ET de la cible. Ne pas
-ajouter une allowlist générique ou accepter une empreinte inconnue pour avancer.
+## Découpage à conserver
 
-API privée : `FinalizationStep.finalize`, `observe`, `configure_assistant` dans
-`installer/finalization.py`. Aucun raccordement public/wizard n'est effectué.
-La configuration doit provenir de DATABASE_CONFIGURATION_READY et du vrai reçu
-SQL durable, pas de l'ancien audit seul. L'Admin est vérifié, jamais réinitialisé.
-Le compte d'application reste DML sur seul schéma ; aucun credential de migration
-ou d'autorité n'est requis ni conservé dans cette étape.
+- 5C1 : inspection et rapport, implémentés dans ce lot.
+- 5C2 : sauvegardes privées et restauration réellement vérifiée sur cible isolée.
+- 5C3 : catalogue de transitions explicites, migration et bascule contrôlée.
+- 5C4 : reprise, retour arrière, fautes injectées et qualification globale 5C.
 
-Les sondes PHP sont non privilégiées. Le contrôle SQL tourne sur copie privée
-épinglée ; la sonde active tourne sous l'identité Web. La clé Assistant est une
-donnée0660 dans un dossier root-owned0750 hors webroot, jamais du PHP exécutable.
-Les anciennes priorités de clés et le RBAC demeurent pour les installations legacy.
-Géré : aucun fallback de clé, champ vide conserve, désactivation conserve la clé,
-effacement distinct et explicite via les helpers Web existants.
+5D conserve les services/identités système, les écrans et la recette système.
+Gateway, NGINX, APK et import restent leurs phases distinctes. Aucun déploiement
+sur LAB-PAWEB30 ni compilation APK autorisé par ce point de reprise.
 
-État positif privé : WEB_FRESH_FINALIZED, configuration_activated=true,
-installation_sealed=true, application_installed=false,
-system_qualification_required=true, api_access=NOT_TESTED.
-Le wizard reste « Sources prêtes ». Aucun serveur HESTIA n'est déployé.
+## API 5C1 et garde-fous
 
-## Attention à l'enveloppe avant de concevoir 5C
+`UpgradePreflight.inspect` dans installer/upgrade_preflight.py accepte uniquement
+le mode upgrade, Assistant preserve, aucun Admin ni clé fournis, et le secret du
+compte applicatif. Les identités privilégiées et les requêtes de modification sont
+refusées. Les pins 5B sont conservés ; aucun fallback de version/empreinte.
 
-includes/db.php est un pointeur root-owned sans credential. Il épingle le code
-activation.php, install.lock, seal.json, database.json, le CA et le chargeur privé.
-finalized.json lie les empreintes à la version de contrat et au commit Web.
-Une évolution de ces fichiers ne doit pas simplement écraser le pointeur ou les
-reçus pour faire passer observe : 5C doit prévoir sauvegarde, bascule contrôlée,
-vérification et remise en état de l'enveloppe avec les secrets durables préservés.
+Profil source reconnu : SEALED_5B23, commit Web ci-dessus,
+APP_VERSION=3.0.0.0-stable-20260914. La source cible est actuellement identique.
+Ce n'est ni un upgrade 2.x/3.x générique, ni une adoption legacy, ni une migration.
 
-Il n'y a pas de transaction atomique SQL + fichiers. Une interruption après le
-sceau avant le reçu peut laisser un Web actif mais exige une action manuelle côté
-Installer. Une réponse perdue après reçu complet est observable sans rejeu. Les
-.attempt de finalisation ou réglage restent des interlocks, pas des autorisations
-implicites de retry. Pas d'effacement des preuves, credentials ou bases partielles.
+État positif : UPGRADE_PREFLIGHT_READY. apply_allowed, backup_verified,
+rollback_verified, preservation_verified et application_installed restent faux.
+Le catalogue de transitions est NOT_DELIVERED. Le wizard reste « Sources prêtes ».
+`plan_sha256` identifie un JSON immuable, pas une permission ou un plan applicable.
+Ne pas consommer ce rapport comme preuve actuelle lors d'une future mutation.
 
-configure_assistant utilise un payload upgrade sans Admin pour des RÉGLAGES seuls
-sur une instance finalisée par 5B2.3. Ce n'est ni un moteur upgrade, ni l'adoption
-automatique d'une installation legacy. Le prochain chantier doit distinguer ces
-opérations explicitement et garder le refus de fresh sur une base existante.
+Le compte DML reste distinct du futur compte de migration. Les sondes PHP sont
+non privilégiées, le transport borné et les secrets hors arguments/logs. La sonde
+SQL utilise READ ONLY avec snapshot et requêtes fixes. Aucun secret PHP modifiable
+par le Web n'est évalué sous root. Clé Assistant : donnée JSON privée, conservée,
+aucun appel API ; un champ vide ne vaut pas une demande d'effacement.
 
-## Prochaine frontière : 5C uniquement
+L'inventaire est borné et visible par le seul compte applicatif. Ses compteurs et
+son empreinte partielle ne prouvent ni les objets DEFINER/triggers/routines, ni
+une sauvegarde cohérente globale. Les données peuvent évoluer après observation.
+Les métadonnées et l'enveloppe sont recontrôlées, mais ce n'est pas un verrou de
+maintenance. Une interruption brutale peut laisser du staging temporaire de code.
 
-Concevoir et livrer le parcours upgrade réel intégré au contrat privé : versions
-sources explicitement supportées, plan inspectable, comptes de migration temporaires
-séparés du runtime DML, sauvegardes privées, reprise conservatrice après interruption
-et retour arrière vérifié. Relire le moteur Web réel avant d'annoncer un catalogue
-de versions supportées. Ne pas rejouer schema.sql, les seeds fresh ou la création
-d'Admin sur une base existante. Ne pas appeler les anciennes Quality une preuve du
-nouvel upgrade : ajouter les scénarios spécifiques et garder tous les historiques.
+## Prochaine exécution : 5C2 seulement
 
-Vérifier préservation des utilisateurs, mots de passe, RBAC, sessions, données,
-clé Assistant, paramètres et configuration SQL/TLS. Exercer erreurs SQL/permissions,
-réponses perdues, interruptions avant/après chaque frontière, restaurations et
-idempotence. Une transaction DDL fictive ou un rollback non testé est refusé.
-Raccorder ensuite en5D seulement les services/identités système, droits des données,
-écrans et recette système. Gateway/NGINX/APK/import restent d'autres phases.
+Concevoir et qualifier les sauvegardes privées, avec vérification effective par
+restauration dans une base/cible jetable distincte. Inclure l'enveloppe d'activation
+et les secrets durables dans des fichiers protégés, jamais dans le rapport public.
+Rendre explicites les limites et préconditions pour les données non transactionnelles,
+les vues/routines/triggers/événements et les écritures Web concurrentes. Un simple
+dump présent ou son hash ne prouve pas une restauration utilisable.
 
-## Quality, livraison et autorisations
+Déterminer et vérifier les privilèges des identités temporaires de sauvegarde ou
+migration, sans élargir les GRANT applicatifs. Refuser une cible de restauration
+préexistante, même vide, sauf contrat de retour arrière explicitement vérifié.
+Garder les credentials éphémères hors journal, ps, logs et URL. Aucun effacement
+ou écrasement implicite de données pour faire passer un test.
 
-Attendus de5B2.3 :390 core (353 préservés +37 nouveaux),16 gate inclus aussi core,
-16 DOM,21 HTTPS natifs,21 nouveaux scénarios SQL/TLS/HTTP et18 historiques SQL/TLS,
-Quality Web complète et27 nouveaux contrôles PHP. Les scénarios croisés ont leur
-campagne distincte ; ne pas les compter dans les390, ni confondre PHP8.4/MariaDB11.8
-local avec la matrice distante PHP8.3/8.4/MariaDB11.4. Consulter les preuves finales.
+Préserver utilisateurs, mots de passe, RBAC, sessions, paramètres, clé Assistant,
+configuration SQL/TLS et fichiers. Ne pas rejouer schema.sql, seeds fresh ou création
+Admin sur l'existant. Ne pas déclarer 5C3/5C4 livrées avec la seule sauvegarde.
 
-Les ZIPs doivent reconstruire les arbres exacts testés après application ET
-réapplication sur les bases. Documentation incluse dans le gel ; aucune retouche
-source après Quality sans tout requalifier. Métadonnées finales dans le rapport
-compagnon et les issues, pas un commit documentaire après qualification.
+## Enveloppe 5B à ne pas contourner
 
-Bastien autorise les écritures dans les dépôts concernés. Relecture des HEAD et
-comparaison avant promotion, fast-forward force=false seulement après qualification
-complète. Stop sur divergence inattendue. Aucun déploiement LAB-PAWEB30, aucune
-compilation APK, aucune fusion des branches techniques. #13/#135 restent ouvertes
-pour leurs frontières5C/5D encore non livrées. La Phase5 entière n'est pas terminée.
+includes/db.php épingle activation.php, install.lock, seal.json, database.json,
+le CA et le chargeur privé. finalized.json lie le tout au runtime et au commit.
+Ne pas écraser pointeur, reçus ou empreintes pour faire réussir observe. La future
+bascule doit avoir une sauvegarde, une validation et un retour arrière cohérents.
+
+Un crash entre sceau et reçu peut laisser le Web actif avec action manuelle exigée.
+Les anciens .attempt sont des interlocks, pas des autorisations implicites de retry.
+Aucune transaction atomique SQL+fichiers ni rollback DDL fictif. Le précontrôle 5C1
+ne nettoie, n'adopte, ne répare et ne relance aucun de ces états partiels.
+
+## Quality et livraison
+
+Attendus 5C1 : 415 core (390 conservés +25), 16 gate également inclus dans core,
+16 DOM et 21 HTTPS natifs inchangés. Nouvelle recette réelle 15 SQL/TLS/HTTP ;
+18 SQL/TLS et 21 finalisation historiques conservés et réexécutables séparément.
+Ne pas assimiler recette locale et matrice distante, ni nouveau précontrôle et
+exécution de migrations. Le Web est inchangé ; son ancien run n'est pas une
+nouvelle campagne de cette livraison. Aucune modification schema.sql/install.php.
+
+Documentation incluse au gel testé, ZIPs légers de fichiers complets, application
+puis réapplication vérifiées sur la base exacte. Pas de retouche après la campagne
+finale. Métadonnées de publication dans le rapport compagnon et les issues.
+Bastien autorise les écritures ; promotion fast-forward force=false après Quality
+complète. Relire les HEAD et stopper sur divergence inattendue. #13/#135 ouvertes.
