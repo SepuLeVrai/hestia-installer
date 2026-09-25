@@ -1,5 +1,20 @@
 # État du projet
 
+## Reprise active - inventaire des stockages et producteurs
+
+Le checkpoint coordonné `d2f2d0af85bbe4f6167bb1c96065c224f22fb383` est qualifié
+(Quality36136210321, SQL36136276965). Le nouveau lot ajoute une
+[cartographie contrôlée](PHASE5_STORAGE_INVENTORY.md), sans mutation ni évaluation
+de PHP déployé. Il exige les observations explicites de configuration, retient
+les racines de repli et masquées, et identifie neuf groupes de producteurs.
+Le seul guard PHP ne couvre pas la préparation multipart ni les convertisseurs
+orphelins ; des recettes réelles matérialisent ces limites encore bloquantes.
+Candidat en qualification : 506 core par Debian et 118 SQL/HTTP attendus.
+La sauvegarde complète et la Phase 5 restent ouvertes, aucun Web ou serveur
+modifié. Prochaine étape : profil de stockage/services fermé et drainage réel.
+Les sections suivantes restent historiques ; preuves finales dans le checkpoint.
+
+
 ## Reprise WORK - sauvegarde coordonnée, Phase 5 ouverte
 
 Le lot fichiers `a19c40318dfac958330fda8890116c6580e3ae43` est qualifié :

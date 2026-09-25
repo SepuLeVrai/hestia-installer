@@ -1,5 +1,20 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Reprise active - inventaire contrôlé
+
+Base : d2f2d0af85bbe4f6167bb1c96065c224f22fb383, arbre
+06d952a1b7c59d5eeb714703f7f4b697543a04a1. Quality36136210321 et SQL36136276965
+verts. Le candidat suivant cartographie les stockages et producteurs ; lire
+[PHASE5_STORAGE_INVENTORY.md](PHASE5_STORAGE_INVENTORY.md). Il ne livre pas encore
+le profil système permettant les données inscriptibles sous webroot.
+Attention : réception multipart avant le guard et descendants après mort de PHP
+nécessitent des barrières au niveau des services. Ne pas transformer les tests
+qui reproduisent ces limites en attestation de sauvegarde complète.
+Qualification attendue : 506 core par Debian, 16 DOM, 21 HTTPS, 118 SQL/HTTP.
+Commit et runs finaux dans le checkpoint compagnon, sans modification après gel.
+Suite : profil système fermé, puis vraie transition/reprise/rollback et wizard5D.
+
+
 ## Reprise active - coordination SQL et données
 
 Partir du candidat fichiers qualifié `a19c40318dfac958330fda8890116c6580e3ae43`

@@ -1,5 +1,16 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot inventaire - candidat à qualifier
+
+Base coordonnée d2f2d0a qualifiée par Quality36136210321 et SQL36136276965.
+Le [lot inventaire](PHASE5_STORAGE_INVENTORY.md) ajoute 18 tests obligatoires :
+506 core par Debian 12/13, plus 16 DOM et 21 HTTPS inchangés. Huit nouvelles
+recettes PHP/SQL/HTTP complètent les 110 historiques : 118 attendues sans skip.
+Les tests multipart et descendant orphelin prouvent deux limites du seul guard
+PHP ; ils ne sont pas une réussite de raccordement système. Ce dernier reste
+un gate bloquant. Les résultats finaux correspondent uniquement au commit gelé.
+
+
 ## Lot court coordonné - candidat en qualification
 
 Base données `a19c40318dfac958330fda8890116c6580e3ae43` : Quality

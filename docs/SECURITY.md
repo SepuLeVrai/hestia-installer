@@ -1,5 +1,17 @@
 # Modèle de sécurité
 
+## Stockages effectifs et producteurs hors guard PHP
+
+L’[inventaire contrôlé](PHASE5_STORAGE_INVENTORY.md) exige des observations
+explicites, ne lit aucun secret et ne confond pas cartographie et qualification
+système. Le rapport masque les chemins ; le manifeste est strictement privé.
+Un fichier multipart peut exister avant auto_prepend_file. Un enfant externe
+peut survivre au processus PHP. Le frontal, FPM et les groupes de processus
+nécessitent donc un drainage réel avant toute sauvegarde complète. Le nettoyage
+Debian des sessions et les scripts CLI doivent participer au même verrou.
+Aucune liste vide supposée de cron ou d’options ne vaut preuve d’absence.
+
+
 ## Reçu commun SQL et données enregistrées
 
 La [composition privée](PHASE5C2_COORDINATED_BACKUP.md) lie instance scellée,
