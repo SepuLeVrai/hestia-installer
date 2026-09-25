@@ -1,5 +1,18 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Nouveau checkpoint — collecteur privé de sessions
+
+Base `6477faf85d5f31f1ca645cd3de89b780ed119a07`. Le lot
+[PHASE5_SESSION_CLEANER.md](PHASE5_SESSION_CLEANER.md) prépare le collecteur UID
+dédié et son timer sous maintenance ; ni démarrage ni enable automatique.
+Conserver la durée technique 43200, la politique fonctionnelle 1h/4h/8h et le
+nettoyage Debian natif. 558 core et 35 recettes système par Debian, 16 DOM,
+21 HTTPS et 118 SQL/HTTP requis sans skip sur l'arbre exact. Les preuves après
+gel documentaire sont livrées dans le checkpoint compagnon. Garder visible
+l'intermittence DOM historique non résolue. La suite reste activation contrôlée,
+producteurs/stockages exhaustifs puis fin de 5C2/5C3/5C4 et 5D. Pas de promotion
+ni serveur existant touché. Les sections suivantes sont historiques.
+
 ## Nouveau checkpoint — runtime HTTP préparé sous maintenance
 
 Repartir de la base qualifiée `e86ecd7cfabebcfcb141ee2cc66ca9a27eec814d`.

@@ -1,5 +1,16 @@
 # Modèle de sécurité
 
+## Collecteur de sessions et exclusion des écritures
+
+Le [collecteur dédié](PHASE5_SESSION_CLEANER.md) n'exécute que sous l'UID du pool,
+avec système en lecture seule et sessions seules inscriptibles. Le verrou
+exclusif non bloquant reporte un passage si PHP est actif ; la maintenance
+attend la libération du collecteur. Marqueur présent, inode modifié, ACL, lien,
+propriétaire/droits incorrects ou entrée étrangère ferment le passage. Aucun
+contenu de session n'est lu, aucun nom n'est journalisé et aucune date retenue
+n'est prolongée. phpsessionclean natif reste intact ; l'inventaire d'un hôte
+arbitraire et l'activation complète ne sont pas attestés par ce staging.
+
 ## Préparation exclusive du runtime HTTP
 
 Le [staging Apache/FPM](PHASE5_HTTP_RUNTIME.md) exige une identité dédiée

@@ -71,6 +71,12 @@ jobs:
           docker exec -e HESTIA_HTTP_RUNTIME_TEST=1 hestia-system-runtime \
             python3 /opt/hestia-installer/tests/integration/http_runtime_systemd.py \
             --report /evidence/http-runtime.json 2>&1 | tee evidence/http-runtime.log
+      - name: Exercise dedicated session collector and unchanged native cleaner
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_SESSION_CLEANER_TEST=1 hestia-system-runtime \
+            python3 /opt/hestia-installer/tests/integration/session_cleaner_systemd.py \
+            --report /evidence/session-cleaner.json 2>&1 | tee evidence/session-cleaner.log
       - name: Preserve non-secret evidence and remove disposable container
         if: always()
         run: |

@@ -1,5 +1,17 @@
 # État du projet
 
+## Reprise active — collecteur dédié des sessions
+
+Base runtime `6477faf8` qualifiée : Quality `36147944637` tentative 2,
+système `36147944651`, SQL/HTTP `36148072196`. Le [nouveau lot](PHASE5_SESSION_CLEANER.md)
+prépare un collecteur sous l'UID du pool et un timer initialement inactif.
+Il coordonne le nettoyage de sessions de plus de 43200 secondes avec PHP et la
+maintenance, sans lire leur contenu ni désactiver phpsessionclean natif.
+Candidat : 558 core par Debian, 35 recettes système par Debian, 16 DOM,
+21 HTTPS et 118 SQL/HTTP. Intermittence DOM du checkpoint précédent toujours
+non résolue. Activation, producteurs/stockages exhaustifs et Phase 5 restent ouverts.
+Les sections suivantes sont historiques.
+
 ## Reprise active — préparation Apache/FPM dédiée
 
 Base barrière `e86ecd7cfabebcfcb141ee2cc66ca9a27eec814d` qualifiée : Quality

@@ -1,5 +1,14 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot collecteur de sessions — candidat à qualifier
+
+Le [collecteur dédié](PHASE5_SESSION_CLEANER.md) exige 558 core par Debian 12/13,
+35 recettes système par Debian (11 drainage + 12 runtime + 12 collecteur),
+16 DOM, 21 HTTPS et 118 SQL/HTTP. Les sources doivent être stables, sans skip.
+Le timer accéléré est une fixture explicitement distincte du calendrier produit
+5min/30min ; aucune assertion de sécurité n'est supprimée. Les résultats finaux
+sont dans le checkpoint compagnon. L'intermittence DOM historique reste non résolue.
+
 ## Lot runtime Apache/FPM — candidat à qualifier
 
 Base `e86ecd7c` : Quality `36142987500`, système `36142986888`, SQL `36143203828`

@@ -118,6 +118,30 @@ def _empty_cgroup(unit: str) -> bool:
         os.close(fd)
 
 
+def audit_unit(scope: m.MaintenanceScope, binding: UnitBinding, *, stopped=False) -> None:
+    """Read-only single-unit observation; never grants a four-producer lease."""
+    require(type(scope) is m.MaintenanceScope and type(binding) is UnitBinding and binding.role in ROLES
+            and type(binding.fragment_sha256) is str and re.fullmatch(r'[a-f0-9]{64}', binding.fragment_sha256),
+            'SYSTEM_DRAIN_PROFILE_REJECTED')
+    unit = 'hestia-' + scope.instance + '-' + binding.role + '.service'
+    fragment = UNIT_ROOT / unit
+    dropin = UNIT_ROOT / (unit + '.d') / '50-hestia-maintenance.conf'
+    require(hashlib.sha256(_root_file(fragment)).hexdigest() == binding.fragment_sha256
+            and _root_file(dropin) == condition_dropin(scope), 'SYSTEM_DRAIN_UNIT_DRIFT')
+    value = _show(unit)
+    required = {'Id': unit, 'LoadState': 'loaded', 'FragmentPath': str(fragment),
+        'DropInPaths': str(dropin), 'NeedDaemonReload': 'no', 'KillMode': 'control-group',
+        'SendSIGKILL': 'yes', 'Delegate': 'no', 'Slice': 'system.slice', 'Restart': 'no',
+        'RemainAfterExit': 'no', 'RefuseManualStop': 'no', 'Job': ''}
+    require(all(value[k] == v for k, v in required.items())
+            and value['Type'] in ('simple', 'exec', 'notify', 'oneshot')
+            and value['ControlGroup'] in ('', '/system.slice/' + unit), 'SYSTEM_DRAIN_UNIT_REJECTED')
+    if stopped:
+        require(value['ActiveState'] == 'inactive' and value['SubState'] == 'dead'
+                and value['MainPID'] == value['ControlPID'] == '0' and value['Result'] == 'success'
+                and _empty_cgroup(unit), 'SYSTEM_DRAIN_NOT_EMPTY')
+
+
 class SystemDrain:
     def __init__(self, scope: m.MaintenanceScope, bindings: tuple[UnitBinding, ...]):
         require(type(scope) is m.MaintenanceScope and type(bindings) is tuple
@@ -141,23 +165,7 @@ class SystemDrain:
         return 'hestia-' + self.scope.instance + '-' + role + '.service'
 
     def _audit(self, binding: UnitBinding, *, stopped=False) -> None:
-        unit = self.unit(binding.role)
-        fragment = UNIT_ROOT / unit
-        dropin = UNIT_ROOT / (unit + '.d') / '50-hestia-maintenance.conf'
-        require(hashlib.sha256(_root_file(fragment)).hexdigest() == binding.fragment_sha256
-                and _root_file(dropin) == self._dropin, 'SYSTEM_DRAIN_UNIT_DRIFT')
-        value = _show(unit)
-        required = {'Id': unit, 'LoadState': 'loaded', 'FragmentPath': str(fragment),
-            'DropInPaths': str(dropin), 'NeedDaemonReload': 'no', 'KillMode': 'control-group',
-            'SendSIGKILL': 'yes', 'Delegate': 'no', 'Slice': 'system.slice', 'Restart': 'no',
-            'RemainAfterExit': 'no', 'RefuseManualStop': 'no', 'Job': ''}
-        require(all(value[k] == v for k, v in required.items())
-                and value['Type'] in ('simple', 'exec', 'notify', 'oneshot')
-                and value['ControlGroup'] in ('', '/system.slice/' + unit), 'SYSTEM_DRAIN_UNIT_REJECTED')
-        if stopped:
-            require(value['ActiveState'] == 'inactive' and value['SubState'] == 'dead'
-                    and value['MainPID'] == value['ControlPID'] == '0' and value['Result'] == 'success'
-                    and _empty_cgroup(unit), 'SYSTEM_DRAIN_NOT_EMPTY')
+        audit_unit(self.scope, binding, stopped=stopped)
 
     def _audit_all(self, *, stopped=False) -> None:
         for binding in self.bindings:
