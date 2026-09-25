@@ -1,5 +1,12 @@
 # Sauvegarde des répertoires de données modifiables
 
+## Suite du lot qualifié
+
+Le lot fichiers a été qualifié au commit `a19c40318dfac958330fda8890116c6580e3ae43`
+par Quality `36133121054`. La composition suivante est décrite dans
+[PHASE5C2_COORDINATED_BACKUP.md](PHASE5C2_COORDINATED_BACKUP.md).
+Les limites et résultats propres à cette primitive restent distincts.
+
 ## Lot court et frontière réelle
 
 `installer.backup_files` ajoute une primitive privée de copie et restauration de

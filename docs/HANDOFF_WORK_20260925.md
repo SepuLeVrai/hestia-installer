@@ -1,5 +1,21 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Reprise active - coordination SQL et données
+
+Partir du candidat fichiers qualifié `a19c40318dfac958330fda8890116c6580e3ae43`
+(arbre `6961f5b84103a7d418c1caa68611a7cc6b007bb5`, Quality `36133121054`).
+Le nouveau lot ajoute une composition privée sous lease, sans modifier Web.
+Lire [son contrat](PHASE5C2_COORDINATED_BACKUP.md) avant toute suite.
+Gel de ce candidat avant qualification : 488 core par Debian et 110 SQL/HTTP,
+plus 16 DOM et 21 HTTPS. Le checkpoint compagnon fournira commit et runs finaux.
+
+Prochain lot : fermer le profil de stockage réel et ses producteurs, notamment
+les arbres métier sous webroot encore refusés par le contrat immuable. Ne pas
+annoncer de sauvegarde complète, d’upgrade ou de rollback à partir de ce reçu.
+Conserver les checkpoints courts demandés et les pins ; ni PR ni promotion
+avant tous les gates et la documentation du périmètre réellement livré.
+Les passages suivants relatent les checkpoints précédents.
+
 ## Reprise après interruption du stream, lot court données
 
 Sources restaurées et comparées à leurs objets Git : 132 fichiers Installer

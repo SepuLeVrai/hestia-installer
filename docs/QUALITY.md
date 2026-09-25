@@ -1,5 +1,16 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot court coordonné - candidat en qualification
+
+Base données `a19c40318dfac958330fda8890116c6580e3ae43` : Quality
+`36133121054` verte, 478 core par Debian 12/13, 16 DOM et 21 HTTPS.
+Le lot courant ajoute dix tests core obligatoires : **488** par Debian.
+Il exige également les 100 scénarios SQL/HTTP historiques et dix nouveaux
+scénarios réels de [coordination](PHASE5C2_COORDINATED_BACKUP.md), soit **110**.
+Aucun skip, erreur ou échec autorisé ; les 16 tests du gate sont inclus dans core.
+Les résultats de ces fichiers gelés seront livrés dans le checkpoint compagnon.
+Les sections suivantes sont des états historiques, pas une qualification du lot.
+
 ## Lot court données modifiables - candidat en qualification
 
 Le checkpoint réparation `726757eeb139818a7aa93b90586091ff37a08f85` a terminé

@@ -1,5 +1,16 @@
 # Modèle de sécurité
 
+## Reçu commun SQL et données enregistrées
+
+La [composition privée](PHASE5C2_COORDINATED_BACKUP.md) lie instance scellée,
+lease vivante, cible SQL et empreintes des archives. Elle exige les consentements
+explicites et deux exports SQL sous verrou global de lecture borné. Elle refuse
+la dérive SQL à nombre de lignes identique, celle des données et de l’enveloppe,
+les archives endommagées et la perte de maintenance. Seul le reçu commun final
+vaut succès de composition ; les reçus des composants ne le remplacent pas.
+L’inventaire complet et le raccordement de tous les producteurs restent des
+gates distincts. Aucun ancien backup n’autorise une restauration vers la source.
+
 ## Données modifiables sous maintenance
 
 La primitive de [snapshot de fichiers](PHASE5C2_DATA_FILES.md) n'accepte que

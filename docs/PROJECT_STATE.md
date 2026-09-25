@@ -1,5 +1,20 @@
 # État du projet
 
+## Reprise WORK - sauvegarde coordonnée, Phase 5 ouverte
+
+Le lot fichiers `a19c40318dfac958330fda8890116c6580e3ae43` est qualifié :
+Quality `36133121054`, 478 core par Debian 12/13, 16 DOM, 21 HTTPS, sans skip.
+Le lot courant [coordonne SQL et données enregistrées](PHASE5C2_COORDINATED_BACKUP.md)
+sous la même maintenance, avec contrôle des dérives et reçu global final.
+Il est en qualification sur ses fichiers gelés : 488 core attendus et 110
+scénarios SQL/HTTP requis. Aucun résultat antérieur ne vaut preuve du lot.
+
+L’inventaire exhaustif, les stockages métier sous webroot, tous les producteurs
+système, la transition réelle, la reprise/rollback et les services/wizard 5D
+restent à livrer. Le résultat limité garde complete_web_backup=false et
+application_installed=false. Aucun changement Web, PR, fast-forward ou serveur.
+Résultats finaux et ZIP exact : checkpoint compagnon, sans retouche après gel.
+
 ## Reprise WORK - lots courts, Phase 5 toujours ouverte
 
 Le candidat `726757eeb139818a7aa93b90586091ff37a08f85` est qualifié :
