@@ -80,6 +80,19 @@ def _digest(path, *, limit=128 * 1024 * 1024):
         return f._sha(f._read(fd, path.name, info.st_gid, mode=mode, limit=limit))
 
 
+def _keyring():
+    # Trixie's official compatibility link is the only accepted link here.
+    # Archives and every other protected file still require a regular inode.
+    with fs._directory(KEYRING.parent) as fd:
+        info = os.stat(KEYRING.name, dir_fd=fd, follow_symlinks=False)
+        if stat.S_ISLNK(info.st_mode):
+            target = KEYRING.with_suffix('.pgp')
+            require(info.st_uid == info.st_gid == 0 and info.st_nlink == 1
+                    and os.readlink(KEYRING.name, dir_fd=fd) == target.name)
+            return {'layout': 'official-pgp-link', 'sha256': _digest(target)}
+        return {'layout': 'regular-gpg', 'sha256': _digest(KEYRING)}
+
+
 def _journal(fd, name, value):
     """Exclusive, durable metadata with a bound separate from SQL secrets."""
     require(name in ('acquire.attempt', 'ready.json', 'install.attempt', 'installed.json'))
@@ -95,8 +108,9 @@ def _journal(fd, name, value):
 
 
 def _dpkg_line(line):
+    if '..' in line.split('/'): return False
     return line in ('no-debsig', 'log /var/log/dpkg.log', 'force-unsafe-io') or bool(re.fullmatch(
-        r'path-(?:exclude|include)(?:=| +)/usr/share/(?:doc|man|info|locale)/[A-Za-z0-9_.*?/-]+', line))
+        r'path-(?:exclude|include)(?:=| +)/usr/share/(?:doc|man|info|locale|gnome/help|linda|lintian/overrides|omf)/[A-Za-z0-9_.*?/-]+', line))
 
 
 def _dpkg_config():
@@ -142,7 +156,7 @@ class SystemPackages:
         require(not command(['/usr/bin/dpkg', '--audit'], self.directory.parent).strip())
         return {'debian': major, 'suite': {'12': 'bookworm', '13': 'trixie'}[major],
                 'php': {'12': '8.2', '13': '8.4'}[major], 'architecture': architecture,
-                'tools': tools, 'keyring_sha256': _digest(KEYRING), 'dpkg_configuration': _dpkg_config()}
+                'tools': tools, 'keyring': _keyring(), 'dpkg_configuration': _dpkg_config()}
 
     def _installed(self):
         return installed(command(['/usr/bin/dpkg-query', '--show',
@@ -188,8 +202,13 @@ class SystemPackages:
         return {'apt.conf': config.encode(), 'etc/sources.list': sources.encode(), 'etc/empty.conf': b''}
 
     def _apt(self, args, *, timeout=300):
-        return command(['/usr/bin/env', 'APT_CONFIG=' + str(self.directory / 'apt.conf'),
-            'DEBIAN_FRONTEND=noninteractive', '/usr/bin/apt-get', *args], self.directory, timeout=timeout)
+        try:
+            return command(['/usr/bin/env', 'APT_CONFIG=' + str(self.directory / 'apt.conf'),
+                'DEBIAN_FRONTEND=noninteractive', '/usr/bin/apt-get', *args], self.directory, timeout=timeout)
+        except Exception:
+            stage = 'UPDATE' if args == ['update'] else 'SIMULATION' if '--simulate' in args else 'DOWNLOAD' if '--download-only' in args else 'INSTALL'
+            raise SystemPackagesError('SYSTEM_PACKAGES_APT_' + stage + '_FAILED') from None
+
 
     def prepare(self):
         try:
@@ -261,6 +280,8 @@ class SystemPackages:
         host = self._host()
         require(value['version'] == 1 and value['host'] == host and value['requested'] == list(self._packages(host)))
         require(attempt == {'host': host, 'before': value['before'], 'nginx': self.nginx})
+        with fs._directory(self.directory / 'etc/parts') as fd:
+            require(not os.listdir(fd), 'SYSTEM_PACKAGES_CONFIGURATION_DRIFT')
         for name, expected in self._configuration(host).items():
             path = self.directory / name
             with fs._directory(path.parent) as fd: require(f._read(fd, path.name, 0, mode=0o644) == expected)

@@ -82,10 +82,13 @@ class PackageTests(unittest.TestCase):
 
     def test_dpkg_configuration_refuses_hooks_and_runtime_exclusions(self):
         for line in ('no-debsig', 'log /var/log/dpkg.log', 'force-unsafe-io',
-                     'path-exclude /usr/share/man/*', 'path-include=/usr/share/doc/*/copyright'):
+                     'path-exclude /usr/share/man/*', 'path-include=/usr/share/doc/*/copyright',
+                     'path-exclude /usr/share/gnome/help/*/*', 'path-include /usr/share/gnome/help/*/C/*',
+                     'path-exclude /usr/share/linda/*', 'path-exclude /usr/share/lintian/overrides/*',
+                     'path-exclude /usr/share/omf/*/*-*.emf', 'path-include /usr/share/omf/*/*-C.emf'):
             self.assertTrue(s._dpkg_line(line))
         for line in ('pre-invoke=evil', 'post-invoke=/bin/true', 'force-all',
-                     'path-exclude=/usr/bin/*', 'root=/other', 'log /etc/passwd'):
+                     'path-exclude=/usr/bin/*', 'path-exclude=/usr/share/man/../../../etc/*', 'root=/other', 'log /etc/passwd'):
             self.assertFalse(s._dpkg_line(line))
 
     def test_command_is_bounded_with_empty_stdin_and_closed_failure(self):
@@ -132,6 +135,19 @@ class PackageTests(unittest.TestCase):
             for proposed, arch in (({'added': '3'}, 'amd64'), ({'added': '2'}, 'arm64'), ({'added': '2', 'missing': '1'}, 'amd64')):
                 with self.assertRaises(s.SystemPackagesError): self.packages._archives(proposed, arch)
 
+    def test_only_exact_official_keyring_compatibility_link_is_accepted(self):
+        keyring = self.root / 'debian-archive-keyring.gpg'; target = keyring.with_suffix('.pgp')
+        target.write_bytes(b'official fixture'); target.chmod(0o644)
+        with patch.object(s, 'KEYRING', keyring):
+            keyring.write_bytes(target.read_bytes()); keyring.chmod(0o644)
+            self.assertEqual(s._keyring()['layout'], 'regular-gpg')
+            keyring.unlink(); keyring.symlink_to(target.name)
+            self.assertEqual(s._keyring(), {'layout': 'official-pgp-link', 'sha256': s.f._sha(target.read_bytes())})
+            keyring.unlink(); keyring.symlink_to('/other/keyring.pgp')
+            with self.assertRaises(s.SystemPackagesError): s._keyring()
+            keyring.unlink(); keyring.symlink_to(target.name); target.unlink(); target.symlink_to('/other')
+            with self.assertRaises(Exception): s._keyring()
+
     def test_indices_require_signed_release_files_and_bound_total(self):
         directory = self.packages.directory / 'state/lists'; directory.mkdir(parents=True)
         with self.assertRaises(s.SystemPackagesError): self.packages._indices()
@@ -161,6 +177,17 @@ class PackageTests(unittest.TestCase):
                     with self.assertRaisesRegex(s.SystemPackagesError, 'PLAN_EXPIRED'): self.packages.observe()
             with patch.object(self.packages, '_installed', return_value={}):
                 with self.assertRaisesRegex(s.SystemPackagesError, 'HOST_CHANGED'): self.packages.observe()
+
+    def test_private_apt_parts_cannot_gain_an_unsealed_hook(self):
+        parts = self.packages.directory / 'etc/parts'; parts.mkdir(parents=True)
+        (parts / 'hook').write_text('DPkg::Pre-Invoke { "foreign"; };')
+        value = {**self.value, 'requested': list(self.packages._packages(self.host))}
+        with s.fs._directory(self.packages.directory) as fd:
+            s._journal(fd, 'ready.json', value)
+            s._journal(fd, 'acquire.attempt', {'host': self.host, 'before': self.before, 'nginx': False})
+        with patch.object(self.packages, '_host', return_value=self.host), patch.object(self.packages, '_apt') as apt:
+            with self.assertRaisesRegex(s.SystemPackagesError, 'CONFIGURATION_DRIFT'): self.packages._manifest()
+            apt.assert_not_called()
 
     def test_plan_mismatch_precedes_masks_or_package_installation(self):
         with patch.object(self.packages, 'observe', return_value={'plan_sha256': 'b' * 64}), \

@@ -51,7 +51,9 @@ le code, sans shell ni saisie libre. Le fichier status dpkg demeure celui de l'h
 
 Trois suites `main` seulement, en HTTPS sur deb.debian.org : la version Debian,
 updates et security. Le trousseau local protégé debian-archive-keyring est exigé
-et son empreinte figée. TLS, signatures APT, date et Valid-Until sont vérifiés ;
+et son empreinte figée. Le lien officiel Trixie .gpg vers le nom exact .pgp
+du même répertoire est reconnu : propriétaire root, cible régulière protégée,
+empreinte et forme du lien figées. Aucun autre lien de trousseau n’est admis. TLS, signatures APT, date et Valid-Until sont vérifiés ;
 aucun redirect, dépôt faible/non authentifié ni clé téléchargée implicitement.
 Ce contrat suppose un système Debian et un trousseau initialement dignes de
 confiance. La simulation refuse toute suppression, mise à niveau ou rétrogradation,
@@ -71,7 +73,8 @@ installation terminée n'expire pas après ces 24 heures.
 Avant dpkg : nouvelle observation intégrale du plan, état système inchangé,
 simulation identique et systemd PID 1 requis. Les configurations dpkg locales
 sont limitées aux options Debian connues : journal standard, no-debsig (signature
-assurée par APT), exclusions documentaires et force-unsafe-io neutralisé par
+assurée par APT), exclusions documentaires/métadonnées (doc, man, info, locale, gnome/help,
+linda, lintian/overrides, omf) et force-unsafe-io neutralisé par
 --refuse-unsafe-io. Les hooks, redirections et autres options sont refusés.
 
 Un journal install.attempt est synchronisé avant mutation. Une policy-rc.d
@@ -111,7 +114,7 @@ ce lot n'expose aucune commande générique de nettoyage ou réparation.
 
 ## Recette requise sur l'arbre gelé
 
-22 nouveaux tests core obligatoires, soit **598 par Debian**. Conservation des
+24 nouveaux tests core obligatoires, soit **600 par Debian**. Conservation des
 47 scénarios système par Debian (11 drainage + 12 HTTP + 12 sessions + 12 identité),
 16 DOM, 21 HTTPS et 118 SQL/HTTP sur le Web épinglé.
 
@@ -147,3 +150,14 @@ Références Debian : [apt.conf](https://manpages.debian.org/trixie/apt/apt.conf
 [apt-get](https://manpages.debian.org/trixie/apt/apt-get.8.en.html),
 [PHP Bookworm](https://packages.debian.org/bookworm/php-fpm),
 [PHP Trixie](https://packages.debian.org/trixie/php-fpm).
+
+## Diagnostic du premier candidat
+
+Le candidat 47d1ec02 a été refusé avant acquisition dans le run paquets
+36159785676. Le diagnostic technique 36159948474, jamais à fusionner, a relevé
+les exclusions documentaires de l'image officielle et le lien Trixie exact
+`debian-archive-keyring.gpg -> debian-archive-keyring.pgp`. Le profil les décrit
+explicitement, sans accepter de hook ou de lien arbitraire. Régressions ajoutées
+sur ce lien et sur tout ajout imprévu dans le répertoire de configuration APT
+privé. Les rapports de la recette restent écrits même si le préflight échoue.
+Le candidat corrigé exige une nouvelle campagne intégrale.

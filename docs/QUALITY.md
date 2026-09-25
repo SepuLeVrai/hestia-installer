@@ -2,7 +2,7 @@
 
 ## Lot paquets officiels — candidat à qualifier
 
-[Contrat](PHASE5_SYSTEM_PACKAGES.md) : **598 core par Debian**, dont 22 nouveaux
+[Contrat](PHASE5_SYSTEM_PACKAGES.md) : **600 core par Debian**, dont 24 nouveaux
 cas obligatoires. Conserver les 47 scénarios système par Debian et ajouter
 13 cas paquets réels par Debian (5 acquisition, 7 installation sans réseau,
 1 échec de reçu après dpkg). Conserver 16 DOM, 21 HTTPS et 118 SQL/HTTP,

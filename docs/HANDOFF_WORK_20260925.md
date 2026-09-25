@@ -9,7 +9,7 @@ paquets/services existants, upgrades, suppressions, hooks et policy arbitraires.
 Services par défaut durablement masqués ; reçu absent ou dérive = inspection
 manuelle, sans réparation automatique. Aucun flag final Web levé.
 
-Exiger 598 core, 47 recettes système historiques et 13 recettes paquets par
+Exiger 600 core, 47 recettes système historiques et 13 recettes paquets par
 Debian, 16 DOM, 21 HTTPS, 118 SQL/HTTP sans skip. Dix manifestes système identiques
 à Quality, réseau réellement déconnecté, échec de reçu après dpkg réellement
 exercé. Préserver la limite Debian 12/PHP 8.2 et l'intermittence DOM historique.

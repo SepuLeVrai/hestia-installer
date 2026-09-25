@@ -190,7 +190,7 @@ if __name__ == '__main__':
     report = {'suite': 'Official Debian packages: ' + args.phase, 'tests': result.testsRun, 'expected': expected,
         'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
         'status': 'PASS' if passed else 'FAIL', 'source_stable': stable, 'source_files': len(before),
-        'architecture': profile()._host()['architecture'], 'phase': args.phase,
+        'architecture': command('dpkg', '--print-architecture').stdout.decode().strip(), 'phase': args.phase,
         'web_application_qualified': False, 'service_activation_delivered': False}
     EVIDENCE.mkdir(exist_ok=True)
     (EVIDENCE / ('packages-' + args.phase + '.json')).write_text(json.dumps(report, indent=2) + '\n')
