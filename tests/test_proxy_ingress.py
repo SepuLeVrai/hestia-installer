@@ -69,7 +69,8 @@ class ProxyIngressTests(unittest.TestCase):
         self.assertEqual(legacy._modules(), h.MODULES)
         old = legacy._files(account, extension)
         self.assertIn(b'env[HESTIA_TRUSTED_PROXIES] = 127.0.0.1/32', old[self.spec.root / 'conf/fpm.conf'])
-        self.assertIn(b'env[HESTIA_TRUSTED_PROXIES] = ""', before[self.spec.root / 'conf/fpm.conf'])
+        self.assertNotIn(b'env[HESTIA_TRUSTED_PROXIES]', before[self.spec.root / 'conf/fpm.conf'])
+        self.assertIn(b'clear_env = yes', before[self.spec.root / 'conf/fpm.conf'])
 
     def test_backend_requires_peer_and_client_separately_and_canonicalizes_php(self):
         access = self.policy.apache_access('hestia.test', 8123)

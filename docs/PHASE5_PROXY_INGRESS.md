@@ -28,7 +28,8 @@ Un changement de proxy ou de réseaux invalide l'observation du staging.
 
 Après l'autorisation, Apache retire les en-têtes de forwarding et fournit
 `REMOTE_ADDR` canonique et `HTTPS=on` à FPM. La liste de proxies côté PHP est
-vide : il ne doit pas y avoir une seconde interprétation de la chaîne. Le
+vide : `clear_env=yes` et aucune déclaration FPM de cette variable (FPM refuse
+une valeur `env[...]` vide). Il ne doit pas y avoir une seconde interprétation de la chaîne. Le
 Bearer Authorization et les règles d'accès aux fichiers privés sont préservés.
 
 `ProxyIngress.nginx_server(...)` rend un bloc serveur déterministe, sans aucune

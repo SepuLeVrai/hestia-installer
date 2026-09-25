@@ -192,7 +192,9 @@ class HttpRuntime:
 
     def _files(self, account, extension):
         spec = self.spec; root, web = str(spec.root), str(spec.webroot)
-        trusted_proxies = '""' if spec.ingress is not None else '127.0.0.1/32'
+        # FPM rejects an empty env[...] value. clear_env=yes and no declaration
+        # leave the Web proxy list absent after Apache has canonicalized it.
+        trusted_proxies = '' if spec.ingress is not None else 'env[HESTIA_TRUSTED_PROXIES] = 127.0.0.1/32\n'
         access = (spec.ingress.apache_access(spec.hostname, spec.port) if spec.ingress is not None
                   else f'  Require expr "%{{HTTP_HOST}} == \'{spec.hostname}\' || %{{HTTP_HOST}} == \'{spec.hostname}:{spec.port}\'"\n')
         ini = ('[PHP]\nexpose_php=Off\ndisplay_errors=Off\nlog_errors=On\n'
@@ -225,8 +227,7 @@ env[TMP] = {root}/data/tmp
 env[TEMP] = {root}/data/tmp
 env[HOME] = {root}/data/tmp
 env[HESTIA_IMPORT_STORAGE] = {root}/data/imports
-env[HESTIA_TRUSTED_PROXIES] = {trusted_proxies}
-php_admin_value[auto_prepend_file] = {root}/maintenance/request_guard.php
+{trusted_proxies}php_admin_value[auto_prepend_file] = {root}/maintenance/request_guard.php
 php_admin_value[session.save_handler] = files
 php_admin_value[session.save_path] = {root}/data/sessions
 php_admin_value[session.gc_maxlifetime] = 43200
