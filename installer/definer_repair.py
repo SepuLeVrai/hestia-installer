@@ -68,7 +68,9 @@ def _response(code: int, raw: bytes, request: dict) -> dict:
 
 class DefinerRepair:
     def __init__(self,runtime:p.PhpRuntime,source:Path,*,repository:str,commit:str):
-        require(repository==p.WEB_REPOSITORY and commit==f.WEB_COMMIT,'SOURCE_PIN_MISMATCH')
+        require(repository == p.WEB_REPOSITORY, 'SOURCE_PIN_MISMATCH')
+        try: self.release = f.get_release(commit)
+        except ValueError: raise DefinerRepairError('SOURCE_PIN_MISMATCH') from None
         self.runtime,self.source=runtime,Path(source)
 
     def repair(self,payload:dict,authority:d.SqlAuthorityCredentials,*,config_root:Path,backup_root:Path,
@@ -82,10 +84,10 @@ class DefinerRepair:
             value=copy.deepcopy(payload);config=f._configuration(value,fresh=False)
             with ExitStack() as stack:
                 gid,web,directory,conf,webfd,inc=f._open(self.runtime,config,config_root,stack)
-                current=f.FinalizationStep(self.runtime,self.source,repository=p.WEB_REPOSITORY,commit=f.WEB_COMMIT)
+                current=f.FinalizationStep(self.runtime,self.source,repository=p.WEB_REPOSITORY,commit=self.release.commit)
                 current._sources(web)
                 database,loader,ca=f._prepared(config,value,directory,conf,gid)
-                completed=f._completed(conf,webfd,inc,gid)
+                completed=f._completed(conf,webfd,inc,gid,commit=self.release.commit)
                 seal=f._json_read(conf,'seal.json',gid)
                 require(maintenance.scope.instance==seal['instance'] and maintenance.scope.web_gid==gid
                     and maintenance.scope.directory==directory/'maintenance','REPAIR_MAINTENANCE_BINDING_REQUIRED')
@@ -96,14 +98,14 @@ class DefinerRepair:
                 name='definer-repair-'+f._sha(p._json([database['host'],database['port'],database['name'].lower()]))
                 try:fs._absent(state,name+'.attempt');fs._absent(state,name+'.done')
                 except fs.AccountConfigurationError:raise DefinerRepairError('REPAIR_PENDING') from None
-                backup=b.UpgradeBackup(self.runtime,self.source,repository=p.WEB_REPOSITORY,commit=f.WEB_COMMIT)
+                backup=b.UpgradeBackup(self.runtime,self.source,repository=p.WEB_REPOSITORY,commit=self.release.commit)
                 rescue=backup.create_rescue_and_verify(value,authority,config_root=config_root,backup_root=backup_root,
                     confirmed=True,allow_global_read_lock=True,expected_orphaned_definer=expected_orphaned_definer,cancel=cancel).report()
                 require(rescue.get('state')=='RESCUE_RESTORE_VERIFIED'
                     and rescue.get('rescue_restoration_verified') is True,'REPAIR_RESCUE_REQUIRED')
                 maintenance.assert_held()
                 current._sources(web)
-                require(f._completed(conf,webfd,inc,gid)==completed
+                require(f._completed(conf,webfd,inc,gid,commit=self.release.commit)==completed
                     and f._prepared(config,value,directory,conf,gid)==(database,loader,ca),'REPAIR_SOURCE_CHANGED')
                 require(cancel is None or not cancel.is_set(),'REPAIR_INTERRUPTED')
                 request_id=os.urandom(16).hex()
@@ -123,7 +125,7 @@ class DefinerRepair:
                     code,raw=p._exchange(p._command(self.runtime,stage),p._json(request),stage,self.runtime.timeout_seconds,cancel)
                     result=_response(code,raw,request)
                 maintenance.assert_held()
-                require(f._completed(conf,webfd,inc,gid)==completed
+                require(f._completed(conf,webfd,inc,gid,commit=self.release.commit)==completed
                     and f._prepared(config,value,directory,conf,gid)==(database,loader,ca),'REPAIR_SOURCE_CHANGED')
                 # Independent normal backup/restore proves the repaired identities
                 # and all five effects. It never inserts probes into source data.

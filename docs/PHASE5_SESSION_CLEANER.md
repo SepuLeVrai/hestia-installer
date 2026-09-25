@@ -1,5 +1,14 @@
 # Phase 5 — nettoyage dédié des sessions
 
+## Extension : gate commun au slot SQL
+
+Pour le [profil métier externe](PHASE5_BUSINESS_STORAGE.md), le worker reçoit
+le chemin exact de maintenance du slot finalisé dans son profil root scellé.
+Il vérifie les mêmes hashes du profil et du guard et prend le même verrou
+que PHP et la sauvegarde coordonnée. La racine des sessions reste privée sous
+le runtime. La durée 43200 secondes, les choix 1 h/4 h/8 h et le nettoyage
+Debian natif sont conservés. Le profil historique garde son gate local.
+
 ## Base et portée
 
 Base `6477faf85d5f31f1ca645cd3de89b780ed119a07`, arbre

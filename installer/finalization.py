@@ -22,6 +22,7 @@ from pathlib import Path
 from installer import database_config as fs
 from installer import database_step as dbstep
 from installer import php_transport as p
+from installer.web_releases import get_release
 from installer.model import strict_json_loads
 from installer.transaction import _private_directory
 from installer.web_config import validate_web_configuration
@@ -306,11 +307,12 @@ def _revoke(conf: int, seal: bytes, gid: int) -> None:
         pass
 
 
-def _completed(conf: int, webfd: int, inc: int, gid: int) -> dict:
+def _completed(conf: int, webfd: int, inc: int, gid: int, *, commit: str = WEB_COMMIT) -> dict:
+    release = get_release(commit)
     receipt = _json_read(conf, 'finalized.json', gid)
     require(set(receipt) == {'version', 'state', 'source_commit', 'runtime_sha256', 'seal_sha256', 'lock_sha256', 'pointer_sha256'}
             and type(receipt['version']) is int and receipt['version'] == 1 and receipt['state'] == 'WEB_FRESH_FINALIZED'
-            and receipt['source_commit'] == WEB_COMMIT and receipt['runtime_sha256'] == RUNTIME_SHA256, 'FINALIZATION_RECEIPT_REQUIRED')
+            and receipt['source_commit'] == release.commit and receipt['runtime_sha256'] == release.runtime_sha256, 'FINALIZATION_RECEIPT_REQUIRED')
     for fd, name, field in ((conf, 'seal.json', 'seal_sha256'), (webfd, 'install.lock', 'lock_sha256'), (inc, 'db.php', 'pointer_sha256')):
         require(_sha(_read(fd, name, gid)) == receipt[field], 'FINALIZATION_INTEGRITY_FAILED')
     return receipt
@@ -325,12 +327,13 @@ def _result(observed: dict) -> dict:
 class FinalizationStep:
     """Private trusted-host API. Nothing is registered in the HTTP/plan router."""
     def __init__(self, runtime: p.PhpRuntime, source: Path, *, repository: str, commit: str):
-        require(repository == p.WEB_REPOSITORY and commit == WEB_COMMIT and re.fullmatch(r'[a-f0-9]{40}', commit) is not None,
-                'SOURCE_PIN_MISMATCH')
+        require(repository == p.WEB_REPOSITORY, 'SOURCE_PIN_MISMATCH')
+        try: self.release = get_release(commit)
+        except ValueError: raise FinalizationError('SOURCE_PIN_MISMATCH') from None
         self.runtime, self.source = runtime, Path(source)
 
     def _sources(self, web: Path) -> None:
-        require(_runtime_digest(self.source) == RUNTIME_SHA256 and _runtime_digest(web) == RUNTIME_SHA256, 'SOURCE_PIN_MISMATCH')
+        require(_runtime_digest(self.source) == self.release.runtime_sha256 and _runtime_digest(web) == self.release.runtime_sha256, 'SOURCE_PIN_MISMATCH')
 
     def finalize(self, payload: dict, *, config_root: Path, confirmed: bool, cancel=None) -> dict:
         config = _configuration(payload, fresh=True)
@@ -370,10 +373,10 @@ class FinalizationStep:
                 observed = _probe(self.runtime, config, directory, gid, active=True, cancel=cancel)
                 require(observed['setting_enabled'] is desired and observed['key_configured'] is bool(key)
                         and observed['assistant_enabled'] is desired, 'FINALIZATION_COHERENCE_FAILED')
-                receipt = {'version': 1, 'state': 'WEB_FRESH_FINALIZED', 'source_commit': WEB_COMMIT, 'runtime_sha256': RUNTIME_SHA256,
+                receipt = {'version': 1, 'state': 'WEB_FRESH_FINALIZED', 'source_commit': self.release.commit, 'runtime_sha256': self.release.runtime_sha256,
                            'seal_sha256': _sha(seal), 'lock_sha256': _sha(lock), 'pointer_sha256': _sha(pointer)}
                 _write(conf, 'finalized.json', p._json(receipt), gid)
-                _completed(conf, webfd, inc, gid)
+                _completed(conf, webfd, inc, gid, commit=self.release.commit)
                 return _result(observed)
             except BaseException as error:
                 if started:
@@ -395,7 +398,7 @@ class FinalizationStep:
                 gid, web, directory, conf, webfd, inc = _open(self.runtime, config, config_root, stack)
                 self._sources(web)
                 _prepared(config, payload, directory, conf, gid)
-                _completed(conf, webfd, inc, gid)
+                _completed(conf, webfd, inc, gid, commit=self.release.commit)
                 self._pending_edits(conf)
                 return _result(_probe(self.runtime, config, directory, gid, active=True, cancel=cancel))
             except Exception:
@@ -422,7 +425,7 @@ class FinalizationStep:
                 gid, web, directory, conf, webfd, inc = _open(self.runtime, config, config_root, stack)
                 self._sources(web)
                 _prepared(config, payload, directory, conf, gid)
-                _completed(conf, webfd, inc, gid)
+                _completed(conf, webfd, inc, gid, commit=self.release.commit)
                 # Stable private lock serializes edits without deleting crash evidence.
                 try:
                     _write(conf, 'assistant-edit.lock', b'', 0, mode=0o600)

@@ -1,5 +1,18 @@
 # Quality et non-régression de HESTIA Installer
 
+## Profil métier externe : qualification du nouvel arbre
+
+[Contrat et huit scénarios](PHASE5_BUSINESS_STORAGE.md). Les **628 core** par
+Debian 12/13 incluent cinq nouveaux cas de frontières. Sont aussi requis :
+61 système et 13 paquets par Debian, 16 DOM, 21 HTTPS, les 118 SQL/HTTP,
+14 helper proxy et 10 Web historique. Le nouveau Web, qualifié séparément par
+`36195113348`, est consommé par huit scénarios réels supplémentaires : SQL
+fresh managed, Apache, PHP-FPM 8.4, TLS, écritures puis restauration de GED,
+photo, import et session. Aucun skip ni substitution de source technique.
+Le manifeste indépendant lie les deux pins complets et les moteurs SQL inchangés.
+Les preuves finales et les incidents éventuels restent dans le checkpoint
+compagnon après gel. L'intermittence DOM historique n'est pas déclarée résolue.
+
 ## Déploiement protégé — Web réel sous services
 
 [Contrat et recette](PHASE5_WEB_DEPLOYMENT.md) : 623 core par Debian, 61 système

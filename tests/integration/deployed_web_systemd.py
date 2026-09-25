@@ -39,6 +39,8 @@ WEB = None
 
 
 class DeployedWebLive(final_tests.FinalizationIntegration):
+    release_commit = f.WEB_COMMIT
+    external_uploads = False
     @classmethod
     def setUpClass(cls):
         if os.environ.get('HESTIA_DEPLOYED_WEB_TEST') != '1' or os.geteuid() != 0 \
@@ -57,11 +59,12 @@ class DeployedWebLive(final_tests.FinalizationIntegration):
         self.addCleanup(self.stop_services)
         self.assertEqual(list((self.webroot / 'includes').iterdir()), [])
         (self.webroot / 'includes').rmdir(); self.webroot.rmdir()
-        self.deployment = deploy.WebDeployment(deploy.DeploymentSpec(WEB, self.webroot, self.root / 'deployment'))
+        release = f.get_release(self.release_commit)
+        self.deployment = deploy.WebDeployment(deploy.DeploymentSpec(WEB, self.webroot, self.root / 'deployment', commit=release.commit))
         self.deployed = self.deployment.create(confirmed=True)
-        self.assertEqual(self.deployed['files'], 1840)
-        self.assertEqual(self.deployed['source_tree'], deploy.WEB_TREE)
-        self.final = f.FinalizationStep(self.runtime, WEB, repository=p.WEB_REPOSITORY, commit=f.WEB_COMMIT)
+        self.assertEqual(self.deployed['files'], release.files)
+        self.assertEqual(self.deployed['source_tree'], release.tree)
+        self.final = f.FinalizationStep(self.runtime, WEB, repository=p.WEB_REPOSITORY, commit=release.commit)
         self.global_paths = [Path('/etc/nginx/nginx.conf'), Path('/etc/apache2/apache2.conf'),
             Path('/etc/php/8.4/fpm/php.ini'), Path('/etc/php/8.4/fpm/pool.d/www.conf'), Path('/usr/lib/php/sessionclean')]
         self.global_before = {str(path): path.read_bytes() for path in self.global_paths}
@@ -102,7 +105,9 @@ class DeployedWebLive(final_tests.FinalizationIntegration):
         instance = json.loads((self.directory / 'seal.json').read_text())['instance']
         self.policy = ProxyIngress('127.0.0.2', ('127.0.0.1/32',))
         self.spec = h.RuntimeSpec(instance, self.http_root, self.webroot, self.web.pw_name,
-                                  self.payload['web']['hostname'], port, '8.4', self.policy)
+                                  self.payload['web']['hostname'], port, '8.4', self.policy,
+                                  external_uploads=self.external_uploads,
+                                  maintenance_directory=self.directory / 'maintenance' if self.external_uploads else None)
         self.http_runtime = h.HttpRuntime(self.spec)
         self.scope = self.http_runtime._scope(self.web)
         self.units = [self.http_runtime.unit(role) for role in ('apache', 'php')]

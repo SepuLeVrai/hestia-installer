@@ -110,7 +110,8 @@ def collect(fd, uid, gid, gate):
 
 
 def clean(profile):
-    require(type(profile) is dict and set(profile) == {'root', 'uid', 'gid', 'profile_sha256', 'guard_sha256'})
+    keys = {'root', 'uid', 'gid', 'profile_sha256', 'guard_sha256'}
+    require(type(profile) is dict and set(profile) in (keys, keys | {'maintenance'}))
     require(type(profile['root']) is str and re.fullmatch(r'/var/lib/[A-Za-z0-9_/-]+', profile['root'])
             and len(profile['root']) <= 75 and '..' not in Path(profile['root']).parts)
     uid, gid = profile['uid'], profile['gid']
@@ -119,7 +120,10 @@ def clean(profile):
     require(all(type(profile[key]) is str and re.fullmatch(r'[a-f0-9]{64}', profile[key])
                 for key in ('profile_sha256', 'guard_sha256')))
     root = Path(profile['root'])
-    with directory(root / 'maintenance') as gate:
+    gate_path = profile.get('maintenance', str(root / 'maintenance'))
+    require(type(gate_path) is str and re.fullmatch(r'/var/lib/[A-Za-z0-9_/-]+/maintenance', gate_path)
+            and len(gate_path) <= 180 and '..' not in Path(gate_path).parts)
+    with directory(Path(gate_path)) as gate:
         info = os.fstat(gate); require(info.st_gid == gid and stat.S_IMODE(info.st_mode) == 0o750)
         for name, key in (('profile.json', 'profile_sha256'), ('request_guard.php', 'guard_sha256')):
             require(hashlib.sha256(root_file(gate, name, gid)).hexdigest() == profile[key])

@@ -91,7 +91,9 @@ def _files_unchanged(snapshot, lease, cancel):
 
 class CoordinatedBackup:
     def __init__(self, runtime: p.PhpRuntime, source: Path, *, repository: str, commit: str):
-        require(repository == p.WEB_REPOSITORY and commit == f.WEB_COMMIT, 'SOURCE_PIN_MISMATCH')
+        require(repository == p.WEB_REPOSITORY, 'SOURCE_PIN_MISMATCH')
+        try: self.release = f.get_release(commit)
+        except ValueError: raise CoordinatedBackupError('SOURCE_PIN_MISMATCH') from None
         self.runtime, self.source = runtime, Path(source)
 
     def create_and_verify(self, payload: dict, authority: d.SqlAuthorityCredentials, *, config_root: Path,
@@ -110,10 +112,10 @@ class CoordinatedBackup:
             require(isinstance(backup_root, Path), 'COORDINATED_PATH_REJECTED')
             with ExitStack() as stack:
                 gid, web, directory, conf, webfd, inc = f._open(self.runtime, config, config_root, stack)
-                current = f.FinalizationStep(self.runtime, self.source, repository=p.WEB_REPOSITORY, commit=f.WEB_COMMIT)
+                current = f.FinalizationStep(self.runtime, self.source, repository=p.WEB_REPOSITORY, commit=self.release.commit)
                 current._sources(web)
                 database, loader, ca = f._prepared(config, value, directory, conf, gid)
-                completed = f._completed(conf, webfd, inc, gid)
+                completed = f._completed(conf, webfd, inc, gid, commit=self.release.commit)
                 seal = f._json_read(conf, 'seal.json', gid)
                 require(maintenance.scope.instance == seal['instance'] and maintenance.scope.web_gid == gid
                         and maintenance.scope.directory == directory / 'maintenance', 'COORDINATED_INSTANCE_MISMATCH')
@@ -141,14 +143,14 @@ class CoordinatedBackup:
                 started = True
                 os.fsync(rootfd)
                 binding = {'version': 1, 'backup_id': backup_id, 'instance': seal['instance'],
-                           'lease_id': maintenance.lease_id, 'source_commit': f.WEB_COMMIT,
+                           'lease_id': maintenance.lease_id, 'source_commit': self.release.commit,
                            'target_sha256': f._sha(p._json([database['host'], database['port'], database['name'].lower()]))}
                 sql._new_file(slot / 'attempt.json', p._json({'state': 'COORDINATED_STARTED', **binding}))
                 for name in ('data', 'sql'):
                     (slot / name).mkdir(mode=0o700)
                 snapshot = files.capture_and_verify(inventory, slot / 'data', maintenance, confirmed=True, cancel=cancel)
                 _held(maintenance)
-                backup = sql.UpgradeBackup(self.runtime, self.source, repository=p.WEB_REPOSITORY, commit=f.WEB_COMMIT)
+                backup = sql.UpgradeBackup(self.runtime, self.source, repository=p.WEB_REPOSITORY, commit=self.release.commit)
                 restored = backup.create_and_verify(value, authority, config_root=config_root, backup_root=slot / 'sql',
                     confirmed=True, allow_global_read_lock=True, cancel=cancel).report()
                 require(restored.get('state') == 'BACKUP_RESTORE_VERIFIED' and restored.get('backup_verified') is True,
@@ -162,7 +164,7 @@ class CoordinatedBackup:
                 _held(maintenance)
                 _files_unchanged(snapshot, maintenance, cancel)
                 current._sources(web)
-                require(f._completed(conf, webfd, inc, gid) == completed
+                require(f._completed(conf, webfd, inc, gid, commit=self.release.commit) == completed
                         and f._prepared(config, value, directory, conf, gid) == (database, loader, ca),
                         'COORDINATED_ENVELOPE_CHANGED')
                 sql_slot = slot / 'sql' / restored['backup_id']
@@ -190,7 +192,7 @@ class CoordinatedBackup:
                 _held(maintenance)
                 require(cancel is None or not cancel.is_set(), 'COORDINATED_INTERRUPTED')
                 result = {'state': 'COORDINATED_BACKUP_RESTORE_VERIFIED', 'code': 'OK', 'backup_id': backup_id,
-                    'manifest_sha256': f._sha(p._json(manifest)), 'source_commit': f.WEB_COMMIT,
+                    'manifest_sha256': f._sha(p._json(manifest)), 'source_commit': self.release.commit,
                     'database_restoration_verified': True, 'registered_data_restoration_verified': True,
                     'registered_scope_coherence_verified': True, 'trigger_smoke_verified': restored['trigger_smoke_verified'],
                     'registered_roots': data['registered_roots'], 'data_files': data['files'], 'data_bytes': data['bytes'],

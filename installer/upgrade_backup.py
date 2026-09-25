@@ -258,7 +258,9 @@ def _hash(path: Path) -> str:
 class UpgradeBackup:
     """Private SEALED_5B23 backup. No restore-to-original or upgrade method."""
     def __init__(self, runtime: p.PhpRuntime, source: Path, *, repository: str, commit: str):
-        require(repository==p.WEB_REPOSITORY and commit==f.WEB_COMMIT,'SOURCE_PIN_MISMATCH')
+        require(repository == p.WEB_REPOSITORY, 'SOURCE_PIN_MISMATCH')
+        try: self.release = f.get_release(commit)
+        except ValueError: raise UpgradeBackupError('SOURCE_PIN_MISMATCH') from None
         self.runtime,self.source=runtime,Path(source)
 
     def create_and_verify(self, payload: dict, authority: d.SqlAuthorityCredentials, *, config_root: Path,
@@ -288,7 +290,7 @@ class UpgradeBackup:
             require(confirmed is True and allow_global_read_lock is True,'BACKUP_CONSENT_REQUIRED')
             require(type(authority) is d.SqlAuthorityCredentials,'BACKUP_AUTHORITY_REQUIRED')
             # Fresh requests, Admin input, settings changes and unknown installations stay refused.
-            assessment=u.UpgradePreflight(self.runtime,self.source,repository=p.WEB_REPOSITORY,commit=f.WEB_COMMIT).inspect(
+            assessment=u.UpgradePreflight(self.runtime,self.source,repository=p.WEB_REPOSITORY,commit=self.release.commit).inspect(
                 payload,config_root=config_root,cancel=cancel)
             value=copy.deepcopy(payload)
             config=f._configuration(value,fresh=False)
@@ -301,7 +303,7 @@ class UpgradeBackup:
                 backupfd=stack.enter_context(fs._directory(backup_root))
                 require(stat.S_IMODE(os.fstat(backupfd).st_mode)==0o700 and os.fstat(backupfd).st_gid==0,'BACKUP_PATH_REJECTED')
                 gid,web,directory,conf,webfd,inc=f._open(self.runtime,config,config_root,stack)
-                current=f.FinalizationStep(self.runtime,self.source,repository=p.WEB_REPOSITORY,commit=f.WEB_COMMIT)
+                current=f.FinalizationStep(self.runtime,self.source,repository=p.WEB_REPOSITORY,commit=self.release.commit)
                 current._sources(web)
                 database,loader,ca=f._prepared(config,value,directory,conf,gid)
                 if orphan is not None:
@@ -310,7 +312,7 @@ class UpgradeBackup:
                     require(config['database']['mode']=='existing_local' and database['host']=='127.0.0.1'
                         and f._json_read(conf,'state.json',gid)['migration_retained'] is False,
                         'BACKUP_RESCUE_PROFILE_REJECTED')
-                completed=f._completed(conf,webfd,inc,gid)
+                completed=f._completed(conf,webfd,inc,gid,commit=self.release.commit)
                 try:
                     u._shared_file(conf,'assistant-edit.lock',0,stack,mode=0o600,limit=0)
                 except FileNotFoundError:
@@ -325,7 +327,7 @@ class UpgradeBackup:
                 os.mkdir(run_id,0o700,dir_fd=backupfd)
                 started=True
                 os.fsync(backupfd)
-                _new_file(slot/'attempt.json',p._json({'version':1,'state':'STARTED','backup_id':run_id,'source_commit':f.WEB_COMMIT}))
+                _new_file(slot/'attempt.json',p._json({'version':1,'state':'STARTED','backup_id':run_id,'source_commit':self.release.commit}))
                 (slot/'files').mkdir(mode=0o700)
                 roots={'web':web,'configuration':directory}
                 records=_scan(roots,destination=slot/'files',cancel=cancel)
@@ -358,9 +360,9 @@ class UpgradeBackup:
                     require(last.get('type')=='complete' and last.get('request_id')==run_id,'BACKUP_ARCHIVE_INVALID')
                 require(_scan(roots,cancel=cancel)==records and hmac.compare_digest(secret,f._read(conf,'assistant.json',gid,mode=0o660,limit=2048)), 'BACKUP_FILES_CHANGED')
                 current._sources(web)
-                require(f._completed(conf,webfd,inc,gid)==completed and f._prepared(config,value,directory,conf,gid)==(database,loader,ca),'BACKUP_SOURCE_CHANGED')
+                require(f._completed(conf,webfd,inc,gid,commit=self.release.commit)==completed and f._prepared(config,value,directory,conf,gid)==(database,loader,ca),'BACKUP_SOURCE_CHANGED')
                 current._pending_edits(conf)
-                manifest={'version':1,'backup_id':run_id,'source_commit':f.WEB_COMMIT,'runtime_sha256':f.RUNTIME_SHA256,
+                manifest={'version':1,'backup_id':run_id,'source_commit':self.release.commit,'runtime_sha256':self.release.runtime_sha256,
                     'source_webroot':str(web),'source_configuration':str(directory),'source_state_root':str(self.runtime.state_root),
                     'database_sha256':sql_sha,'database_bytes':sql_bytes,'fresh_attempt_name':'fresh-'+key+'.attempt',
                     'fresh_attempt_sha256':f._sha(journal),'files':records}
@@ -383,7 +385,7 @@ class UpgradeBackup:
                 result={'state':'BACKUP_RESTORE_VERIFIED','code':'OK','backup_id':run_id,'backup_verified':True,
                     'database_restoration_verified':True,'private_files_restoration_verified':True,'restore_to_original_allowed':False,
                     'apply_allowed':False,'rollback_verified':False,'web_activation_verified':False,'application_installed':False,
-                    'source_commit':f.WEB_COMMIT,'source_schema_written':False,'database_sha256':sql_sha,
+                    'source_commit':self.release.commit,'source_schema_written':False,'database_sha256':sql_sha,
                     'manifest_sha256':f._sha(p._json(manifest)), 'files':sum(r['kind']=='file' for r in records),**verified,
                     'scope':'SQL_ROOT_OWNED_WEB_AND_PRIVATE_ENVELOPE',
                     'limitations':['NO_MUTABLE_BUSINESS_FILE_TREES','NO_EXTERNAL_PHP_SESSION_STORAGE',

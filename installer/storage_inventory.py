@@ -66,8 +66,8 @@ def _mapping(value, names, *, nullable=False):
     return {key: None if nullable and item is None else _text(item) for key, item in value.items()}
 
 
-def _verify_source(source: Path) -> None:
-    require(f._runtime_digest(source) == f.RUNTIME_SHA256, 'SOURCE_PIN_MISMATCH')
+def _verify_source(source: Path, commit: str = f.WEB_COMMIT) -> None:
+    require(f._runtime_digest(source) == f.get_release(commit).runtime_sha256, 'SOURCE_PIN_MISMATCH')
 
 
 @dataclass(frozen=True)
@@ -99,7 +99,7 @@ class StorageRequirements:
 
     def report(self) -> dict:
         value = self.private_manifest()
-        return {'state': 'STORAGE_REQUIREMENTS_RESOLVED', 'source_commit': f.WEB_COMMIT,
+        return {'state': 'STORAGE_REQUIREMENTS_RESOLVED', 'source_commit': value['source_commit'],
                 'manifest_sha256': hashlib.sha256(self._canonical).hexdigest(),
                 'storage_scopes': len(value['scopes']), 'producer_groups': len(value['producers']),
                 'blockers': value['blockers'], 'facts_origin': 'TRUSTED_HOST_OBSERVATIONS',
@@ -110,20 +110,22 @@ class StorageRequirements:
 
 class StorageInventory:
     def __init__(self, source: Path, *, repository: str, commit: str):
-        require(repository == p.WEB_REPOSITORY and commit == f.WEB_COMMIT, 'SOURCE_PIN_MISMATCH')
+        require(repository == p.WEB_REPOSITORY, 'SOURCE_PIN_MISMATCH')
+        try: self.release = f.get_release(commit)
+        except ValueError: raise StorageInventoryError('SOURCE_PIN_MISMATCH') from None
         require(isinstance(source, Path), 'STORAGE_INPUT_REJECTED')
         self.source = source
 
     def inspect(self, facts: StorageFacts) -> StorageRequirements:
         try:
             require(type(facts) is StorageFacts, 'STORAGE_INPUT_REJECTED')
-            _verify_source(self.source)
+            _verify_source(self.source, self.release.commit)
             value = copy.deepcopy(facts)
             require(isinstance(value.webroot, Path) and isinstance(value.configuration, Path), 'STORAGE_INPUT_REJECTED')
             web, conf = _absolute(str(value.webroot)), _absolute(str(value.configuration))
             require(web != conf and not web.startswith(conf + '/') and not conf.startswith(web + '/')
                     and web != '/' and conf != '/', 'STORAGE_PATH_REJECTED')
-            env = _mapping(value.environment, ENVIRONMENT)
+            env = _mapping(value.environment, ENVIRONMENT | ({'HESTIA_UPLOAD_STORAGE'} if self.release.external_uploads else set()))
             constants = _mapping(value.constants, CONSTANTS, nullable=True)
             config = _mapping(value.app_config, APP_CONFIG)
             php = _mapping(value.php, PHP)
@@ -141,6 +143,14 @@ class StorageInventory:
 
             add('uploads', web + '/uploads', 'directory', 'WEB_FIXED',
                 ('public_php', 'internal_mobile_php'))
+            uploads = web + '/uploads'
+            if self.release.external_uploads and env['HESTIA_UPLOAD_STORAGE']:
+                uploads = _absolute(env['HESTIA_UPLOAD_STORAGE'])
+                require(uploads not in ('/', '/tmp', '/var/tmp', '/var/lib') and uploads != web
+                        and not uploads.startswith(web + '/') and not web.startswith(uploads + '/'),
+                        'STORAGE_UPLOAD_PATH_REJECTED')
+                add('uploads_effective', uploads, 'directory', 'DEPLOYMENT_ENVIRONMENT',
+                    ('public_php', 'internal_mobile_php'))
             add('imports_default', web + '/var/imports', 'directory', 'WEB_DEFAULT_OR_RETAINED_DATA',
                 ('public_php',))
             configured = constants['HESTIA_IMPORT_STORAGE']
@@ -169,7 +179,7 @@ class StorageInventory:
                         require(re.fullmatch(r'[A-Za-z0-9._/-]+', root) is not None
                                 and all(part not in ('', '.', '..') for part in root.split('/')),
                                 'STORAGE_GED_PATH_REJECTED')
-                        add('ged_legacy_' + str(index), web + '/uploads/ged_legacy/' + root,
+                        add('ged_legacy_' + str(index), uploads + '/ged_legacy/' + root,
                             'directory', 'APP_CONFIG_RELATIVE', ('public_php',))
 
             require(php['session.save_handler'] == 'files', 'STORAGE_SESSION_HANDLER_UNSUPPORTED')
@@ -237,12 +247,12 @@ class StorageInventory:
                               and other['kind'] in ('directory', 'envelope')
                               and scope['path'].startswith(other['path'].rstrip('/') + '/')]
                 scope['covered_by'] = sorted(other['role'] for other in candidates)
-            result = {'version': 1, 'source_commit': f.WEB_COMMIT, 'runtime_sha256': f.RUNTIME_SHA256,
+            result = {'version': 1, 'source_commit': self.release.commit, 'runtime_sha256': self.release.runtime_sha256,
                       'scopes': sorted(scopes, key=lambda x: x['role']),
                       'producers': [{'group': group, 'requirements': list(items), 'state': 'REQUIRED_NOT_VERIFIED'}
                                     for group, items in sorted(PRODUCERS.items())],
                       'blockers': sorted(blockers)}
-            _verify_source(self.source)
+            _verify_source(self.source, self.release.commit)
             return StorageRequirements(p._json(result))
         except StorageInventoryError:
             raise

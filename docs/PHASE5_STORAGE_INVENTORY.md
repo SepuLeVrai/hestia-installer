@@ -1,5 +1,14 @@
 # Stockages et producteurs du Web épinglé
 
+## Extension source externe explicite
+
+Le nouveau pin du [profil métier](PHASE5_BUSINESS_STORAGE.md) exige une
+observation explicite de `HESTIA_UPLOAD_STORAGE`, même vide. Sa valeur externe
+ajoute `uploads_effective` et déplace la résolution des GED historiques relatives.
+Le scope `uploads` du webroot est conservé pour ne pas oublier des données
+historiques. Le pin précédent conserve son schéma d'observations. Les neuf
+producteurs restent non certifiés par cette cartographie seule.
+
 ## Périmètre du lot
 
 Base qualifiée : Installer `d2f2d0af85bbe4f6167bb1c96065c224f22fb383`, arbre

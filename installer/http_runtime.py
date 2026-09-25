@@ -26,6 +26,7 @@ from installer.model import Receipt, ResourceSpec, StepSpec
 from installer.operations import Operation, Recovery, RecoveryDecision
 from installer.preflight import read_os_release
 from installer.proxy_ingress import ProxyIngress
+from installer.web_releases import STORAGE_COMMIT
 
 EXTENSIONS = ('mysqlnd', 'pdo', 'mysqli', 'pdo_mysql', 'ctype', 'iconv', 'fileinfo',
               'mbstring', 'curl', 'dom', 'simplexml', 'xml', 'xmlreader', 'xmlwriter', 'zip', 'gd', 'tokenizer')
@@ -61,9 +62,13 @@ class RuntimeSpec:
     port: int
     php_family: str
     ingress: ProxyIngress | None = field(default=None, repr=False)
+    external_uploads: bool = False
+    maintenance_directory: Path | None = field(default=None, repr=False)
 
     def __post_init__(self):
         require(self.ingress is None or type(self.ingress) is ProxyIngress, 'HTTP_RUNTIME_INPUT_REJECTED')
+        require(type(self.external_uploads) is bool and
+                (self.maintenance_directory is not None) == self.external_uploads, 'HTTP_RUNTIME_INPUT_REJECTED')
         require(type(self.instance) is str and re.fullmatch(r'[a-f0-9]{32}', self.instance) is not None,
                 'HTTP_RUNTIME_INPUT_REJECTED')
         root, web = _path(self.root, maximum=75), _path(self.webroot, dots=True)
@@ -77,6 +82,13 @@ class RuntimeSpec:
                         for label in self.hostname.split('.')), 'HTTP_RUNTIME_HOST_REJECTED')
         require(type(self.port) is int and 1024 <= self.port <= 65535
                 and type(self.php_family) is str and self.php_family in ('8.2', '8.4'), 'HTTP_RUNTIME_INPUT_REJECTED')
+        if self.external_uploads:
+            gate = _path(self.maintenance_directory)
+            require(gate.startswith('/var/lib/') and self.maintenance_directory.name == 'maintenance'
+                    and not any(self.maintenance_directory == path or path in self.maintenance_directory.parents
+                                or self.maintenance_directory in path.parents for path in (self.root, self.webroot)),
+                    'HTTP_RUNTIME_PATH_REJECTED')
+            require(self.php_family == '8.4', 'HTTP_RUNTIME_PHP_PROFILE_REJECTED')
 
 
 def _command(argv: list[str]) -> None:
@@ -108,7 +120,7 @@ def _unit_absent(unit: str) -> None:
 
 
 def _code_digest(root: Path, web_gid: int) -> str:
-    """The staged source is immutable; mutable Web data needs a later profile."""
+    """The staged source stays immutable, including its historical uploads tree."""
     pending = [root]; digest = hashlib.sha256(); count = total = 0
     while pending:
         path = pending.pop()
@@ -155,7 +167,7 @@ class HttpRuntime:
         return 'hestia-' + self.spec.instance + '-' + role + '.service'
 
     def _modules(self):
-        return MODULES + (('remoteip', 'authz_host') if self.spec.ingress is not None else ())
+        return MODULES + (('remoteip', 'authz_host') if self.spec.ingress is not None else ()) + (('alias',) if self.spec.external_uploads else ())
 
     def _host(self):
         require(os.geteuid() == 0, 'HTTP_RUNTIME_ROOT_REQUIRED')
@@ -178,6 +190,16 @@ class HttpRuntime:
         p._safe_path(Path('/etc/mime.types'), directory=False)
         require(Path('/proc/1/comm').read_text().strip() == 'systemd'
                 and Path('/sys/fs/cgroup/cgroup.controllers').is_file(), 'HTTP_RUNTIME_SYSTEMD_REQUIRED')
+        if self.spec.external_uploads:
+            release = f.get_release(STORAGE_COMMIT)
+            require(f._runtime_digest(self.spec.webroot) == release.runtime_sha256, 'SOURCE_PIN_MISMATCH')
+            # The shared gate belongs to the exact sealed configuration slot.
+            with fs._directory(self.spec.maintenance_directory.parent, readable_by=account.pw_gid) as conf:
+                with fs._directory(self.spec.webroot) as webfd, fs._directory(self.spec.webroot / 'includes') as inc:
+                    f._completed(conf, webfd, inc, account.pw_gid, commit=release.commit)
+                seal = f._json_read(conf, 'seal.json', account.pw_gid)
+                require(seal['instance'] == self.spec.instance and seal['webroot'] == str(self.spec.webroot),
+                        'HTTP_RUNTIME_INSTANCE_MISMATCH')
         return account, extension
 
     def _dependency_hashes(self, extension):
@@ -188,10 +210,12 @@ class HttpRuntime:
         return {str(path): _system_file_digest(path) for path in paths}
 
     def _scope(self, account):
-        return m.MaintenanceScope(self.spec.root / 'maintenance', account.pw_gid, self.spec.instance)
+        return m.MaintenanceScope(self.spec.maintenance_directory or self.spec.root / 'maintenance', account.pw_gid, self.spec.instance)
 
     def _files(self, account, extension):
         spec = self.spec; root, web = str(spec.root), str(spec.webroot)
+        gate = str(self._scope(account).directory)
+        upload_environment = f'env[HESTIA_UPLOAD_STORAGE] = {root}/data/uploads\n' if spec.external_uploads else ''
         # FPM rejects an empty env[...] value. clear_env=yes and no declaration
         # leave the Web proxy list absent after Apache has canonicalized it.
         trusted_proxies = '' if spec.ingress is not None else 'env[HESTIA_TRUSTED_PROXIES] = 127.0.0.1/32\n'
@@ -227,7 +251,7 @@ env[TMP] = {root}/data/tmp
 env[TEMP] = {root}/data/tmp
 env[HOME] = {root}/data/tmp
 env[HESTIA_IMPORT_STORAGE] = {root}/data/imports
-{trusted_proxies}php_admin_value[auto_prepend_file] = {root}/maintenance/request_guard.php
+{trusted_proxies}{upload_environment}php_admin_value[auto_prepend_file] = {gate}/request_guard.php
 php_admin_value[session.save_handler] = files
 php_admin_value[session.save_path] = {root}/data/sessions
 php_admin_value[session.gc_maxlifetime] = 43200
@@ -288,6 +312,22 @@ Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
 '''
         if spec.ingress is not None:
             apache += spec.ingress.apache_directives()
+        if spec.external_uploads:
+            # No generic upload publication. Only existing public image families
+            # are mapped; every other data family remains inaccessible directly.
+            for family in ('profiles', 'constructeurs', 'distributeurs', 'references'):
+                directory = root + '/data/uploads/' + family
+                apache += f'''Alias "/uploads/{family}/" "{directory}/"
+<Directory "{directory}">
+  Options None
+  AllowOverride None
+  SetHandler none
+  Require all denied
+  <FilesMatch "(?i)^[^.][^/]*[.](png|jpe?g|webp|gif)$">
+    AuthMerging Off
+{access}  </FilesMatch>
+</Directory>
+'''
         files = {spec.root / 'conf/php.ini': ini.encode(), spec.root / 'conf/fpm.conf': fpm.encode(),
                  spec.root / 'conf/apache.conf': apache.encode()}
         starts = {'apache': f'/usr/sbin/apache2 -DFOREGROUND -f {root}/conf/apache.conf',
@@ -329,6 +369,9 @@ Delegate=no
                     _unit_absent(self.unit(role))
             with socket.socket() as listener:
                 listener.bind(('127.0.0.1', self.spec.port))
+            if self.spec.external_uploads:
+                with fs._directory(self.spec.maintenance_directory.parent) as fd:
+                    fs._absent(fd, self.spec.maintenance_directory.name)
             self._plan(account, extension)
         except HttpRuntimeError: raise
         except Exception: raise HttpRuntimeError('HTTP_RUNTIME_PRECONDITION_FAILED') from None
@@ -338,7 +381,8 @@ Delegate=no
         return {root: (0, account.pw_gid, 0o750), root / 'conf': (0, 0, 0o700),
             root / 'run': (0, account.pw_gid, 0o750), root / 'log': (0, 0, 0o700),
             root / 'data': (0, account.pw_gid, 0o750),
-            **{root / 'data' / name: (account.pw_uid, account.pw_gid, 0o700) for name in DATA}}
+            **{root / 'data' / name: (account.pw_uid, account.pw_gid, 0o700)
+               for name in DATA + (('uploads',) if self.spec.external_uploads else ())}}
 
     def _configtest(self):
         spec = self.spec
@@ -419,7 +463,7 @@ Delegate=no
                         and value['MainPID'] == value['ControlPID'] == '0' and drain._empty_cgroup(self.unit(role)),
                         'HTTP_RUNTIME_SERVICE_STATE_REJECTED')
             return {'state': 'HTTP_RUNTIME_STAGED', 'plan_sha256': f._sha(plan),
-                'services_staged': 2, 'private_data_directories': len(DATA), 'services_started': False,
+                'services_staged': 2, 'private_data_directories': len(DATA) + int(self.spec.external_uploads), 'services_started': False,
                 'web_php_compatible': self.spec.php_family == '8.4', 'native_session_cleaner_wired': False,
                 'system_wiring_verified': False, 'application_installed': False, 'complete_web_backup': False}
         except HttpRuntimeError: raise
@@ -436,6 +480,8 @@ class HttpRuntimeOperation(Operation):
         require(type(runtime) is HttpRuntime, 'HTTP_RUNTIME_INPUT_REJECTED')
         self.runtime = runtime
         resources = (ResourceSpec('runtime', 'directory', str(runtime.spec.root)),
+            *((ResourceSpec('maintenance', 'directory', str(runtime.spec.maintenance_directory)),)
+              if runtime.spec.external_uploads else ()),
             *(ResourceSpec(role + '_unit', 'file', str(drain.UNIT_ROOT / runtime.unit(role))) for role in ('apache', 'php')),
             *(ResourceSpec(role + '_dropin', 'directory', str(drain.UNIT_ROOT / (runtime.unit(role) + '.d'))) for role in ('apache', 'php')))
         super().__init__(StepSpec(name='web.http-runtime', operation='web.http-runtime.stage', module='web',

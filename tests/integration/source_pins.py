@@ -22,6 +22,9 @@ from installer import upgrade_preflight as u
 
 WEB_COMMIT = '46c03060625d4d53c675474b11aaa33007d9aad7'
 WEB_TREE = 'aaac278270e0fd1169396945916dfe997ae078bf'
+STORAGE_COMMIT = '2a27c7a1f9fe0a00289eb53278f75d5f230900b7'
+STORAGE_TREE = '783be5abdcd5e13addefe96d743eee3a97b7a6de'
+STORAGE_RUNTIME = '42c99a13f41b50a5263c69d14557dd088b5787b40ffdc51873b8d61ea1bc8edb'
 
 
 def object_hash(kind: str, content: bytes) -> bytes:
@@ -63,9 +66,12 @@ def digest(files: dict[str, bytes], names: list[str]) -> str:
     return result.hexdigest()
 
 
-def inspect(root: Path) -> dict:
+def inspect(root: Path, commit: str = WEB_COMMIT) -> dict:
+    if commit not in (WEB_COMMIT, STORAGE_COMMIT):
+        raise ValueError('Unknown source commit')
+    expected_tree = STORAGE_TREE if commit == STORAGE_COMMIT else WEB_TREE
     tree, files = snapshot(root)
-    checks = [{'name': 'git_tree', 'expected': WEB_TREE, 'actual': tree, 'ok': tree == WEB_TREE}]
+    checks = [{'name': 'git_tree', 'expected': expected_tree, 'actual': tree, 'ok': tree == expected_tree}]
     vendor = [name for name in files if name.startswith('vendor/')]
     for module in (p, d, f):
         actual = digest(files, [*module.ENGINE_FILES, *vendor])
@@ -76,11 +82,11 @@ def inspect(root: Path) -> dict:
                   or Path(name).name in ('.htaccess', '.user.ini', 'composer.json', 'composer.lock'))]
     actual = digest(files, names)
     for module in (f, u):
-        checks.append({'name': module.__name__ + '.RUNTIME_SHA256', 'expected': module.RUNTIME_SHA256,
-                       'actual': actual, 'ok': actual == module.RUNTIME_SHA256})
+        checks.append({'name': module.__name__ + '.RUNTIME_SHA256', 'expected': STORAGE_RUNTIME if commit == STORAGE_COMMIT else module.RUNTIME_SHA256,
+                       'actual': actual, 'ok': actual == (STORAGE_RUNTIME if commit == STORAGE_COMMIT else module.RUNTIME_SHA256)})
     after_tree, after_files = snapshot(root)
     stable = tree == after_tree and files == after_files
-    return {'suite': 'Exact Web source pins', 'web_commit': WEB_COMMIT, 'git_tree': tree,
+    return {'suite': 'Exact Web source pins', 'web_commit': commit, 'git_tree': tree,
             'files': len(files), 'source_stable': stable, 'checks': checks,
             'status': 'PASS' if stable and all(check['ok'] for check in checks) else 'FAIL'}
 
@@ -89,8 +95,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--web', required=True, type=Path)
     parser.add_argument('--report', type=Path)
+    parser.add_argument('--commit', default=WEB_COMMIT)
     args = parser.parse_args()
-    report = inspect(args.web.resolve())
+    report = inspect(args.web.resolve(), args.commit)
     text = json.dumps(report, indent=2) + '\n'
     if args.report:
         args.report.write_text(text)

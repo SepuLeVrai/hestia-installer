@@ -40,7 +40,9 @@ class DeploymentSpec:
 
     def __post_init__(self):
         paths = [h._path(x, dots=True) for x in (self.source, self.target, self.journal)]
-        require(self.repository == h.p.WEB_REPOSITORY and self.commit == h.f.WEB_COMMIT, 'SOURCE_PIN_MISMATCH')
+        require(self.repository == h.p.WEB_REPOSITORY, 'SOURCE_PIN_MISMATCH')
+        try: h.f.get_release(self.commit)
+        except ValueError: raise WebDeploymentError('SOURCE_PIN_MISMATCH') from None
         require(paths[1].startswith(('/srv/', '/var/www/')) and paths[2].startswith('/var/lib/'))
         for index, path in enumerate((self.source, self.target, self.journal)):
             require(len(path.parts) >= 3)
@@ -67,7 +69,7 @@ def _write(fd, name, data, gid, *, mode=0o640):
     os.fsync(fd)
 
 
-def _scan(root, *, deployed=False):
+def _scan(root, *, deployed=False, commit=None):
     """Recompute Git objects from bytes; never invoke git or execute the source."""
     files, directories = {}, []
     count = total = 0; deadline = time.monotonic() + MAX_SECONDS
@@ -105,7 +107,9 @@ def _scan(root, *, deployed=False):
         return _object('tree', b''.join(value for _, value in sorted(entries)))
 
     tree = visit(root, 0).hex()
-    require(tree == WEB_TREE and len(files) == WEB_FILES, 'SOURCE_PIN_MISMATCH')
+    release = h.f.get_release(commit or h.f.WEB_COMMIT)
+    expected_tree, expected_files = ((WEB_TREE, WEB_FILES) if release.commit == h.f.WEB_COMMIT else (release.tree, release.files))
+    require(tree == expected_tree and len(files) == expected_files, 'SOURCE_PIN_MISMATCH')
     return {'tree': tree, 'files': files, 'directories': sorted(directories), 'bytes': total}
 
 
@@ -128,7 +132,7 @@ class WebDeployment:
             require(os.getuid() == os.geteuid() == 0, 'WEB_DEPLOYMENT_ROOT_REQUIRED')
             for path in (self.spec.target, self.spec.journal):
                 with h.fs._directory(path.parent) as fd: h.fs._absent(fd, path.name)
-            return _scan(self.spec.source)
+            return _scan(self.spec.source, commit=self.spec.commit)
         except WebDeploymentError: raise
         except Exception: raise WebDeploymentError('WEB_DEPLOYMENT_PRECONDITION_FAILED') from None
 
@@ -163,7 +167,7 @@ class WebDeployment:
                     require(h.f._sha(raw) == meta['sha256'] and len(raw) == meta['bytes'], 'WEB_DEPLOYMENT_SOURCE_CHANGED')
                     target = self.spec.target / name
                     with h.fs._directory(target.parent) as fd: _write(fd, target.name, raw, 0, mode=meta['mode'])
-                require(_scan(self.spec.source) == source and _scan(self.spec.target, deployed=True) == source,
+                require(_scan(self.spec.source, commit=self.spec.commit) == source and _scan(self.spec.target, deployed=True, commit=self.spec.commit) == source,
                         'WEB_DEPLOYMENT_SOURCE_CHANGED')
                 _write(journal, 'deployed.json', h.p._json({'version': 1, 'plan_sha256': h.f._sha(plan),
                     'state': 'WEB_SOURCE_DEPLOYED'}), 0)
@@ -174,16 +178,16 @@ class WebDeployment:
     def observe(self):
         try:
             require(os.getuid() == os.geteuid() == 0, 'WEB_DEPLOYMENT_ROOT_REQUIRED')
-            source = _scan(self.spec.source); plan = self._plan(source)
+            source = _scan(self.spec.source, commit=self.spec.commit); plan = self._plan(source)
             with h.fs._directory(self.spec.journal) as fd:
                 info = os.fstat(fd)
                 require((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (0, 0, 0o700))
                 require(h.f._read(fd, 'deployment.attempt', 0, limit=MAX_PLAN) == plan, 'WEB_DEPLOYMENT_DRIFT')
                 require(h.f._json_read(fd, 'deployed.json', 0) == {'version': 1, 'plan_sha256': h.f._sha(plan),
                         'state': 'WEB_SOURCE_DEPLOYED'}, 'WEB_DEPLOYMENT_DRIFT')
-            require(_scan(self.spec.target, deployed=True) == source, 'WEB_DEPLOYMENT_DRIFT')
-            return {'state': 'WEB_SOURCE_DEPLOYED', 'source_commit': self.spec.commit, 'source_tree': WEB_TREE,
-                'plan_sha256': h.f._sha(plan), 'files': WEB_FILES, 'code_deployed': True,
+            require(_scan(self.spec.target, deployed=True, commit=self.spec.commit) == source, 'WEB_DEPLOYMENT_DRIFT')
+            return {'state': 'WEB_SOURCE_DEPLOYED', 'source_commit': self.spec.commit, 'source_tree': source['tree'],
+                'plan_sha256': h.f._sha(plan), 'files': len(source['files']), 'code_deployed': True,
                 'application_installed': False, 'writable_business_storage_ready': False,
                 'service_activation_delivered': False, 'system_wiring_verified': False}
         except WebDeploymentError: raise

@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Frontière du stockage métier externe
+
+Le [profil externe](PHASE5_BUSINESS_STORAGE.md) refuse source inconnue, slot
+non finalisé, instance étrangère, chevauchement code/données/gate et PHP 8.2.
+`data/uploads` est créé exclusivement, UID/GID dédiés, 0700. Aucun lien ou
+chmod d'un `uploads` existant. Apache ignore les `.htaccess` métier et n'exécute
+aucun PHP dans les alias ; seules quatre familles d'images sont publiées.
+La restauration testée utilise une destination neuve sous maintenance. Un
+profil inscriptible ne certifie ni tous les clients SQL ni les planificateurs hôte.
+
 ## Déploiement de code exclusif
 
 Le [déploiement protégé](PHASE5_WEB_DEPLOYMENT.md) vérifie l'arbre Git complet

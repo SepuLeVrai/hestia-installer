@@ -1,5 +1,15 @@
 # Architecture HESTIA Installer
 
+## Profil métier externe et identités de source
+
+`web_releases.py` contient deux identités fermées (commit, arbre, nombre de
+fichiers, digest runtime). Déploiement, finalisation, lecture d'upgrade,
+sauvegarde, réparation et inventaire propagent le choix explicite sans accepter
+le reçu d'un autre pin. Les moteurs SQL restent épinglés indépendamment à leurs
+octets qualifiés. Aucun moteur de transition n'est ajouté par ce catalogue.
+[Le profil métier](PHASE5_BUSINESS_STORAGE.md) garde le code immuable, crée les
+données externes sous l'UID dédié et raccorde un scope de maintenance unique.
+
 ## Déploiement protégé avant finalisation
 
 L'adaptateur privé [WebDeployment](PHASE5_WEB_DEPLOYMENT.md) consomme une source

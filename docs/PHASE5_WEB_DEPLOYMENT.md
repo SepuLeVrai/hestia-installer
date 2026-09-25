@@ -1,5 +1,15 @@
 # Phase 5 — déploiement protégé et recette du Web réel
 
+## Extension : catalogue fermé de deux arbres
+
+Le [lot métier externe](PHASE5_BUSINESS_STORAGE.md) ajoute le pin complet
+`2a27c7a1f9fe0a00289eb53278f75d5f230900b7`, arbre
+`783be5abdcd5e13addefe96d743eee3a97b7a6de`, 1843 fichiers, sans remplacer
+le pin historique de 1840 fichiers. Chaque choix vérifie exactement son arbre,
+ses octets, ses modes et son nombre de fichiers. Aucun autre commit n'est admis.
+Le reçu de copie reste invalide après finalisation ; aucun fichier inconnu
+n'est toléré. Les données externes ne sont pas copiées par cet adaptateur.
+
 Base qualifiée : `4d9f396e36c9152647fe1151719fd958abe6ec31`, Quality
 `36164840460`, système `36164840403`, paquets `36164840474`, SQL/proxy
 `36164923531`. Web inchangé : `46c03060625d4d53c675474b11aaa33007d9aad7`.

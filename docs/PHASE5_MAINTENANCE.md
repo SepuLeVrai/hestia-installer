@@ -1,5 +1,14 @@
 # Maintenance coordonnée Web - contrat privé
 
+## Raccordement du profil métier externe
+
+Le [profil externe](PHASE5_BUSINESS_STORAGE.md) utilise le même scope
+`<slot de configuration>/maintenance` pour FPM, les conditions des deux services,
+le collecteur et la sauvegarde coordonnée. Il vérifie l'instance finalisée avant
+création. Le guard reste postérieur à la réception multipart. La recette arrête
+les services et vérifie leurs cgroups avant capture ; ce drainage de banc ne
+vaut pas orchestration produit ni inventaire exhaustif des producteurs.
+
 ## Candidat, pas encore un déploiement système
 
 `installer/maintenance.py` et le prepend PHP définissent une barrière commune

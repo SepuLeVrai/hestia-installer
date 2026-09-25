@@ -1,5 +1,16 @@
 # Phase 5 — préparation privée du runtime Apache/PHP-FPM
 
+## Extension opt-in : stockages métier et gate SQL commun
+
+Le [profil externe](PHASE5_BUSINESS_STORAGE.md) ajoute `external_uploads=True`
+et `maintenance_directory` conjointement, uniquement pour Debian 13/PHP 8.4
+avec le nouveau Web exact. Le slot doit porter son sceau finalisé et le même
+identifiant d'instance. Le gate existant ou une préparation partielle est refusé.
+Le profil historique reste inchangé. Six répertoires de données sont alors
+créés, dont `data/uploads`, et seuls quatre alias d'images publiques sont exposés.
+Les `.htaccess` du code restent root et participent toujours au condensat.
+Cette extension ne démarre aucun service et ne certifie pas les producteurs hôte.
+
 ## Base et portée
 
 Base qualifiée : `e86ecd7cfabebcfcb141ee2cc66ca9a27eec814d`, arbre

@@ -124,8 +124,9 @@ def _shared_file(conf: int, name: str, gid: int, stack: ExitStack, *, mode: int,
 class UpgradePreflight:
     """Private trusted-host API for 5B2.3 instances only. No apply method."""
     def __init__(self, runtime: p.PhpRuntime, source: Path, *, repository: str, commit: str):
-        _require(repository == p.WEB_REPOSITORY and commit == WEB_COMMIT
-                 and f.WEB_COMMIT == WEB_COMMIT and f.RUNTIME_SHA256 == RUNTIME_SHA256, 'SOURCE_PIN_MISMATCH')
+        _require(repository == p.WEB_REPOSITORY, 'SOURCE_PIN_MISMATCH')
+        try: self.release = f.get_release(commit)
+        except ValueError: raise UpgradePreflightError('SOURCE_PIN_MISMATCH') from None
         self.runtime, self.source = runtime, Path(source)
 
     def inspect(self, payload: dict, *, config_root: Path, cancel=None) -> UpgradeAssessment:
@@ -143,10 +144,10 @@ class UpgradePreflight:
             with ExitStack() as stack:
                 _require(cancel is None or not cancel.is_set(), 'INTERRUPTED')
                 gid, web, directory, conf, webfd, inc = f._open(self.runtime, config, config_root, stack)
-                source = f.FinalizationStep(self.runtime, self.source, repository=p.WEB_REPOSITORY, commit=WEB_COMMIT)
+                source = f.FinalizationStep(self.runtime, self.source, repository=p.WEB_REPOSITORY, commit=self.release.commit)
                 source._sources(web)
                 database, loader, ca = f._prepared(config, value, directory, conf, gid)
-                receipt = f._completed(conf, webfd, inc, gid)
+                receipt = f._completed(conf, webfd, inc, gid, commit=self.release.commit)
                 # Serialize with a settings controller when its stable lock exists.
                 try:
                     _require(_shared_file(conf, 'assistant-edit.lock', 0, stack, mode=0o600, limit=0) == b'',
@@ -172,14 +173,14 @@ class UpgradePreflight:
                 _require(before == after and inventory['assistant_setting'] is after['setting_enabled'], 'UPGRADE_TARGET_CHANGED')
                 source._sources(web)
                 _require(f._prepared(config, value, directory, conf, gid) == (database, loader, ca)
-                         and f._completed(conf, webfd, inc, gid) == receipt
+                         and f._completed(conf, webfd, inc, gid, commit=self.release.commit) == receipt
                          and hmac.compare_digest(secret, f._read(conf, 'assistant.json', gid, mode=0o660, limit=2048))
                          and sorted(os.listdir(conf)) == journal_names, 'UPGRADE_TARGET_CHANGED')
                 source._pending_edits(conf)
                 _require(cancel is None or not cancel.is_set(), 'INTERRUPTED')
                 plan = {'version': 1, 'operation': 'upgrade_assessment', 'apply_allowed': False,
-                    'source_profile': 'SEALED_5B23', 'source_commit': WEB_COMMIT, 'target_commit': WEB_COMMIT,
-                    'runtime_sha256': RUNTIME_SHA256, 'target_relation': 'IDENTICAL_RELEASE',
+                    'source_profile': 'SEALED_5B23', 'source_commit': self.release.commit, 'target_commit': self.release.commit,
+                    'runtime_sha256': self.release.runtime_sha256, 'target_relation': 'IDENTICAL_RELEASE',
                     'web': config['web'], 'database': {k: database[k] for k in ('host', 'port', 'name', 'user', 'tls_required')},
                     'inventory': inventory, 'assistant': {'setting_enabled': after['setting_enabled'],
                         'key_configured': after['key_configured'], 'api_access': 'NOT_TESTED'},
