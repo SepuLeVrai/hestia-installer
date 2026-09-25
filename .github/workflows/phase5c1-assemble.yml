@@ -1,0 +1,93 @@
+name: Isolated exact 5C1 source objects
+on:
+  push:
+    branches: ['verification/phase5c1-objects-20260925']
+permissions:
+  contents: write
+jobs:
+  assemble:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconstruct frozen source as unattached objects only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,json,lzma,os,subprocess,urllib.request
+          from pathlib import Path
+          base='fe912b7a7ce2622734d0b508683de3b4e55dc2dd'
+          base_tree='e8c20a88ad1ace36f69f2a80d5c7243626504207'
+          expected='9d9a13fbd94f954894e6a65c9434632a5b98b3a6'
+          names={'README.md','docs/HANDOFF_WORK_20260925.md','docs/PHASE5C_UPGRADE.md',
+            'docs/PROJECT_STATE.md','docs/QUALITY.md','installer/private/upgrade_inventory_bridge.php',
+            'installer/upgrade_preflight.py','tests/integration/upgrade_preflight_mariadb.py',
+            'tests/quality-baseline.json','tests/test_upgrade_preflight.py'}
+          def git(*args):
+              return subprocess.check_output(['git',*args],text=True).strip()
+          assert git('rev-parse',base+'^{tree}')==base_tree
+          compressed=b''.join(Path('.quality/phase5c1-source.part'+str(i)).read_bytes() for i in range(2))
+          assert len(compressed)==20020
+          assert hashlib.sha256(compressed).hexdigest()=='477a2a19f1d9fa03d402ba1386110fead6c27ec9d76e0b8ef57ecd931498ed3b'
+          raw=lzma.decompress(compressed,memlimit=268435456)
+          assert len(raw)==70745
+          data=json.loads(raw)
+          assert set(data)=={'base','tree','files'} and data['base']==base and data['tree']==expected
+          assert set(data['files'])==names
+          root=Path(os.environ['RUNNER_TEMP'])/'frozen-installer-5c1'
+          subprocess.run(['git','worktree','add','--detach',str(root),base],check=True)
+          entries=[];manifest=[]
+          for name,item in sorted(data['files'].items()):
+              assert item['mode']=='100644'
+              path=root/name
+              if 'text' in item:
+                  assert set(item)=={'mode','sha','text'} and not path.exists()
+                  text=item['text']
+              else:
+                  assert set(item)=={'mode','sha','base_sha256','edits'}
+                  old=path.read_bytes()
+                  assert hashlib.sha256(old).hexdigest()==item['base_sha256']
+                  text=old.decode('utf-8')
+                  for start,end,replacement in reversed(item['edits']):
+                      assert 0<=start<=end<=len(text)
+                      text=text[:start]+replacement+text[end:]
+              content=text.encode('utf-8')
+              assert hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest()==item['sha']
+              path.parent.mkdir(parents=True,exist_ok=True)
+              path.write_bytes(content);path.chmod(0o644)
+              entries.append({'path':name,'mode':'100644','type':'blob','sha':item['sha']})
+              manifest.append({'path':name,'mode':'100644','bytes':len(content),
+                'sha256':hashlib.sha256(content).hexdigest(),'git_blob':item['sha']})
+          subprocess.run(['git','-C',str(root),'add','--force','--',*sorted(names)],check=True)
+          assert git('-C',str(root),'write-tree')==expected
+          def post(resource,payload):
+              assert resource in ('blobs','trees')
+              req=urllib.request.Request('https://api.github.com/repos/SepuLeVrai/hestia-installer/git/'+resource,
+                json.dumps(payload).encode(),method='POST',headers={
+                'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json',
+                'Content-Type':'application/json','User-Agent':'HESTIA-frozen-source-assembly'})
+              with urllib.request.urlopen(req,timeout=30) as response:
+                  answer=response.read(1048577);assert len(answer)<=1048576
+                  return json.loads(answer)
+          for entry in entries:
+              result=post('blobs',{'encoding':'base64','content':base64.b64encode((root/entry['path']).read_bytes()).decode()})
+              assert result['sha']==entry['sha']
+          assert post('trees',{'base_tree':base_tree,'tree':entries})['sha']==expected
+          Path('evidence').mkdir()
+          Path('evidence/objects.json').write_text(json.dumps({'base':base,'base_tree':base_tree,'tree':expected,
+            'entries':entries,'files':manifest,'manifest_sha256':hashlib.sha256(raw).hexdigest(),
+            'active_branches_updated':False},indent=2)+'\n')
+          print('Frozen source objects verified. No commit/ref updated. Permanent Quality still required.')
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: phase5c1-exact-installer-objects
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7
