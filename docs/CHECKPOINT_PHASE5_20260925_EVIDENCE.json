@@ -1,0 +1,294 @@
+{
+  "format": 1,
+  "scope": "Partial Phase 5 checkpoint, not release approval",
+  "qualified_installer": {
+    "commit": "726757eeb139818a7aa93b90586091ff37a08f85",
+    "tree": "c1a013d3a979de13089f7294602d709a1a436cec",
+    "branch": "quality/phase5c2-repair-20260925",
+    "quality_run": {
+      "id": 36126405630,
+      "url": "https://github.com/SepuLeVrai/hestia-installer/actions/runs/36126405630",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  },
+  "web_source": {
+    "commit": "46c03060625d4d53c675474b11aaa33007d9aad7",
+    "tree": "aaac278270e0fd1169396945916dfe997ae078bf",
+    "files": 1840
+  },
+  "technical_sql_runner": {
+    "commit": "d8ac49cbabf9e7fcef4877ca5d5338b5797e7e5d",
+    "tree": "b1a9a3f16292a2a64245c911cc2048606496977a",
+    "branch": "verification/phase5-work-repair-full-20260925",
+    "run": {
+      "id": 36126448323,
+      "url": "https://github.com/SepuLeVrai/hestia-nexus-avv/actions/runs/36126448323",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "installer_zip_sha256": "784a648b89fab91e382aab904390375f7f1d414a423eaf291c61af6b925eb9da",
+    "installer_files": 132
+  },
+  "quality_jobs": [
+    {
+      "id": 108043417106,
+      "name": "Scope and static guards",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-installer/actions/runs/36126405630/job/108043417106"
+    },
+    {
+      "id": 108043477165,
+      "name": "Browser / bridge and native HTTPS",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-installer/actions/runs/36126405630/job/108043477165"
+    },
+    {
+      "id": 108043477167,
+      "name": "Core / Debian 13",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-installer/actions/runs/36126405630/job/108043477167"
+    },
+    {
+      "id": 108043477169,
+      "name": "Core / Debian 12",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-installer/actions/runs/36126405630/job/108043477169"
+    },
+    {
+      "id": 108044311067,
+      "name": "Installer Quality gate",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-installer/actions/runs/36126405630/job/108044311067"
+    }
+  ],
+  "sql_jobs": [
+    {
+      "id": 108043557655,
+      "name": "SQL maintenance / Debian 13",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-nexus-avv/actions/runs/36126448323/job/108043557655",
+      "summary": [
+        {
+          "suite": "Cooperative Web maintenance, real PHP and SQL",
+          "tests": 7,
+          "expected": 7,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0,
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": 108043557867,
+      "name": "SQL definer_repair / Debian 13",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-nexus-avv/actions/runs/36126448323/job/108043557867",
+      "summary": [
+        {
+          "suite": "Explicit orphaned definer repair under guarded maintenance",
+          "tests": 9,
+          "expected": 9,
+          "failures": 0,
+          "errors": 0,
+          "skips": 0,
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": 108043557880,
+      "name": "SQL database_step / Debian 13",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-nexus-avv/actions/runs/36126448323/job/108043557880",
+      "summary": [
+        {
+          "campaign": "5B2.2 real Web SQL/TLS",
+          "tests": 18,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": 108043557897,
+      "name": "SQL finalization / Debian 13",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-nexus-avv/actions/runs/36126448323/job/108043557897",
+      "summary": [
+        {
+          "suite": "5B2.3 cross-repository SQL/TLS/HTTP",
+          "tests": 21,
+          "expected": 21,
+          "errors": 0,
+          "failures": 0,
+          "skips": 0,
+          "web_commit": "46c03060625d4d53c675474b11aaa33007d9aad7",
+          "web_runtime_sha256": "b2205c6f7b326b0692e57942f282260669e3ec147daf3dc9f18c546782c7eb0f",
+          "api_access": "NOT_TESTED",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": 108043557960,
+      "name": "SQL upgrade_backup / Debian 13",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-nexus-avv/actions/runs/36126448323/job/108043557960",
+      "summary": [
+        {
+          "suite": "5C2 private backup and isolated restore",
+          "tests": 30,
+          "expected": 30,
+          "errors": 0,
+          "failures": 0,
+          "skips": 0,
+          "web_commit": "46c03060625d4d53c675474b11aaa33007d9aad7",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "id": 108043557963,
+      "name": "SQL upgrade_preflight / Debian 13",
+      "conclusion": "success",
+      "url": "https://github.com/SepuLeVrai/hestia-nexus-avv/actions/runs/36126448323/job/108043557963",
+      "summary": [
+        {
+          "suite": "5C1 read-only upgrade preflight SQL/TLS/HTTP",
+          "tests": 15,
+          "expected": 15,
+          "errors": 0,
+          "failures": 0,
+          "skips": 0,
+          "web_commit": "46c03060625d4d53c675474b11aaa33007d9aad7",
+          "status": "PASS"
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "repository": "SepuLeVrai/hestia-installer",
+      "run": 36126405630,
+      "id": 10860460765,
+      "name": "installer-quality-browser",
+      "size": 3468684,
+      "digest": "sha256:934c6f321700af87712398eb369936f0a19888fe4928182aa736de7f033f3211",
+      "created_at": "2026-09-25T10:56:30Z",
+      "expires_at": "2026-10-02T10:56:28Z"
+    },
+    {
+      "repository": "SepuLeVrai/hestia-installer",
+      "run": 36126405630,
+      "id": 10860460492,
+      "name": "installer-quality-core-debian-12",
+      "size": 37457,
+      "digest": "sha256:d33c18b0191b595bd281d33ccb197820292403434f1dc6ea58b64244bfd27c2b",
+      "created_at": "2026-09-25T10:54:48Z",
+      "expires_at": "2026-10-02T10:54:48Z"
+    },
+    {
+      "repository": "SepuLeVrai/hestia-installer",
+      "run": 36126405630,
+      "id": 10860091031,
+      "name": "installer-verified-source",
+      "size": 709389,
+      "digest": "sha256:87093de368848ee5a4741b58a7eee68a629cd47191cbfa7932a7229d5c26cff1",
+      "created_at": "2026-09-25T10:56:40Z",
+      "expires_at": "2026-10-02T10:56:39Z"
+    },
+    {
+      "repository": "SepuLeVrai/hestia-installer",
+      "run": 36126405630,
+      "id": 10859233714,
+      "name": "installer-quality-core-debian-13",
+      "size": 37465,
+      "digest": "sha256:625c029aa56e68b8696f7aff8935dc693ae7d82f49b2217a9ee5d3e88f992f8c",
+      "created_at": "2026-09-25T10:54:34Z",
+      "expires_at": "2026-10-02T10:54:33Z"
+    },
+    {
+      "repository": "SepuLeVrai/hestia-nexus-avv",
+      "run": 36126448323,
+      "id": 10860680622,
+      "name": "phase5-repair-full-upgrade_preflight-debian13",
+      "size": 2323,
+      "digest": "sha256:77be1a915a1adb59a5d7e5ecdf2bffe88a634055a44653098fb84d460caaea41",
+      "created_at": "2026-09-25T10:56:57Z",
+      "expires_at": "2026-10-02T10:56:56Z"
+    },
+    {
+      "repository": "SepuLeVrai/hestia-nexus-avv",
+      "run": 36126448323,
+      "id": 10860295578,
+      "name": "phase5-repair-full-maintenance-debian13",
+      "size": 1986,
+      "digest": "sha256:fde0e90438078ec9cab74f9a13bf67adbc85c84b3e5d09237a970d2c21b51cae",
+      "created_at": "2026-09-25T10:55:02Z",
+      "expires_at": "2026-10-02T10:55:01Z"
+    },
+    {
+      "repository": "SepuLeVrai/hestia-nexus-avv",
+      "run": 36126448323,
+      "id": 10860275780,
+      "name": "phase5-repair-full-finalization-debian13",
+      "size": 2611,
+      "digest": "sha256:eb86371efd4737ac7566328e1c3a523a8d06311173fcaae84ad991249f0c42c1",
+      "created_at": "2026-09-25T10:56:20Z",
+      "expires_at": "2026-10-02T10:56:19Z"
+    },
+    {
+      "repository": "SepuLeVrai/hestia-nexus-avv",
+      "run": 36126448323,
+      "id": 10860206078,
+      "name": "phase5-repair-full-definer_repair-debian13",
+      "size": 2063,
+      "digest": "sha256:8941f8dd7697fd80cd47cea494bc0319f6d5a0ec8a5923213fcac3a252f5ea2f",
+      "created_at": "2026-09-25T10:58:00Z",
+      "expires_at": "2026-10-02T10:57:59Z"
+    },
+    {
+      "repository": "SepuLeVrai/hestia-nexus-avv",
+      "run": 36126448323,
+      "id": 10860195686,
+      "name": "phase5-repair-full-database_step-debian13",
+      "size": 2009,
+      "digest": "sha256:f5df55119b4ba0ac33a0c0a9dbd1f7efec166d4e80554665c3930f92292003ae",
+      "created_at": "2026-09-25T10:55:12Z",
+      "expires_at": "2026-10-02T10:55:11Z"
+    },
+    {
+      "repository": "SepuLeVrai/hestia-nexus-avv",
+      "run": 36126448323,
+      "id": 10859289518,
+      "name": "phase5-repair-full-upgrade_backup-debian13",
+      "size": 2632,
+      "digest": "sha256:119c6e74c5b266f30948920ce2e701e6247ec1255915049ee6d139e103b455cc",
+      "created_at": "2026-09-25T11:01:54Z",
+      "expires_at": "2026-10-02T11:01:53Z"
+    }
+  ],
+  "active_heads": [
+    {
+      "repo": "hestia-installer",
+      "branch": "main",
+      "sha": "c0dcb902663130302599635b36c7fb8deab80a47"
+    },
+    {
+      "repo": "hestia-nexus-avv",
+      "branch": "main",
+      "sha": "46c03060625d4d53c675474b11aaa33007d9aad7"
+    },
+    {
+      "repo": "hestia-nexus-avv",
+      "branch": "dev-Bastien",
+      "sha": "46c03060625d4d53c675474b11aaa33007d9aad7"
+    }
+  ],
+  "release_approved": false,
+  "phase5_complete": false
+}
