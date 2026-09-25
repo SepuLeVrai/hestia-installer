@@ -1,5 +1,19 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot court données modifiables - candidat en qualification
+
+Le checkpoint réparation `726757eeb139818a7aa93b90586091ff37a08f85` a terminé
+ses deux campagnes : Quality `36126405630` verte (456 core par Debian 12/13,
+16 navigateur, 21 HTTPS) et SQL/HTTP `36126448323` vert (100 scénarios sans skip).
+Les 16 tests du gate sont inclus dans core, pas ajoutés comme tests uniques.
+
+Le lot courant ajoute 22 tests obligatoires à core : cible attendue 478 par
+Debian. Contrat et limites : [données modifiables](PHASE5C2_DATA_FILES.md).
+Son code et ses docs doivent être figés avant la nouvelle Quality ; les résultats
+seront référencés dans le compte rendu compagnon sans retouche après gel.
+Les anciens scénarios SQL/HTTP restent historiques pour ce lot indépendant.
+
+
 ## Candidat WORK 5C2b
 
 Checkpoint maintenance `3d7440157a3251b54be820d1af5acaa8794a02f6` : Quality

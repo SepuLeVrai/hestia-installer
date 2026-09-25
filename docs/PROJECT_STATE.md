@@ -1,30 +1,25 @@
 # État du projet
 
-## Reprise WORK - candidat 5C2b en préparation
+## Reprise WORK - lots courts, Phase 5 toujours ouverte
 
-Checkpoint maintenance `3d7440157a3251b54be820d1af5acaa8794a02f6` : Quality
-`36125259959` et recette SQL `36125303870` toutes vertes, 91 scénarios SQL/HTTP
-distincts (18+21+15+30+7). La réparation [DEFINER explicite](PHASE5C2_REPAIR.md)
-est maintenant implémentée comme nouveau candidat privé, en attente de sa
-qualification. Ni 5C2 ni Phase 5 ne sont closes ; aucune branche active promue.
+Le candidat `726757eeb139818a7aa93b90586091ff37a08f85` est qualifié :
+Quality `36126405630` et recette SQL/HTTP `36126448323` réussies. Les journaux
+finaux confirment 100 scénarios (18+21+15+30+7+9), sans échec, erreur ou skip.
+Il couvre le DEFINER durable, le secours, la maintenance coopérative et la
+réparation explicite. Les branches actives n'ont pas été promues.
 
-La sauvegarde de secours est implémentée et ses 30 recettes backup passent sur
-`6cd77cac61c2f5c7256ad320e3bb3f5b954b7910`. Une erreur de nettoyage de fixture
-SQL garde la campagne globale rouge, voir [QUALITY.md](QUALITY.md). La barrière
-de [maintenance coordonnée](PHASE5_MAINTENANCE.md) est le candidat suivant ; elle
-doit être qualifiée puis raccordée au service réel avant toute clôture 5C/5D.
+À la demande de Bastien, la suite est découpée en petits lots sauvegardés.
+Le lot courant ajoute la [copie des données modifiables](PHASE5C2_DATA_FILES.md)
+et leur restauration isolée sous maintenance, avec 22 tests supplémentaires.
+Ce nouveau code est en qualification. Son raccordement au snapshot SQL et à
+l'inventaire complet des stockages n'est pas encore livré.
 
-Checkpoint futur managed : `12a7e8a045b4f62c22b314173ea0900f512f52de`, Quality
-`36123060501` verte (456 core Debian12/13, 16 DOM, 21 HTTPS). Les recettes SQL
-18 préparation, 21 finalisation, 15 précontrôles et24 backup sont vertes et relues
-dans les artefacts de `36123155845`. Aucune promotion. Le lot suivant prépare la
-[sauvegarde de secours explicite](PHASE5C2_RESCUE.md), qualification distincte.
+Restent ensuite : transition réelle et catalogue de versions, reprise/rollback,
+services et permissions Debian12/13, sessions et wizard, recette système complète,
+gel documentaire et livraison exacte. Ni 5C2 ni Phase 5 ne sont closes.
+Aucune PR, promotion ou mutation de production pour ces sous-lots.
 
-La mission porte sur la fin de 5C puis 5D. Le candidat courant prépare la
-[correction DEFINER](PHASE5C2_DEFINER.md) pour les futurs fresh managed, avec
-restauration isolée du profil durable. Qualification et promotion restent à
-confirmer sur le gel final. La réparation de l'existant et la clôture de la
-Phase 5 ne sont pas encore réalisées. Aucun déploiement de production.
+Les sections suivantes décrivent l'historique et ne remplacent pas ce statut.
 
 ## Point de reprise - 5C2a, prochaine frontière 5C2b
 

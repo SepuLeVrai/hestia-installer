@@ -1,5 +1,16 @@
 # Modèle de sécurité
 
+## Données modifiables sous maintenance
+
+La primitive de [snapshot de fichiers](PHASE5C2_DATA_FILES.md) n'accepte que
+l'inventaire construit par l'orchestrateur de confiance et une lease vivante.
+Archives et clones restent privés, sans exécution de PHP ni réactivation Web.
+Liens, ACL, attributs étendus, propriétaires étrangers et écritures publiques
+sont refusés. Une nouvelle lease après reprise d'activité ne peut pas restaurer
+une ancienne archive. Le raccordement à tous les producteurs et au SQL reste
+un gate distinct avant sauvegarde complète ou rollback vers la source.
+
+
 ## Principe principal
 
 Le mini-web ne doit jamais être un shell root présenté dans un navigateur.

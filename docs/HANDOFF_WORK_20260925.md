@@ -1,5 +1,20 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Reprise après interruption du stream, lot court données
+
+Sources restaurées et comparées à leurs objets Git : 132 fichiers Installer
+`726757eeb139818a7aa93b90586091ff37a08f85`, 1840 fichiers Web
+`46c03060625d4d53c675474b11aaa33007d9aad7`. HEAD actifs relus inchangés.
+Le checkpoint réparation est vert (Quality36126405630, SQL36126448323).
+
+Lot courant : `installer/backup_files.py`, tests obligatoires et contrat
+[PHASE5C2_DATA_FILES.md](PHASE5C2_DATA_FILES.md). Il doit être qualifié avant
+la suite. Aucun raccordement SQL/système ni support d'upgrade n'est ajouté ici.
+Prochain petit lot : composer cette preuve avec la sauvegarde SQL sous la même
+maintenance et dériver toutes les racines de la configuration supportée.
+Garder la mission globale 5C puis 5D, avec checkpoints courts documentés.
+
+
 ## Reprise WORK active
 
 Le mandat actuel couvre toute la fin de 5C puis 5D. Voir
