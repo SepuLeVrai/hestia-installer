@@ -89,6 +89,15 @@ vert ne démontre pas sa correction.
 
 ## Limites et suite
 
+Première campagne conservée : candidat `b3ae226e`, Quality `36155078767` verte,
+système `36155078238` rouge sur l’appel useradd. Le diagnostic jetable
+`36155433768` reproduit code 3 : `CREATE_MAIL_SPOOL` n’est pas une clé admise
+par `--key`. Retirer cette seule surcharge donne code 0, compte verrouillé,
+nologin, home absent et aucune boîte mail sur Debian 12 et 13. Le mode système
+reste imposé. Aucun contrôle de compte ni assertion n’est supprimé ; une
+régression interdit cette surcharge et les 47 recettes doivent toutes repasser
+sur le candidat corrigé. La branche diagnostic technique ne doit pas être fusionnée.
+
 Identité neuve uniquement. L’upgrade peut réobserver une identité déjà créée et
 prouvée, jamais adopter un compte arbitraire. Le choix numérique libre ne prouve
 pas l’absence de fichiers historiques d’un ancien UID ailleurs sur l’hôte :

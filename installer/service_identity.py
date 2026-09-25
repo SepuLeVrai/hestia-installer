@@ -134,8 +134,7 @@ class ServiceIdentity:
             '--home-dir', '/nonexistent', '--shell', str(NOLOGIN), '--password', '!', '--groups', '',
             '--comment', 'HESTIA-' + self.instance, '--expiredate', '', '--inactive', '-1',
             '--key', 'SYS_UID_MIN=100', '--key', 'SYS_UID_MAX=999',
-            '--key', 'SYS_GID_MIN=100', '--key', 'SYS_GID_MAX=999',
-            '--key', 'CREATE_MAIL_SPOOL=no', '--', self.user]
+            '--key', 'SYS_GID_MIN=100', '--key', 'SYS_GID_MAX=999', '--', self.user]
 
     def _create_account(self):
         result = subprocess.run(self._argv(), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,

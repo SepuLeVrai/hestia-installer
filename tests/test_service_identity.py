@@ -62,6 +62,9 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(args[0][-2:], ['--', self.identity.user])
         for option in ('--system', '--user-group', '--no-create-home', '--no-log-init'): self.assertIn(option, args[0])
         self.assertEqual(args[0][args[0].index('--password') + 1], '!')
+        # Mail defaults are not login.defs keys; the real system account recipe
+        # verifies absence of a mailbox without an unsupported -K override.
+        self.assertNotIn('CREATE_MAIL_SPOOL=no', args[0])
         self.assertEqual(kw['env'], {'PATH': '/usr/sbin:/usr/bin', 'LANG': 'C'})
         self.assertEqual(kw['stdin'], subprocess.DEVNULL); self.assertNotIn('shell', kw)
         self.assertEqual(kw['timeout'], 30)
