@@ -113,6 +113,14 @@ pas en PNG/JPEG. La recette exige maintenant le suffixe WebP, le MIME exact
 et la signature RIFF/WEBP en plus des octets servis. Aucun changement Web pour
 contourner ce résultat ; la restauration doit encore atteindre ses assertions.
 
+Le second banc `36197257509` a passé huit cas et la vérification coordonnée de
+sauvegarde SQL/fichiers. La restauration indépendante finale a correctement
+refusé le parent 0755 du banc (`FILES_ARCHIVE_REJECTED`). Sa destination neuve
+est maintenant placée sous le parent privé de sauvegarde 0700, comme le contrat
+de restauration l'exige. Les contrôles produit et la relecture finale des
+fichiers/session ne sont pas assouplis. Une nouvelle qualification intégrale
+du même arbre corrigé est requise.
+
 ## Frontières toujours ouvertes
 
 `application_installed`, `system_wiring_verified`, `writable_business_storage_ready`,

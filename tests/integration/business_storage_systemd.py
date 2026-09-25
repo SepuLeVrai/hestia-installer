@@ -213,7 +213,7 @@ class BusinessStorageLive(previous.DeployedWebLive):
             data = manifest['data_snapshot']
             snapshot = files.FileSnapshot(slot / 'data' / data['snapshot_id'], data['manifest_sha256'],
                                           self.scope.instance, lease.lease_id, self.web.pw_gid)
-            restored = self.root / 'restored'; snapshot.restore_new(restored, lease)
+            restored = backups / 'restored'; snapshot.restore_new(restored, lease)
             for name in labels:
                 original = self.http_root / 'data' / name
                 os.rename(original, self.root / ('retained-' + name))
