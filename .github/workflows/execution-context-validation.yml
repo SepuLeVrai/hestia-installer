@@ -2,7 +2,7 @@ name: Targeted configured service context
 
 on:
   push:
-    branches: ['work/phase5-execution-context-rootfs-20260926']
+    branches: ['work/phase5-execution-context-root-identity-20260926']
 
 permissions:
   contents: read

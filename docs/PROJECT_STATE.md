@@ -1,5 +1,11 @@
 # État du projet
 
+Second essai c7e9e52a/run36260975820 :325 contrôles et19/20 cas réels verts.
+Dernier échec : comparaison textuelle erronée du lien procfs root. Le banc
+compare maintenant dev/ino de la racine et du binaire avec la fixture, distincts
+de l'hôte, plus namespace et marqueur privé. Troisième job ciblé requis ; aucun
+changement du lecteur, aucune qualification globale ni promotion anticipée.
+
 Le premier job du lecteur (b92c1075/run36260640278) conserve325 contrôles et8
 cas parents verts, mais0/12 nouveaux cas exécutés : préparation rootfs refusée
 à EXEC. Le banc déplace sa racine exécutable de /run vers /var/lib et vérifie

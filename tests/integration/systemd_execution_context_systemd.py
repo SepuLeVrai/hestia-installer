@@ -47,6 +47,8 @@ class ExecutionContextLive(unittest.TestCase):
         cls.account=pwd.getpwnam(ACCOUNT);cls.other=pwd.getpwnam(OTHER)
         for name in ('home','source','destination','readonly','hidden'):(WORK/name).mkdir(mode=0o755)
         ROOTFS.mkdir(mode=0o755)
+        if Path('/hestia-root-marker').exists():raise RuntimeError('Unexpected host fixture marker')
+        (ROOTFS/'hestia-root-marker').write_text('private-fixture-root')
         mounts={'work_noexec':bool(os.statvfs(WORK).f_flag & os.ST_NOEXEC),
             'rootfs_noexec':bool(os.statvfs(ROOTFS).f_flag & os.ST_NOEXEC)}
         Path('/evidence/fixture-execution-mounts.json').write_text(json.dumps(mounts)+'\n')
@@ -236,7 +238,19 @@ class ExecutionContextLive(unittest.TestCase):
 
     def test_12_actual_disposable_rootfs_is_observed_as_configured_only(self):
         sample=self.reader().collect();values=self.context(sample,'root');process=pid(NAMES['root'])
-        self.assertEqual(os.readlink('/proc/'+str(process)+'/root'),str(ROOTFS))
+        proc=Path('/proc')/str(process)
+        def identity(path):
+            s=path.stat();return [s.st_dev,s.st_ino]
+        observed={'root':identity(proc/'root'),'fixture_root':identity(ROOTFS),'host_root':identity(Path('/')),
+            'executable':identity(proc/'exe'),'fixture_executable':identity(ROOTFS/'usr/bin/sleep'),
+            'host_executable':identity(Path('/usr/bin/sleep')),'root_link':os.readlink(proc/'root'),
+            'mount_namespace':os.readlink(proc/'ns/mnt'),'host_mount_namespace':os.readlink('/proc/self/ns/mnt')}
+        Path('/evidence/fixture-root-identity.json').write_text(json.dumps(observed)+'\n')
+        self.assertEqual(observed['root'],observed['fixture_root']);self.assertNotEqual(observed['root'],observed['host_root'])
+        self.assertEqual(observed['executable'],observed['fixture_executable']);self.assertNotEqual(observed['executable'],observed['host_executable'])
+        self.assertNotEqual(observed['mount_namespace'],observed['host_mount_namespace'])
+        self.assertEqual((proc/'root/hestia-root-marker').read_text(),'private-fixture-root')
+        self.assertFalse(Path('/hestia-root-marker').exists())
         self.assertEqual(values['RootDirectory'],str(ROOTFS));self.assertIs(values['RootDirectoryStartOnly'],True)
         self.assertEqual(values['RootImage'],'');self.assertFalse(sample.report()['effective_context_verified'])
 

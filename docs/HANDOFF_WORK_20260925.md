@@ -1,5 +1,10 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+Priorité la plus récente : second run36260975820 conserve325 contrôles et19/20
+cas réels verts. Remplacer l'hypothèse textuelle procfs root par l'identité
+dev/ino racine et binaire de fixture, séparation hôte, namespace et marqueur.
+Troisième job ciblé requis sur code/docs figés ; produit inchangé depuisb92c1075.
+
 Priorité : premier essai b92c1075/run36260640278 refusé avant les12 nouveaux cas,
 avec325 contrôles et8 cas parents verts. Correction de fixture uniquement :
 mini-rootfs sous /var/lib, statvfs prouvant /run noexec et rootfs exécutable.

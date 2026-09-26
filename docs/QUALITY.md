@@ -1,5 +1,10 @@
 # Quality et non-régression de HESTIA Installer
 
+Second run36260975820 :325 contrôles,19/20 cas réels verts,1 échec lié au nom
+du lien procfs root. Vérification corrigée et renforcée : dev/ino racine et
+exécutable, séparation hôte, namespace et marqueur privé. Troisième job ciblé
+requis après gel ; deux artefacts négatifs conservés, produit inchangé.
+
 Correctif du banc après run36260640278 :325 contrôles et8 scénarios parents
 verts, erreur setUpClass avant les12 cas nouveaux (Permission denied à EXEC).
 Mini-rootfs déplacé hors du tmpfs /run ; flags noexec/exécutable vérifiés et

@@ -116,6 +116,20 @@ Le lecteur et ses26 tests sont inchangés. Second job ciblé requis après nouve
 gel, sans modification de seuil ni suppression de scénario. Conserver l'artefact
 négatif10911767821, SHA256 f591d865f7444fc068f70adfa77e8b3151ceee72b0b4e08e30510b3a3013becb.
 
+Second candidat c7e9e52a, run36260975820 :325 contrôles,8 parents et11/12 nouveaux
+cas passent (1 échec,0 erreur,0 skip). statvfs confirme /run noexec et rootfs
+exécutable ; le service root démarre. Le dernier cas exigeait à tort que le texte
+du lien /proc/PID/root égale le chemin hôte : la valeur observée est /. La source
+namespace-v257.c épinglée (setup_namespace, lignes2845–2887) décrit le bind du
+RootDirectory puis mount_switch_root ; un nom de lien n'identifie pas l'inode.
+Le banc vérifie désormais les paires dev/ino de /proc/PID/root et /proc/PID/exe
+contre la racine et le sleep copiés, et leur différence avec ceux du conteneur.
+Il exige aussi un namespace de montage différent et un marqueur lisible dans
+la racine privée, absent à la racine hôte. Ces identités sont conservées dans
+l'artefact ; aucune identité système effective n'est pour autant certifiée par
+le produit. Troisième job ciblé après gel, lecteur et contrôles produit inchangés.
+Artefact négatif10912586738 : SHA256 0cb5631011ffbe42652e1071687f0358e7c49196bf54c3708fe52d5e1c70bb4d.
+
 Les24 lignes executed=false du JSON parent restent une matrice de conception
 historique, pas des résultats de tests. Les contrôles locaux couvrent notamment
 strict_decode, bounded_budget, all_bindings_digest et unsupported_property ;
