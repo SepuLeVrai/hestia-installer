@@ -1,5 +1,9 @@
 # État du projet
 
+Lot census/relations : run36255253018 refusé (299 contrôles verts,20/24 cas
+système verts). Diagnostic borné ajouté aux fixtures ; deuxième job prévu.
+Sources/preuves négatives conservées, causes non établies, aucun PASS anticipé.
+
 ## Candidats vivants, relations et sélection conservatrice
 
 Sur la base b1078e9d, le [raccordement census/relations](PHASE5_CENSUS_RELATIONS.md)

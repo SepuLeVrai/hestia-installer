@@ -2,7 +2,7 @@ name: Targeted census relation review
 
 on:
   push:
-    branches: ['work/phase5-census-relations-20260926']
+    branches: ['work/phase5-census-relations-diagnostics-20260926']
 
 permissions:
   contents: read
@@ -78,6 +78,9 @@ jobs:
       - name: Preserve evidence and remove disposable container
         if: always()
         run: |
+          docker exec hestia-discovery journalctl -b --no-pager -n 1000 > evidence/system-journal.log 2>&1 || true
+          docker exec hestia-discovery systemctl list-jobs --no-pager > evidence/final-jobs.log 2>&1 || true
+          docker exec hestia-discovery systemctl list-units --all --no-pager > evidence/final-units.log 2>&1 || true
           docker cp hestia-discovery:/evidence/. evidence/ || true
           docker logs --tail 100 hestia-discovery > evidence/boot.log 2>&1 || true
           docker rm -f hestia-discovery || true

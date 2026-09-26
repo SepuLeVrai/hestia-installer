@@ -151,3 +151,24 @@ familles de lanceurs, les neuf groupes de producteurs et l'inventaire exhaustif
 restent ouverts. Maintenance/sauvegarde exhaustives5C2, upgrade réel5C3, reprise/
 rollback5C4, orchestration système/wizard5D et Quality finales restent à fermer.
 L'incident parent12060235, le rejet c2acc806 et l'intermittence DOM restent conservés.
+
+## Premier job du lot : qualification refusée
+
+Le commit64f97bf59848ed769a6a7b2d0cfbc4dbe2a02872, arbre
+58079c57613f803a7ff622645c55904c89344cc2, a échoué au run36255253018.
+299 contrôleurs verts ;20 scénarios sur24 verts, trois erreurs et un échec,
+zéro skip. Le lecteur parent de relations a refusé une nouvelle collecte après
+redémarrage avec diagnostic générique ; le census parent a détecté une population
+changée. Le nouveau test de redémarrage a refusé AVANT sa mutation et son assertion
+de mutation atteinte a correctement échoué ; le dernier cas positif a été refusé.
+Ces résultats ne qualifient donc pas la livraison. Sources et preuves négatives
+sont conservées, sans conclusion prématurée sur les causes communes ou distinctes.
+
+Le diagnostic de fixture est étendu aux trois recettes : au plus8 exceptions,
+16 frames chacune, noms de fichiers/fonctions, lignes, coordonnées PID numériques
+et tokens fermés du parseur d'états. Pas de message libre, credentials, commande
+ou chemin privé. Aucun changement de code produit, délai ou assertion de recette.
+Le job conserve aussi le journal systemd et les dernières listes après les tests.
+Un second job ciblé avec instrumentation est prévu sur un nouvel arbre gelé ;
+aucune relance identique. Un vert ultérieur ne prouvera pas la résolution de
+ces premiers refus. La suite reste conditionnée aux preuves exactes du checkpoint.

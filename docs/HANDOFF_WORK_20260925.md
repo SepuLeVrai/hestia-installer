@@ -1,5 +1,9 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+Lot census/relations : run36255253018 refusé (299 contrôles verts,20/24 cas
+système verts). Diagnostic borné ajouté aux fixtures ; deuxième job prévu.
+Sources/preuves négatives conservées, causes non établies, aucun PASS anticipé.
+
 ## Reprise après relations des candidats vivants
 
 Base b1078e9d02820b19945a25271953df95dd3e9efb, arbre e96bb8853af307079857a72e4a566c3d5a0e3f85.

@@ -13,10 +13,14 @@ from installer import systemd_census_relations as y
 from installer.storage_inventory import StorageRequirements,PRODUCERS
 from systemd_invocation_systemd import command,until,UNIT_ROOT,fds,absent,pid
 from process_census_systemd import HELPER
+from discovery_diagnostics import DiagnosedCollect
 sys.path.insert(0,str(ROOT/'scripts'));import quality
 WORK=Path('/run/hestia-census-relations-fixture')
 NAMES={key:'census-relations-'+key+'.service' for key in ('stable','zombie','change','vanish','restart','foreign','quiet','unloaded')}
 TIMER='census-relations.timer';ALIAS='census-relations-alias.service'
+
+
+class Observed(DiagnosedCollect, y.SystemdCensusRelations): pass
 
 
 class Audited(y.x.SystemdInvocationRelations):
@@ -68,7 +72,7 @@ class CensusRelationsLive(unittest.TestCase):
         for path in WORK.iterdir():path.unlink()
         WORK.rmdir()
     def reader(self,transport=Audited):
-        reader=y.SystemdCensusRelations(self.target,self.storage);reader._transport=transport(self.target,self.storage);return reader
+        reader=Observed(self.target,self.storage);reader._transport=transport(self.target,self.storage);return reader
     def stable(self):return json.loads((WORK/'stable-ready.json').read_text())
 
     def test_01_three_leaders_one_invocation_two_property_sets(self):
@@ -102,7 +106,7 @@ class CensusRelationsLive(unittest.TestCase):
 
     def test_04_changed_relations_same_invocation_refused(self):
         original=(UNIT_ROOT/NAMES['stable']).read_text();passes=[]
-        class Changing(y.SystemdCensusRelations):
+        class Changing(Observed):
             def _properties(self,*args):
                 details=super()._properties(*args);passes.append(details)
                 if len(passes)==1:

@@ -1,5 +1,9 @@
 # Quality et non-régression de HESTIA Installer
 
+Lot census/relations : run36255253018 refusé (299 contrôles verts,20/24 cas
+système verts). Diagnostic borné ajouté aux fixtures ; deuxième job prévu.
+Sources/preuves négatives conservées, causes non établies, aucun PASS anticipé.
+
 ## Relations du census : qualification ciblée après gel
 
 [Lot courant](PHASE5_CENSUS_RELATIONS.md) :24 tests supplémentaires,

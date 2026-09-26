@@ -13,9 +13,13 @@ from installer import systemd_census_invocations as z
 from installer.storage_inventory import StorageRequirements,PRODUCERS
 from systemd_invocation_systemd import command,until,UNIT_ROOT,fds
 from process_census_systemd import HELPER
+from discovery_diagnostics import DiagnosedCollect
 sys.path.insert(0,str(ROOT/'scripts'));import quality
 WORK=Path('/run/hestia-census-invocation-fixture')
 NAMES={key:'census-invocation-'+key+'.service' for key in ('stable','zombie','change','move','birth','exit','restart','other')}
+
+
+class Observed(DiagnosedCollect, z.SystemdCensusInvocations): pass
 
 
 class CensusInvocationLive(unittest.TestCase):
@@ -50,7 +54,7 @@ class CensusInvocationLive(unittest.TestCase):
         command('systemctl','daemon-reload')
         for path in WORK.iterdir():path.unlink()
         WORK.rmdir()
-    def reader(self):return z.SystemdCensusInvocations(self.target,self.storage)
+    def reader(self):return Observed(self.target,self.storage)
     def stable(self):return json.loads((WORK/'stable-ready.json').read_text())
 
     def test_01_thread_signal_and_three_leaders_share_one_actual_invocation(self):
@@ -82,7 +86,7 @@ class CensusInvocationLive(unittest.TestCase):
 
     def test_03_same_live_descriptors_owned_through_queries_then_all_closed(self):
         seen={};owned_set={};before=fds()
-        class Audited(z.SystemdCensusInvocations):
+        class Audited(Observed):
             def _between(self,rows,owned,*args):
                 owned_set.update(owned);return super()._between(rows,owned,*args)
             def _binding(self,pid,fd,*args):
@@ -101,7 +105,7 @@ class CensusInvocationLive(unittest.TestCase):
 
     def mutation(self,key,action):
         fixture=self.start(key);before=fds()
-        class Changing(z.SystemdCensusInvocations):
+        class Changing(Observed):
             changed=False
             def _binding(self,pid,*args):
                 result=super()._binding(pid,*args)

@@ -23,7 +23,10 @@ VANISH, RESTART = 'relation-vanish.service', 'relation-restart.service'
 UNLOADED = 'relation-never-loaded.service'
 SECRET = 'description-not-for-manifest'
 
-class Audited(x.SystemdInvocationRelations):
+from discovery_diagnostics import DiagnosedCollect
+
+
+class Audited(DiagnosedCollect, x.SystemdInvocationRelations):
     def __init__(self, *args): super().__init__(*args); self.detail_calls = []; self.returned = []
     def _relation_query(self, prop, binding, owner, budget):
         self.detail_calls.append((prop, binding.invocation_path))
