@@ -1,5 +1,18 @@
 # État du projet
 
+## Blocage confirmé : propriétés d'unités et chargement implicite
+
+La [preuve négative](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md) invalide la proposition
+Properties.Get sur les chemins nommés d'unités disparues : systemd peut les
+recharger. Le prototype `c2acc806` est rejeté après le run `36238806917`
+(180 contrôles verts, sept cas système verts et un échec). Aucun second run.
+
+Ce checkpoint repart de `7a331ce3` avec seuls les documents corrigés : code,
+tests et workflows identiques. Les détails Names/relations ne sont pas livrés.
+Gardes statiques sur 212 fichiers et preuves conservées ; pas de qualification
+globale ni promotion. Prochain lot : contrat d'acquisition sans chargement,
+avant tout contexte d'exécution. Checkpoint puis arrêt. Sections historiques.
+
 ## Transport réel des trois listes systemd
 
 Sur la base `ebafa119`, le [transport privé](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md)

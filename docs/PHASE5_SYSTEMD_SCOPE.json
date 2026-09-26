@@ -48,7 +48,10 @@
     "no_subscription_or_event_history_claim": true,
     "transport_implementation_selected": false,
     "two_bounded_enumerations": true,
-    "automatic_retries": 0
+    "automatic_retries": 0,
+    "property_transport_status": "REJECTED_NAMED_OBJECTS_CAN_AUTOLOAD",
+    "correction_document": "PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md",
+    "negative_run": 36238806917
   },
   "classification": {
     "outcomes": [

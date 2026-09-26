@@ -1,5 +1,15 @@
 # Quality et non-régression de HESTIA Installer
 
+## Preuve négative du lecteur de propriétés
+
+Le [diagnostic](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md) conserve le run unique
+36238806917 : 180 contrôles passent, sept cas système passent et un échoue.
+Le prototype c2acc806 n'est pas qualifié. Aucun retry ni assertion affaiblie.
+Le candidat de reprise conserve tous les fichiers hors docs de 7a331ce3.
+Validation documentaire locale et gardes statiques sur 212 fichiers ; core
+787 détectables/782 requis inchangés. Aucune nouvelle qualification runtime
+ou globale, aucune promotion. Les preuves exactes sont dans le checkpoint.
+
 ## Transport de découverte : un seul job ciblé
 
 Le [transport](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) ajoute 21 tests, soit

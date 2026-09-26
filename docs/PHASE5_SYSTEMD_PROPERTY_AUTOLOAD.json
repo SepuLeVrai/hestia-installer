@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "state": "NAMED_UNIT_PROPERTY_TRANSPORT_REJECTED",
+  "base_commit": "7a331ce38f032e2a6a96a8896062f5bf4541862b",
+  "runtime_code_changed": false,
+  "rejected_prototype": "c2acc8068d68ade12e7ff0fea9d810b8217b008f",
+  "rejected_tree": "5bc91622f2468d83e733861d77248ab69669a5df",
+  "negative_run": 36238806917,
+  "negative_job": 108395379652,
+  "actions_runs": 1,
+  "actions_jobs": 1,
+  "system_scenarios": {
+    "passed": 7,
+    "failed": 1,
+    "errors": 0,
+    "skips": 0
+  },
+  "prototype_controllers": 180,
+  "prototype_qualified": false,
+  "replacement_transport_delivered": false,
+  "read_only_no_load_claim_allowed": false,
+  "phase5_complete": false,
+  "primary_references": [
+    {
+      "url": "https://github.com/systemd/systemd/blob/v257/src/core/dbus.c",
+      "sha256": "02a2d27f94a72bbd9d0a035108f81ed94046eb35ba33cb2b3758cc4b2cd67bc7",
+      "bytes": 40858,
+      "anchors": [
+        {
+          "token": "static int find_unit(",
+          "lines": [
+            272
+          ]
+        },
+        {
+          "token": "r = manager_load_unit_from_dbus_path(m, path, error, &u);",
+          "lines": [
+            296
+          ]
+        },
+        {
+          "token": "static int bus_unit_find(",
+          "lines": [
+            306
+          ]
+        },
+        {
+          "token": "return find_unit(m, bus, path, (Unit**) found, error);",
+          "lines": [
+            314
+          ]
+        },
+        {
+          "token": "{ bus_unit_vtable,        bus_unit_find }",
+          "lines": [
+            467
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/systemd/systemd/blob/v257/src/core/manager.c",
+      "sha256": "b60965ba2499941de2f0faa7b8ffffa6ac43286ff2b45aea568eca8772b8c8da",
+      "bytes": 203586,
+      "anchors": [
+        {
+          "token": "int manager_load_unit_from_dbus_path(",
+          "lines": [
+            3480
+          ]
+        },
+        {
+          "token": "u = hashmap_get(m->units_by_invocation_id, &invocation_id);",
+          "lines": [
+            3498
+          ]
+        },
+        {
+          "token": "r = manager_load_unit(m, n, NULL, e, &u);",
+          "lines": [
+            3518
+          ]
+        }
+      ]
+    },
+    {
+      "url": "https://github.com/systemd/systemd/blob/v252/src/core/dbus.c",
+      "sha256": "9bd06f92cc94d181bb97a6e30a64ef9ee074cb6b490b97fc3325ed13cd474925",
+      "bytes": 41300,
+      "anchors": [
+        {
+          "token": "static int find_unit(",
+          "lines": [
+            275
+          ]
+        },
+        {
+          "token": "r = manager_load_unit_from_dbus_path(m, path, error, &u);",
+          "lines": [
+            304
+          ]
+        },
+        {
+          "token": "return find_unit(m, bus, path, (Unit**) found, error);",
+          "lines": [
+            322
+          ]
+        }
+      ]
+    }
+  ]
+}

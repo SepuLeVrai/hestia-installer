@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Properties.Get nommé peut recharger une unité disparue
+
+La [preuve réelle et la source officielle](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md)
+montrent qu'un appel de propriété sur un ancien chemin Unit peut charger à
+nouveau ce nom. auto-start=no ne protège pas contre cette résolution interne.
+Aucun lecteur de détails n'est livré : le prototype est rejeté. Un précontrôle
+ou refus final ne supprime pas cet effet. Pas de Ref/RefUnit ou garde acquise
+ajouté implicitement. Le transport des trois listes reste inchangé ; aucun
+nouveau droit de lecture détaillée, de contrôle ou d'exclusion n'est accordé.
+
 ## Lecture des listes système sans admission d'exécution
 
 Le [transport fermé](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) refuse le broker

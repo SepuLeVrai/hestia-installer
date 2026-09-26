@@ -1,5 +1,14 @@
 # Architecture HESTIA Installer
 
+## Acquisition des détails suspendue après preuve négative
+
+Le [lecteur expérimental de propriétés](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md)
+est rejeté : la résolution interne d'un chemin Unit nommé peut charger une
+unité disparue. Le code de ce candidat est celui de 7a331ce3, sans nouvel
+adaptateur ni budget élargi. Les modèles purs conservent leurs faits déclarés ;
+les trois listes restent observables par leur transport qualifié. La méthode
+d'acquisition de Names/relations doit être révisée avant toute implémentation.
+
 ## Adaptateur privé des listes du manager
 
 `systemd_discovery_transport.SystemdDiscoveryTransport` effectue 24 appels

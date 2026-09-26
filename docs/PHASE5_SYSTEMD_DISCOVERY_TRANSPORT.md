@@ -1,5 +1,14 @@
 # Transport privé de découverte du manager système
 
+## Suite arrêtée sur une preuve de chargement implicite
+
+Le [prototype de détails](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md) a été rejeté :
+Properties.Get sur un chemin Unit nommé peut recharger une unité disparue.
+Ce checkpoint conserve exactement le code de ce transport, avec ses 24 appels
+et aucune propriété Unit. Le dernier résultat système vert reste 36235476328 ;
+le run 36238806917 appartient au prototype rejeté et a échoué. Contrat du futur
+lecteur à réviser avant reprise ; aucun second run lancé pour ce diagnostic.
+
 ## Périmètre
 
 Base `ebafa1199a1a68f6410ce17d24508a1a30feb99b`, arbre

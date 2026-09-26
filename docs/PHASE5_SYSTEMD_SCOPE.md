@@ -1,5 +1,15 @@
 # Contrat de découverte systemd hors du profil provisionné
 
+## Correction impérative : proposition Properties.Get rejetée
+
+La [recette négative 36238806917](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md) et la
+source systemd prouvent qu'un chemin Unit nommé peut recharger une unité
+après sa disparition. La proposition Properties.Get ci-dessous reste historique
+et n'est plus admise comme preuve de lecture sans chargement. Objectif intact :
+pas de chargement, de mutation ou de garde acquise. Prochain lot de contrat
+requis ; aucun lecteur de détails livré. Les 28 cas restent non qualifiés comme
+campagne globale, les modèles purs et le transport de listes sont inchangés.
+
 ## Premier transport limité désormais livré
 
 Le [transport des trois listes](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) utilise
