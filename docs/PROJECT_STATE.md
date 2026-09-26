@@ -1,5 +1,17 @@
 # État du projet
 
+## Liaison PIDFD minimale implémentée, qualification ciblée
+
+Sur ff13729f, le [lecteur d'invocation](PHASE5_SYSTEMD_INVOCATION_BINDING.md)
+implémente Id/InvocationID à partir de PID explicites, deux passages et PIDFD
+possédés. Aucune propriété d'unité sur chemin nommé, aucun fallback ni mutation.
+21 nouveaux tests, sélection de176 ; un seul job Debian13 de huit scénarios
+réels est prévu après gel code/docs. Résultats exacts dans le checkpoint,
+aucun succès anticipé. Quality globales et promotions restent différées.
+Prochain lot : Names/relations via invocation ; PID de confiance, identités et
+unités sans processus restent ouverts. Checkpoint puis arrêt. Sections suivantes
+historiques ; la preuve négative c2acc806 reste valable.
+
 ## Contrat de remplacement par PIDFD et invocation
 
 Sur `d86e406a`, le [nouveau contrat](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md)

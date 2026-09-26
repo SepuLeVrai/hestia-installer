@@ -1,5 +1,14 @@
 # Contrat de découverte systemd hors du profil provisionné
 
+## Première liaison d'invocation implémentée
+
+Le [lecteur minimal](PHASE5_SYSTEMD_INVOCATION_BINDING.md) livre deux observations
+Id/InvocationID sur PIDFD possédés et adresse d'invocation validée. Huit cas
+système ciblés prévus, avec preuves exactes dans le checkpoint. Il ne livre pas
+Names/relations, UID/GID, source de PID de confiance, couverture des unités sans
+processus ou adoption. Les contrats généraux ci-dessous restent historiques ;
+aucune clôture des28 critères globaux, aucun retour aux chemins nommés.
+
 ## Alternative bornée à qualifier : liaison par invocation
 
 Le [contrat PIDFD/invocation](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md) définit

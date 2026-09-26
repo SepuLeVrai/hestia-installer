@@ -61,7 +61,9 @@ def _argv(operation, owner=None):
 
 
 class _Budget:
-    def __init__(self):
+    def __init__(self, *, invocation_pairs=0):
+        require(type(invocation_pairs) is int and 0 <= invocation_pairs <= 128, 'DISCOVERY_TRANSPORT_LIMIT')
+        self.maximum_calls = MAX_CALLS + 8 * invocation_pairs
         self.started = time.monotonic()
         self.deadline = self.started + COLLECTION_SECONDS
         self.bytes = 0
@@ -73,14 +75,16 @@ class _Budget:
         return remaining
 
 
-def _capture(argv, budget):
+def _capture(argv, budget, *, pass_fds=()):
     budget.remaining()
-    require(budget.calls < MAX_CALLS and budget.bytes < MAX_TOTAL, 'DISCOVERY_TRANSPORT_LIMIT')
+    require(budget.calls < budget.maximum_calls and budget.bytes < MAX_TOTAL, 'DISCOVERY_TRANSPORT_LIMIT')
+    require(type(pass_fds) is tuple and len(pass_fds) <= 1
+            and all(type(fd) is int and fd >= 3 for fd in pass_fds), 'DISCOVERY_FD_REJECTED')
     budget.calls += 1
     maximum = min(MAX_REPLY, MAX_TOTAL - budget.bytes)
     deadline = min(budget.deadline, time.monotonic() + CALL_SECONDS)
     child = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, cwd='/', close_fds=True,
+        stderr=subprocess.DEVNULL, cwd='/', close_fds=True, pass_fds=pass_fds,
         env={'PATH': '/usr/sbin:/usr/bin', 'LANG': 'C', 'LC_ALL': 'C', 'SYSTEMD_PAGER': ''})
     raw = bytearray()
     try:

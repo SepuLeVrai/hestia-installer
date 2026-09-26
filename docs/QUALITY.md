@@ -1,5 +1,16 @@
 # Quality et non-régression de HESTIA Installer
 
+## Liaison d'invocation : un seul job ciblé
+
+[Lot PIDFD](PHASE5_SYSTEMD_INVOCATION_BINDING.md) : 21 nouveaux contrôles,
+176 tests affectés requis localement et sous Debian13. Un seul job ciblé inclut
+huit vrais scénarios D-Bus/PIDFD, dont disparition sans rechargement et ancien
+chemin après redémarrage. Zéro skip/erreur/échec exigé, manifeste exact avant/après.
+Baseline complétée avec les21 IDs, gardes statiques après gel code/docs ; pas
+de Quality globale ou promotion anticipée. Résultats exacts dans le checkpoint.
+La future campagne système inclut la recette sous Debian13, profil257 seulement.
+Les JSON historiques de16/28 exigences ne deviennent pas des campagnes vertes.
+
 ## Contrat PIDFD/invocation : validation locale seulement
 
 Le [contrat](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md) conserve le runtime de

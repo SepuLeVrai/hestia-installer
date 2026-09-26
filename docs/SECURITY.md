@@ -1,5 +1,16 @@
 # Modèle de sécurité
 
+## Lecteur minimal sans propriété d'unité nommée
+
+Le [lecteur PIDFD](PHASE5_SYSTEMD_INVOCATION_BINDING.md) n'accepte ni FD ni ID
+d'invocation fourni. Il compare le nom/chemin reçus, valide l'ID non nul et le
+chemin canonique, puis lit seulement Id/InvocationID à cette adresse. FD local
+surveillé et fermé, provenance et données comparées ; aucune autorité de drain.
+Le PID proposé ne prouve pas une ancienne identité. Pas de fallback, RefUnit,
+commande/environnement aspiré ni signal à un observé. La recette doit prouver
+le refus de l'ancien chemin sans recharge ; résultat dans les preuves gelées.
+Le prototype nommé reste rejeté. Les états suivants sont historiques.
+
 ## Alternative conçue, sans réhabilitation du chemin nommé
 
 Le [contrat d'invocation](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md) impose un ID

@@ -1,5 +1,12 @@
 # Contrat d'acquisition par PIDFD et identifiant d'invocation
 
+## Suite du contrat : implémentation minimale
+
+Le [lot suivant](PHASE5_SYSTEMD_INVOCATION_BINDING.md) implémente la liaison
+Id/InvocationID ; sa qualification ciblée est rapportée dans son checkpoint.
+Le présent document et son JSON conservent la conception et ses seize exigences
+comme état historique, sans transformer cette matrice en campagne exécutée.
+
 ## Décision et périmètre de ce lot
 
 Base `d86e406a11868b45c59cf945d71b5076cd7c052e`, arbre

@@ -1,5 +1,14 @@
 # Architecture HESTIA Installer
 
+## Adaptateur minimal d'invocation
+
+`systemd_invocation.SystemdInvocationTransport` hérite des tours de listes et
+ajoute deux liaisons privées PIDFD/Id/InvocationID sur chemin canonique d'invocation.
+Le [contrat livré](PHASE5_SYSTEMD_INVOCATION_BINDING.md) conserve un budget commun
+24+8N, N<=128, et le FD local entre les passages. Les modèles purs, endpoints,
+projections et opérations de mutation sont inchangés. Aucun recensement de PID
+ni contexte effectif déduit. Sections de conception suivantes historiques.
+
 ## Contrat futur de liaison d'invocation
 
 Le [protocole PIDFD](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md) acquiert l'ID par
