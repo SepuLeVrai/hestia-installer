@@ -1,5 +1,16 @@
 # Modèle de sécurité
 
+## Barrière de sauvegarde des services provisionnés
+
+Le [parcours intégré](PHASE5_PROVISIONED_BACKUP.md) possède son bail de drain,
+recontrôle profils/cgroups/identités et conserve une connexion SQL verrouillée
+pendant copie/restauration. Secrets sur stdin, commandes fermées, worker privé
+borné et récolté ; aucun argv SQL libre. Le verrou est global et transitoire,
+avec consentement distinct. Perte du worker, annulation ou dérive empêche le reçu
+commun ; la maintenance ne s'ouvre jamais automatiquement. Les autres producteurs
+fichiers et la complétude hôte restent des gates ouverts, sans autorité dérivée
+d'un simple census. Aucun reçu ne permet apply, restore original ou rollback.
+
 ## Contexte Service acquis, toujours sans autorité
 
 Le [lecteur configuré](PHASE5_EXECUTION_CONTEXT_READER.md) applique le contrat

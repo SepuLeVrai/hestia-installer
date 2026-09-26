@@ -1,5 +1,17 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot ciblé : sauvegarde provisionnée avec verrou SQL continu
+
+Voir [le contrat intégré](PHASE5_PROVISIONED_BACKUP.md). Dix nouveaux contrôles
+s'ajoutent au baseline sans retrait ;65 contrôles concernés locaux,97 en Debian13
+avec les fichiers réels. Un seul job ciblé réunit les7 nouvelles recettes et
+les9 business historiques ; SQL/Apache/PHP8.4/NGINX réels, réseau externe coupé.
+La sortie positive exige zéro erreur, échec ou skip, sources/modes stables et
+artefacts vérifiés. PHP/SQL/systemd sont indisponibles localement ; les doublures
+de composition et tests de pipes ne sont pas leurs preuves de remplacement.
+Résultats au checkpoint exact. Toutes les Quality globales restent requises
+avant PR/FF ; aucun travail de découverte générique n'est requalifié sans changement.
+
 Second run36260975820 :325 contrôles,19/20 cas réels verts,1 échec lié au nom
 du lien procfs root. Vérification corrigée et renforcée : dev/ino racine et
 exécutable, séparation hôte, namespace et marqueur privé. Troisième job ciblé

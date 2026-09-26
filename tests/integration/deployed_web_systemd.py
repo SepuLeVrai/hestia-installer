@@ -41,6 +41,7 @@ WEB = None
 class DeployedWebLive(final_tests.FinalizationIntegration):
     release_commit = f.WEB_COMMIT
     external_uploads = False
+    proxy_user = None
     @classmethod
     def setUpClass(cls):
         if os.environ.get('HESTIA_DEPLOYED_WEB_TEST') != '1' or os.geteuid() != 0 \
@@ -125,7 +126,7 @@ class DeployedWebLive(final_tests.FinalizationIntegration):
                 '-subj', '/CN=' + self.spec.hostname, '-addext', 'subjectAltName=IP:127.0.0.1,DNS:' + self.spec.hostname,
                 '-keyout', str(key), '-out', str(cert)); key.chmod(0o600)
         config = front / 'nginx.conf'
-        config.write_text(f'''user {self.web.pw_name};
+        config.write_text(f'''user {self.proxy_user or self.web.pw_name};
 pid {front}/nginx.pid;
 error_log {front}/nginx.log warn;
 events {{ worker_connections 32; }}

@@ -1,5 +1,21 @@
 # État du projet
 
+## Priorité courante : sauvegarde intégrée provisionnée
+
+Le parent8e063bc3/run36261287478 est vérifié :325 contrôles et20 cas réels verts,
+artefact/source/modes contrôlés. Les attentes de « troisième job » plus bas sont
+historiques. La découverte générique Exec*Ex est différée selon le recentrage
+convenu ; ses protections ne sont ni retirées ni promues en autorités.
+
+Le [lot intégré](PHASE5_PROVISIONED_BACKUP.md) raccorde le drain HTTP/collecteur
+à la sauvegarde coordonnée et maintient un verrou SQL durant toute la copie et
+la restauration de preuve. Six racines exactes, fresh managed local, aucune
+remise en service automatique.65 contrôles locaux et un seul job ciblé prévu
+avec97 contrôles et16 scénarios réels ; résultats exacts dans le checkpoint.
+Code et documentation gelés ensemble, sans qualification globale ni promotion.
+Prochaine frontière : admission opposable des autres producteurs et exhaustivité5C2,
+puis vraie bascule5C3, incidents/rollback5C4, orchestration/wizard5D et gates finaux.
+
 Second essai c7e9e52a/run36260975820 :325 contrôles et19/20 cas réels verts.
 Dernier échec : comparaison textuelle erronée du lien procfs root. Le banc
 compare maintenant dev/ino de la racine et du binaire avec la fixture, distincts

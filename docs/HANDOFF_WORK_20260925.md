@@ -1,5 +1,20 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Reprise prioritaire : parcours intégré de sauvegarde provisionnée
+
+Lire PHASE5_PROVISIONED_BACKUP.md. Base8e063bc3 qualifiée au run36261287478
+(325 contrôles,20 cas réels),255 fichiers ; ne pas reprendre les attentes
+historiques du lecteur configuré ci-dessous. Le prochain développement générique
+Exec*Ex est différé. L'objectif actuel est fonctionnel et limité aux services
+créés par HESTIA : drain commun, verrou SQL continu, sauvegarde/restauration.
+
+Le nouveau lot ajoute ProvisionedBackup et sql_read_fence ; le coordinateur
+existant conserve son chemin historique. Un seul job ciblé prévu après gel,
+97 contrôles et7 nouveaux+9 anciens cas réels. Se référer au checkpoint pour
+le commit, les résultats exacts et les éventuelles preuves négatives ; aucune
+promotion ou clôture5C2 n'est anticipée. Maintenance conservée en toute sortie.
+Reprendre ensuite l'admission des producteurs/racines hors profil, puis5C3/5C4/5D.
+
 Priorité la plus récente : second run36260975820 conserve325 contrôles et19/20
 cas réels verts. Remplacer l'hypothèse textuelle procfs root par l'identité
 dev/ino racine et binaire de fixture, séparation hôte, namespace et marqueur.

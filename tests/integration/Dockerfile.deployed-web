@@ -6,7 +6,7 @@ RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d \
     && apt-get install -y --no-install-recommends systemd-sysv dbus python3 passwd util-linux \
        php-fpm php-cli php-mysql php-mbstring php-curl php-xml php-zip php-gd \
        apache2 nginx openssl ca-certificates mariadb-server \
-    && systemctl mask mariadb.service mysql.service mysqld.service apache2.service nginx.service php8.4-fpm.service \
+    && systemctl mask mariadb.service mysql.service mysqld.service apache2.service nginx.service php8.4-fpm.service getty@tty1.service \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /evidence
 COPY --chown=0:0 . /opt/hestia-installer

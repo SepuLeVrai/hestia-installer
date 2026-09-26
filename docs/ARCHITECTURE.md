@@ -1,5 +1,15 @@
 # Architecture HESTIA Installer
 
+## Parcours intégré de sauvegarde provisionnée
+
+[ProvisionedBackup](PHASE5_PROVISIONED_BACKUP.md) compose HttpDrain avec son
+SessionCleaner exact et construit les six racines depuis RuntimeSpec. Le
+CoordinatedBackup reçoit le bail de maintenance et sa barrière de services ;
+il ajoute un SqlReadFence conservé dans son ExitStack autour des preuves
+fichiers/SQL/enveloppe. Le chemin historique sans barrière reste inchangé.
+Le reçu lie le profil exact sans revendiquer l'exhaustivité des producteurs.
+Aucun endpoint/wizard, restart automatique ou transition de version ajouté.
+
 ## Lecteur configuré sans projection de pertinence
 
 [SystemdExecutionContext](PHASE5_EXECUTION_CONTEXT_READER.md) compose le census/

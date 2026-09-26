@@ -21,6 +21,7 @@ from installer import database_config as fs
 from installer import database_step as d
 from installer import finalization as f
 from installer import maintenance as m
+from installer import http_drain as hd, sql_read_fence as rf
 from installer import php_transport as p
 from installer import upgrade_backup as sql
 from installer.model import strict_json_loads
@@ -98,11 +99,20 @@ class CoordinatedBackup:
 
     def create_and_verify(self, payload: dict, authority: d.SqlAuthorityCredentials, *, config_root: Path,
                           backup_root: Path, inventory: files.DataInventory, maintenance: m.MaintenanceLease,
-                          confirmed: bool, allow_global_read_lock: bool, cancel=None) -> CoordinatedVerification:
+                          confirmed: bool, allow_global_read_lock: bool, cancel=None,
+                          service_barrier: hd.HttpDrainLease | None = None) -> CoordinatedVerification:
         started = False
+        fence = None
+        def held():
+            _held(maintenance)
+            if service_barrier is not None:
+                require(type(service_barrier) is hd.HttpDrainLease and service_barrier._lease is maintenance,
+                        'COORDINATED_SERVICE_BARRIER_REQUIRED')
+                service_barrier.assert_held()
+            if fence is not None: fence.assert_held()
         try:
             require(confirmed is True and allow_global_read_lock is True, 'COORDINATED_CONSENT_REQUIRED')
-            _held(maintenance)
+            held()
             require(type(authority) is d.SqlAuthorityCredentials and type(inventory) is files.DataInventory,
                     'COORDINATED_INPUT_REJECTED')
             require(type(payload) is dict and payload.get('mode') == 'upgrade'
@@ -132,11 +142,32 @@ class CoordinatedBackup:
                                 'COORDINATED_EXTERNAL_ROOTS_REQUIRED')
                 require(not any(backup_root == Path(x) or Path(x) in backup_root.parents
                                 for x in ('/srv', '/var/www', '/tmp')), 'COORDINATED_PATH_REJECTED')
+                barrier_profile = None
+                if service_barrier is not None:
+                    runtime = service_barrier._drain.runtime
+                    spec = runtime.spec
+                    require(service_barrier._drain.cleaner is not None and spec.external_uploads
+                            and spec.webroot == web and spec.maintenance_directory == directory / 'maintenance'
+                            and spec.instance == seal['instance'], 'COORDINATED_SERVICE_BARRIER_REQUIRED')
+                    prepared = f._json_read(conf, 'state.json', gid)
+                    require(prepared.get('migration_retained') is False and database['host'] == '127.0.0.1'
+                            and database['tls_required'] is False and ca is None,
+                            'COORDINATED_FRESH_MANAGED_PROFILE_REQUIRED')
+                    expected = tuple((name.replace('-', '_'), spec.root / 'data' / name)
+                                     for name in (*hd.h.DATA, 'uploads'))
+                    require(inventory.roots == expected, 'COORDINATED_PROVISIONED_ROOTS_REQUIRED')
+                    with fs._directory(spec.root / 'data', readable_by=gid) as datafd:
+                        require(set(os.listdir(datafd)) == set((*hd.h.DATA, 'uploads')),
+                                'COORDINATED_PROVISIONED_ROOTS_REQUIRED')
+                    barrier_profile = f._sha(service_barrier._profile)
                 inventory.validate(backup_root, maintenance)
                 rootfd = stack.enter_context(fs._directory(backup_root))
                 info = os.fstat(rootfd)
                 require(info.st_gid == 0 and stat.S_IMODE(info.st_mode) == 0o700, 'COORDINATED_PATH_REJECTED')
                 require(cancel is None or not cancel.is_set(), 'COORDINATED_INTERRUPTED')
+                if service_barrier is not None:
+                    fence = stack.enter_context(rf.acquire(self.runtime, self.source, database, ca, authority, cancel=cancel))
+                    held()
                 backup_id = os.urandom(16).hex()
                 slot = backup_root / backup_id
                 os.mkdir(backup_id, 0o700, dir_fd=rootfd)
@@ -149,19 +180,19 @@ class CoordinatedBackup:
                 for name in ('data', 'sql'):
                     (slot / name).mkdir(mode=0o700)
                 snapshot = files.capture_and_verify(inventory, slot / 'data', maintenance, confirmed=True, cancel=cancel)
-                _held(maintenance)
+                held()
                 backup = sql.UpgradeBackup(self.runtime, self.source, repository=p.WEB_REPOSITORY, commit=self.release.commit)
                 restored = backup.create_and_verify(value, authority, config_root=config_root, backup_root=slot / 'sql',
                     confirmed=True, allow_global_read_lock=True, cancel=cancel).report()
                 require(restored.get('state') == 'BACKUP_RESTORE_VERIFIED' and restored.get('backup_verified') is True,
                         'COORDINATED_SQL_BACKUP_FAILED')
-                _held(maintenance)
+                held()
                 _files_unchanged(snapshot, maintenance, cancel)
                 # Re-restore saved data after SQL validation, detecting damage to its blobs.
                 snapshot.restore_new(slot / 'data-proof', maintenance, cancel=cancel)
                 shutil.rmtree(slot / 'data-proof')
                 recheck = _recheck(self.runtime, self.source, database, ca, authority, slot, restored, cancel)
-                _held(maintenance)
+                held()
                 _files_unchanged(snapshot, maintenance, cancel)
                 current._sources(web)
                 require(f._completed(conf, webfd, inc, gid, commit=self.release.commit) == completed
@@ -188,8 +219,11 @@ class CoordinatedBackup:
                 manifest = {**binding, 'scope': 'SQL_IMMUTABLE_WEB_ENVELOPE_REGISTERED_EXTERNAL_DATA',
                             'sql_backup': restored, 'data_snapshot': data, 'sql_recheck': recheck,
                             'storage_inventory_complete': False, 'system_wiring_verified': False}
+                if barrier_profile is not None:
+                    manifest['service_barrier'] = {'profile_sha256': barrier_profile,
+                        'policy': 'PROVISIONED_HTTP_CLEANER_AND_SQL_FENCE_V1'}
                 sql._new_file(slot / 'coordinated.json', p._json(manifest))
-                _held(maintenance)
+                held()
                 require(cancel is None or not cancel.is_set(), 'COORDINATED_INTERRUPTED')
                 result = {'state': 'COORDINATED_BACKUP_RESTORE_VERIFIED', 'code': 'OK', 'backup_id': backup_id,
                     'manifest_sha256': f._sha(p._json(manifest)), 'source_commit': self.release.commit,
@@ -199,6 +233,11 @@ class CoordinatedBackup:
                     'storage_inventory_complete': False, 'system_wiring_verified': False, 'complete_web_backup': False,
                     'maintenance_required': True, 'activity_resumed': False, 'apply_allowed': False,
                     'restore_to_original_allowed': False, 'rollback_verified': False, 'application_installed': False}
+                if barrier_profile is not None:
+                    result.update(state='PROVISIONED_BACKUP_RESTORE_VERIFIED',
+                        provisioned_services_drained=True, sql_read_fence_verified=True,
+                        service_profile_sha256=barrier_profile, phase5_complete=False)
+                held()
                 with fs._directory(slot) as fd:
                     os.fsync(fd)
                 sql._new_file(slot / 'verified.json', p._json(result))
