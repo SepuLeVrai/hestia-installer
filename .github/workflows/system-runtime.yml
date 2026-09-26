@@ -110,6 +110,13 @@ jobs:
           docker exec -e HESTIA_SYSTEMD_DISCOVERY_TEST=1 hestia-system-runtime \
             python3 /opt/hestia-installer/tests/integration/process_identity_systemd.py \
             --report /evidence/process-identity.json 2>&1 | tee evidence/process-identity.log
+      - name: Census real tasks and cross-identity descendants
+        if: matrix.debian == '13'
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_SYSTEMD_DISCOVERY_TEST=1 hestia-system-runtime \
+            python3 /opt/hestia-installer/tests/integration/process_census_systemd.py \
+            --report /evidence/process-census.json 2>&1 | tee evidence/process-census.log
       - name: Exercise exclusive service identity and actual runtime consumption
         run: |
           set -Eeuo pipefail

@@ -1,5 +1,13 @@
 # Contrat de découverte systemd hors du profil provisionné
 
+## Source de candidats par tâches, liaison restant à raccorder
+
+Le [recensement procfs](PHASE5_PROCESS_CENSUS.md) ajoute une source bornée de
+candidats, inconnus et descendants selon la filiation observée. Ce lot n'ajoute
+aucun appel systemd et ne transmet pas de FD persistant. Le prochain raccordement
+doit revalider leur identité et préserver les limites d'invocation, sans revenir
+aux propriétés d'unités nommées. Les critères globaux ne sont pas clos.
+
 ## Noms et huit relations collectés sur invocations liées
 
 Le [lecteur étendu](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md) enrichit les seuls

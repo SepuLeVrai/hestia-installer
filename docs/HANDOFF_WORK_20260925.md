@@ -1,5 +1,14 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Reprise courante — tâches visibles et filiation observée
+
+Base67e6db85, parent qualifié par run36248957724. Lire
+[PHASE5_PROCESS_CENSUS.md](PHASE5_PROCESS_CENSUS.md), ses limites et sources.
+253 contrôles et16 scénarios Debian13 requis après gel commun code/docs ;
+résultats exacts dans le checkpoint. Prochaine étape : raccordement des candidats
+aux invocations avec contrôle de fraîcheur. Aucun inventaire global ou droit de
+drain acquis. Arrêt après checkpoint ; états ci-dessous historiques.
+
 ## Reprise courante — leaders sélectionnés et identité effective
 
 Base e5ffaf35 : Names/relations ciblés qualifiés par le run36247347642. Lire

@@ -1,5 +1,16 @@
 # État du projet
 
+## Recensement des tâches et candidats de revue
+
+Sur67e6db85, le [recensement procfs](PHASE5_PROCESS_CENSUS.md) énumère les leaders
+et threads visibles sous bornes, conserve les PIDFD_THREAD pendant deux lectures
+et garde les inconnus. Les identités de chaque tâche et la filiation observée
+fournissent des candidats de revue sans exclusion, liaison systemd ou droit de
+drain. 27 nouveaux tests,253 sélectionnés ; un job Debian13 prévu après gel avec
+16 scénarios réels. Résultats exacts au checkpoint. Prochaine étape : raccordement
+frais des candidats aux invocations. Quality globale et promotions différées.
+Checkpoint puis arrêt ; les sections ci-dessous sont historiques.
+
 ## Identité effective des leaders sélectionnés
 
 Sur e5ffaf35, le [lecteur procfs lié à l'invocation](PHASE5_PROCESS_IDENTITY.md)

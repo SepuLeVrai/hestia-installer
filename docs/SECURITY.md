@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Parcours procfs et threads individuels
+
+Le [recensement borné](PHASE5_PROCESS_CENSUS.md) utilise scandir en flux,
+PIDFD_THREAD par tâche, fdinfo, trois listes de population et deux lectures.
+Dérive, masquage procfs, ressource insuffisante ou données invalides refusent la
+collecte ; les tâches individuellement illisibles restent inconnues. Aucun
+processus n'est exclu par une absence de correspondance UID/GID. Pas de signal,
+déplacement, commande/environnement collecté ou droit d'arrêt. ABA, tâches
+transitoires et filiation historique après changement de parent restent ouverts.
+
 ## Credentials de leaders sélectionnés
 
 Le [contrat procfs](PHASE5_PROCESS_IDENTITY.md) vérifie contexte observateur,

@@ -207,10 +207,13 @@ class InvocationRelationsTests(unittest.TestCase):
         self.assertNotEqual(first.facts().discovery_sha256, second.facts().discovery_sha256)
 
     def test_envelope_bound_refuses_before_returning_large_combination(self):
-        with self.fixture(): sample = self.collect()
-        self.property_calls = []
-        with self.fixture() as (_, close), patch.object(x.d, 'MAX_BYTES', len(sample._canonical)-1):
-            with self.assertRaises(t.SystemdTransportError): self.collect()
+        # elapsed_ms must have the same serialized width in both observations.
+        # Otherwise a faster second run can fit the first run's length-minus-one.
+        with patch.object(v.time, 'monotonic', return_value=100.0):
+            with self.fixture(): sample = self.collect()
+            self.property_calls = []
+            with self.fixture() as (_, close), patch.object(x.d, 'MAX_BYTES', len(sample._canonical)-1):
+                with self.assertRaises(t.SystemdTransportError): self.collect()
         self.assertEqual(len(self.property_calls), 18); close.assert_called_once_with(91)
 
     def two_units_reply(self, argv, budget, **kw):

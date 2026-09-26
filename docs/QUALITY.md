@@ -1,5 +1,15 @@
 # Quality et non-régression de HESTIA Installer
 
+## Recensement des tâches : qualification ciblée
+
+[Lot census](PHASE5_PROCESS_CENSUS.md) :27 nouveaux tests,253 contrôles locaux et
+Debian13 requis, puis8 cas identité parents et8 cas réels de recensement. Un seul
+job ciblé après gel ; sources/modes et artefacts exacts, zéro skip/erreur/échec.
+Une ancienne fixture de plafond d'enveloppe fige son horloge pour conserver une
+largeur identique : même plafond et même refus attendu, transport inchangé.
+L'échec local initial est conservé ; l'intermittence DOM reste non résolue.
+Aucune qualification globale ou promotion anticipée ; résultats au checkpoint.
+
 ## Identité effective sélectionnée : un job ciblé
 
 Le [lot procfs](PHASE5_PROCESS_IDENTITY.md) ajoute 26 tests aux 200 contrôles

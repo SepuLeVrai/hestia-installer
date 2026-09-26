@@ -1,5 +1,14 @@
 # Architecture HESTIA Installer
 
+## Recensement privé des tâches visibles
+
+[process_census.ProcessCensus](PHASE5_PROCESS_CENSUS.md) ajoute un collecteur
+procfs indépendant, sans client D-Bus ni mutation. Topologie, TaskRecord et
+candidats sont encapsulés dans CensusSample ; les PIDFD_THREAD sont locaux et
+fermés au retour. Les signaux portent sur chaque tâche et les liens parents
+observés. Le raccordement aux invocations doit encore revalider leur fraîcheur.
+Les modèles purs et lecteurs runtime précédents restent inchangés.
+
 ## Observation procfs liée aux invocations
 
 [SystemdProcessIdentity](PHASE5_PROCESS_IDENTITY.md) spécialise le lecteur de

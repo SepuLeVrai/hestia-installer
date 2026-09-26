@@ -1,5 +1,12 @@
 # Stockages et producteurs du Web épinglé
 
+## Candidats issus des tâches visibles
+
+Le [recensement procfs](PHASE5_PROCESS_CENSUS.md) observe aussi les credentials
+des threads et les liens parents, sans lire leurs destinations d'écriture.
+Les inconnus demeurent signalés ; aucun DataInventory, sauvegarde exhaustive,
+validation de producteur ou autorisation de drainage n'en est déduit.
+
 ## Identités observées de quelques leaders
 
 Le [nouveau lecteur](PHASE5_PROCESS_IDENTITY.md) apporte un signal effectif de

@@ -133,3 +133,7 @@ du collecteur fermé, autres lanceurs et pont au profil provisionné restent ouv
 Les blocs maintenance exhaustive, sauvegarde/restauration 5C2, vraie transition
 5C3, reprise/rollback 5C4, orchestration/wizard 5D et Quality finale restent requis.
 Aucune PR/promotion sur la seule qualification ciblée. Web inchangé.
+
+Le lot suivant [recensement des tâches](PHASE5_PROCESS_CENSUS.md) apporte une
+source de candidats et des observations de threads. Il ne modifie pas ce lecteur
+ni sa portée de leaders sélectionnés ; leur raccordement frais reste distinct.

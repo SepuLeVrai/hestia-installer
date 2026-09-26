@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "scope": "Source review, not atomicity or global host inventory proof",
+  "sources": [
+    {
+      "file": "array.c",
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/fs/proc/array.c",
+      "bytes": 23234,
+      "sha256": "23fa35a9e22158c2bee2bf183c748b82438e4919571eac9c04a4028d24764549",
+      "anchors": [
+        "cred = get_task_cred(p);",
+        "timens_add_boottime_ns(task->start_boottime)"
+      ]
+    },
+    {
+      "file": "base.c",
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/fs/proc/base.c",
+      "bytes": 98525,
+      "sha256": "3cd005fa6ce3bd17f10acf67d6e4344013da11b4814a269d239d9c1182ad0c68",
+      "anchors": [
+        "int proc_pid_readdir",
+        "static int proc_task_readdir",
+        "PIDTYPE_TGID",
+        "has_pid_permissions(fs_info, iter.task, HIDEPID_INVISIBLE)"
+      ]
+    },
+    {
+      "file": "pid.c",
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/kernel/pid.c",
+      "bytes": 19199,
+      "sha256": "3a9065c03bf74805a58ce3a372a69f911b3382db769237414aa2034fe218e60c",
+      "anchors": [
+        "Without PIDFD_THREAD flag",
+        "flags & ~(PIDFD_NONBLOCK | PIDFD_THREAD)"
+      ]
+    },
+    {
+      "file": "pidfs.c",
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/fs/pidfs.c",
+      "bytes": 11022,
+      "sha256": "fae3fa65abd35998c65d111b73f4acd7aa3b2ecf6bea2a18f573dd93860e3334",
+      "anchors": [
+        "bool thread = file->f_flags & PIDFD_THREAD;",
+        "task->exit_state && (thread || thread_group_empty(task))",
+        "seq_put_decimal_ll(m, \"Pid:\\t\", nr);"
+      ]
+    },
+    {
+      "file": "pidfd.h",
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/include/uapi/linux/pidfd.h",
+      "bytes": 1247,
+      "sha256": "2d462f1418063f3393f3ec57f9d6bcdd959cc321ae778159d5aa8aea05d0522f",
+      "anchors": [
+        "#define PIDFD_THREAD\tO_EXCL"
+      ]
+    },
+    {
+      "file": "sys.c",
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/kernel/sys.c",
+      "bytes": 71054,
+      "sha256": "e43eb875410d607ccf91ca00d88433052b58fdae4e4ccdd12c53c458f1ce1d69",
+      "anchors": [
+        "long __sys_setfsuid(uid_t uid)",
+        "new->fsuid = kuid;",
+        "commit_creds(new);"
+      ]
+    },
+    {
+      "file": "glibc-syscalls.list",
+      "url": "https://raw.githubusercontent.com/bminor/glibc/glibc-2.41/sysdeps/unix/sysv/linux/syscalls.list",
+      "bytes": 4910,
+      "sha256": "ffceb98799a312b15c86e6dc7b97e372bea9b4ea5cdb08cf4a11c6ed4cf2107f",
+      "anchors": [
+        "setfsuid\tEXTRA\tsetfsuid\ti:i\tsetfsuid"
+      ],
+      "scope": "Disposable fixture only"
+    }
+  ]
+}
