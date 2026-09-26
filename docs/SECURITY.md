@@ -1,5 +1,14 @@
 # Modèle de sécurité
 
+## Noms et relations observés sans résolution récursive
+
+Le [lecteur étendu](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md) n'interroge que neuf
+propriétés fermées sur les invocations validées ; noms cibles et alias ne deviennent
+jamais des destinations de requêtes. Conflits, dérives, inconnus et limites restent
+fermés. Un lien de dépendance ne prouve ni identité effective ni producteur HESTIA.
+Aucun nouveau droit de contrôle/exclusion, aucune collecte de commandes ou secrets.
+Les budgets de listes et liaison minimale restent inchangés. Historique ci-dessous.
+
 ## Lecteur minimal sans propriété d'unité nommée
 
 Le [lecteur PIDFD](PHASE5_SYSTEMD_INVOCATION_BINDING.md) n'accepte ni FD ni ID

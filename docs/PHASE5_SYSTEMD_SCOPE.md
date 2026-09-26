@@ -1,5 +1,13 @@
 # Contrat de découverte systemd hors du profil provisionné
 
+## Noms et huit relations collectés sur invocations liées
+
+Le [lecteur étendu](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md) enrichit les seuls
+objets sélectionnés, valide les alias, résout les cibles depuis l'index observé
+et compose les RelationFacts avec le modèle pur. Pas de lecture récursive par
+nom, d'identité effective ou d'admission au drain. Les unités sans PID restent
+inconnues et les 28 critères globaux restent ouverts. Preuves ciblées dans le checkpoint.
+
 ## Première liaison d'invocation implémentée
 
 Le [lecteur minimal](PHASE5_SYSTEMD_INVOCATION_BINDING.md) livre deux observations

@@ -1,5 +1,15 @@
 # Quality et non-régression de HESTIA Installer
 
+## Noms et relations d'invocation : qualification ciblée
+
+[Extension](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md) : 24 nouveaux tests, sélection
+locale de 200 ; un job Debian13 avec les mêmes 200 contrôles et 16 scénarios réels
+(8 liaisons historiques +8 relations). La baseline core reçoit uniquement les 24
+nouveaux IDs, sans retrait. Gardes statiques après gel code/docs ; preuves exactes
+et manifestes dans le checkpoint. La recette rejoint la campagne système future
+sous Debian 13 seulement. Pas de clôture des matrices générales, de Quality globale
+ou promotion anticipée. Les résultats suivants sont historiques.
+
 ## Liaison d'invocation : un seul job ciblé
 
 [Lot PIDFD](PHASE5_SYSTEMD_INVOCATION_BINDING.md) : 21 nouveaux contrôles,

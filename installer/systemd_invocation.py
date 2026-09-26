@@ -117,6 +117,8 @@ class InvocationSample:
 class SystemdInvocationTransport(t.SystemdDiscoveryTransport):
     def __repr__(self): return '<SystemdInvocationTransport private read-only invocation bindings>'
 
+    def _budget(self, count): return t._Budget(invocation_pairs=count)
+
     def _invocation_query(self, operation, budget, owner, *, fd=None, identifier=None):
         argv = _argv(operation, owner, fd=fd, identifier=identifier)
         budget.remaining()
@@ -140,11 +142,23 @@ class SystemdInvocationTransport(t.SystemdDiscoveryTransport):
                 'INVOCATION_PROPERTY_MISMATCH')
         return InvocationBinding(path, primary, hint.pid, identifier, invocation_path)
 
+    def _pass(self, hints, units, owned, owner, budget):
+        return tuple(self._binding(h, units[h.object_path], fd, owner, budget) for h, fd in zip(hints, owned))
+
+    def _sample(self, scan, index, bindings, context, budget):
+        data = {'version': 1, 'discovery': index.private_manifest(),
+            'bindings': [asdict(b) for b in bindings],
+            'transport': {'client': t.BUSCTL, 'policy': 'PIDFD_INVOCATION_ID_V1', 'context': context,
+                          'calls': budget.calls, 'bytes': budget.bytes},
+            'limitations': ['PID_HINTS_NOT_AUTHENTICATED', 'UNSELECTED_UNITS_UNKNOWN',
+                            'EFFECTIVE_IDENTITIES_UNKNOWN', 'RELATIONS_UNKNOWN', 'NOT_ATOMIC']}
+        return InvocationSample(index, d._json(data))
+
     def collect(self, hints):
         owned = []
         try:
             hints = _hints(hints)  # reject malformed input before host IO
-            budget = t._Budget(invocation_pairs=len(hints)); started = int(time.time())
+            budget = self._budget(len(hints)); started = int(time.time())
             before, context = self._round(budget)
             # Validate the first population before it can authorize a selection.
             self._discovery.inspect(d.DiscoveryScan(self._target, started, started, 0, before, before), now=started)
@@ -158,23 +172,18 @@ class SystemdInvocationTransport(t.SystemdDiscoveryTransport):
                 require(fd >= 3 and not os.get_inheritable(fd), 'INVOCATION_FD_REJECTED')
                 _alive(fd)
             owner = before.provenance.bus_owner
-            first = tuple(self._binding(h, units[h.object_path], fd, owner, budget) for h, fd in zip(hints, owned))
-            second = tuple(self._binding(h, units[h.object_path], fd, owner, budget) for h, fd in zip(hints, owned))
+            first = self._pass(hints, units, owned, owner, budget)
+            second = self._pass(hints, units, owned, owner, budget)
             require(first == second, 'INVOCATION_CHANGED')
             after, after_context = self._round(budget)
             require(context == after_context, 'DISCOVERY_LOCAL_PROVENANCE_CHANGED')
             for fd in owned: _alive(fd)
             budget.remaining(); finished = int(time.time())
             elapsed = int((time.monotonic() - budget.started)*1000)
-            index = self._discovery.inspect(d.DiscoveryScan(self._target, started, finished, elapsed, before, after), now=finished)
-            require(budget.calls == 24+8*len(hints), 'DISCOVERY_CALL_SET_INCOMPLETE')
-            data = {'version': 1, 'discovery': index.private_manifest(),
-                'bindings': [asdict(b) for b in first],
-                'transport': {'client': t.BUSCTL, 'policy': 'PIDFD_INVOCATION_ID_V1', 'context': context,
-                              'calls': budget.calls, 'bytes': budget.bytes},
-                'limitations': ['PID_HINTS_NOT_AUTHENTICATED', 'UNSELECTED_UNITS_UNKNOWN',
-                                'EFFECTIVE_IDENTITIES_UNKNOWN', 'RELATIONS_UNKNOWN', 'NOT_ATOMIC']}
-            result = InvocationSample(index, d._json(data))
+            scan = d.DiscoveryScan(self._target, started, finished, elapsed, before, after)
+            index = self._discovery.inspect(scan, now=finished)
+            require(budget.calls == budget.maximum_calls, 'DISCOVERY_CALL_SET_INCOMPLETE')
+            result = self._sample(scan, index, first, context, budget)
             for fd in owned: _alive(fd)
             budget.remaining()
             return result

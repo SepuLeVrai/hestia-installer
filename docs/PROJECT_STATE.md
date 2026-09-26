@@ -1,5 +1,16 @@
 # État du projet
 
+## Noms et relations par invocation, raccordement conservateur
+
+Sur 8a2f4ce5, le [lecteur de relations](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md)
+ajoute Names et huit listes fermées aux deux liaisons PIDFD. Index enrichi validé,
+alias observés seulement, cibles absentes conservées inconnues. Le modèle de
+pertinence reçoit des faits liés à cet index, sans identité ou signal métier
+inventé, sans adoption/drain. 24 nouveaux tests, sélection de 200 ; un seul job
+Debian13 prévu (8 cas historiques +8 nouveaux) après gel. Résultats exacts dans
+le checkpoint ; pas de Quality globale ou promotion. Prochain lot : source
+fiable des PID et identité effective. Checkpoint puis arrêt. Sections historiques.
+
 ## Liaison PIDFD minimale implémentée, qualification ciblée
 
 Sur ff13729f, le [lecteur d'invocation](PHASE5_SYSTEMD_INVOCATION_BINDING.md)

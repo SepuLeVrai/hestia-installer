@@ -1,5 +1,14 @@
 # Architecture HESTIA Installer
 
+## Relations liées aux invocations
+
+`systemd_invocation_relations.SystemdInvocationRelations` étend le lecteur minimal
+avec Names et huit tableaux de relations. Les points privés budget/pass/sample
+factorisent le cycle de PIDFD sans changer le parcours minimal. Le [contrat](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md)
+décrit la scan enrichie, la validation des alias et le RelevanceFacts lié à son
+digest. Aucun modèle pur ou consommateur de mutation modifié. Le résultat reste
+partiel, sans signal métier acquis. Les sections suivantes conservent leurs états historiques.
+
 ## Adaptateur minimal d'invocation
 
 `systemd_invocation.SystemdInvocationTransport` hérite des tours de listes et

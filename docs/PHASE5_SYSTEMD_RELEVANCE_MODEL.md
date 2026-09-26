@@ -1,5 +1,14 @@
 # Sélection privée de pertinence systemd
 
+## Premier producteur de faits de relation observés
+
+Le [transport par invocation](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md) fournit
+maintenant les huit relations fermées et une scan enrichie de Names observés.
+Le modèle pur reste inchangé. Les faits d'identité, chemin et liaison métier
+restent absents de ce transport : aucun signal positif automatique n'est créé.
+La composition synthétique séparée du banc n'atteste pas ces faits sur l'hôte.
+Le texte suivant conserve la description du modèle déclaratif initial.
+
 ## Transport des listes disponible, faits détaillés encore déclaratifs
 
 Le [transport de découverte](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) livre les

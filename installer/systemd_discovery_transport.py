@@ -61,9 +61,11 @@ def _argv(operation, owner=None):
 
 
 class _Budget:
-    def __init__(self, *, invocation_pairs=0):
+    def __init__(self, *, invocation_pairs=0, invocation_relations=False):
         require(type(invocation_pairs) is int and 0 <= invocation_pairs <= 128, 'DISCOVERY_TRANSPORT_LIMIT')
-        self.maximum_calls = MAX_CALLS + 8 * invocation_pairs
+        require(type(invocation_relations) is bool and (not invocation_relations or invocation_pairs > 0),
+                'DISCOVERY_TRANSPORT_LIMIT')
+        self.maximum_calls = MAX_CALLS + (26 if invocation_relations else 8) * invocation_pairs
         self.started = time.monotonic()
         self.deadline = self.started + COLLECTION_SECONDS
         self.bytes = 0

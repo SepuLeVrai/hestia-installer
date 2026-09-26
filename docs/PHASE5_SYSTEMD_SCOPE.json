@@ -53,8 +53,9 @@
     "correction_document": "PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md",
     "negative_run": 36238806917,
     "alternative_contract": "PHASE5_SYSTEMD_INVOCATION_CONTRACT.md",
-    "alternative_status": "MINIMAL_BINDING_IMPLEMENTED_TARGETED_EVIDENCE_REQUIRED",
-    "alternative_implementation": "PHASE5_SYSTEMD_INVOCATION_BINDING.md"
+    "alternative_status": "INVOCATION_NAMES_RELATIONS_IMPLEMENTED_TARGETED_EVIDENCE_REQUIRED",
+    "alternative_implementation": "PHASE5_SYSTEMD_INVOCATION_BINDING.md",
+    "alternative_relations": "PHASE5_SYSTEMD_INVOCATION_RELATIONS.md"
   },
   "classification": {
     "outcomes": [

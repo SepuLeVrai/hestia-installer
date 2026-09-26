@@ -1,5 +1,12 @@
 # Liaison privée PIDFD / invocation systemd
 
+## Extension ultérieure bornée
+
+Le [lot noms/relations](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md) ajoute un lecteur
+séparé avec neuf propriétés par passage. Le présent lecteur minimal conserve
+son API, ses propriétés et 24+8N appels ; son parcours reste testé. Les sections
+suivantes décrivent la qualification du lot parent, pas celle du nouvel arbre.
+
 ## Périmètre livré sur le contrat ff13729f
 
 `installer/systemd_invocation.py` implémente uniquement la liaison minimale
