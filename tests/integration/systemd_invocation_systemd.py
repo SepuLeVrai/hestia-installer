@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
 import sys
 import unittest
 
@@ -41,6 +42,19 @@ def fds(): return set(os.listdir('/proc/self/fd'))
 
 class Audited(v.SystemdInvocationTransport):
     def __init__(self, *args): super().__init__(*args); self.operations = []; self.properties = []; self.returned = []
+    def collect(self, *args, **kwargs):
+        try: return super().collect(*args, **kwargs)
+        except Exception as error:
+            # Fixture-only diagnostics: from-None hides a useful fixed rejection
+            # code. Never print free-form exceptions or change the expected error.
+            codes = []; seen = set(); current = error
+            while current is not None and id(current) not in seen and len(codes) < 8:
+                seen.add(id(current)); code = str(current)
+                codes.append({'type': type(current).__name__,
+                    'code': code if re.fullmatch('[A-Z][A-Z0-9_]{1,95}', code) else 'REDACTED'})
+                current = current.__context__
+            print(json.dumps({'fixture_rejection_chain': codes}), flush=True)
+            raise
     def _invocation_query(self, operation, budget, owner, *, fd=None, identifier=None):
         self.operations.append(operation)
         if operation in ('Id', 'InvocationID'): self.properties.append(v._path(identifier))

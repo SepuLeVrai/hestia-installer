@@ -1,13 +1,17 @@
 # État du projet
 
+Qualification du lot courant : premier job36253303139 en échec sur un diagnostic
+parent inattendu. Une seconde exécution avec diagnostic de fixture est prévue ;
+preuves et limites dans PHASE5_CENSUS_INVOCATIONS.md. Aucun succès anticipé.
+
 ## Liaison du recensement vivant aux invocations
 
 Sur4a14c8d9, la [liaison census/invocations](PHASE5_CENSUS_INVOCATIONS.md)
 conserve les PIDFD de toutes les tâches pendant les lectures du manager et les
 contrôles finaux. Plusieurs leaders dans une unité sont regroupés ; threads,
 inconnus et non-correspondances restent conservés sans exclusion ni droit de
-drain.22 nouveaux tests,275 contrôles ; un seul job Debian13 de24 scénarios
-réels prévu après gel. Résultats au checkpoint, aucune Quality globale ou
+drain.22 nouveaux tests,275 contrôles ; un second job Debian13 de24 scénarios
+réels prévu après le premier échec. Résultats au checkpoint, aucune Quality globale ou
 promotion anticipée. Prochain lot : relations et sélection sur cette preuve
 fraîche, sans confondre signal de thread et identité effective de leader.
 Checkpoint puis arrêt. Les sections suivantes sont historiques.

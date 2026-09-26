@@ -1,9 +1,13 @@
 # Quality et non-régression de HESTIA Installer
 
-## Census vers invocations : un seul job après gel
+Qualification du lot courant : premier job36253303139 en échec sur un diagnostic
+parent inattendu. Une seconde exécution avec diagnostic de fixture est prévue ;
+preuves et limites dans PHASE5_CENSUS_INVOCATIONS.md. Aucun succès anticipé.
+
+## Census vers invocations : diagnostic du premier job
 
 [Lot de liaison](PHASE5_CENSUS_INVOCATIONS.md) :22 tests supplémentaires,
-275 contrôleurs locaux et Debian13,907 core détectables/902 requis. Un seul
+275 contrôleurs locaux et Debian13,907 core détectables/902 requis. Second
 job ciblé avec24 cas système (8 PIDFD,8 census,8 liaison). Zéro skip/erreur/échec,
 sources/modes stables, artefact exact requis ; résultats au checkpoint.
 Aucune Quality globale ou promotion sur cette seule recette. L'intermittence

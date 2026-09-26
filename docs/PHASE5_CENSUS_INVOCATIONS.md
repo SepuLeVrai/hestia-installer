@@ -107,7 +107,7 @@ descripteurs réutilisés, regroupements, inconnus, absence d'entrée historique
 changements des populations/identités/provenances, limites, confidentialité et
 refus. Les anciens tests du census et de la liaison restent obligatoires.
 
-Un seul job Debian13 prévu après gel code/docs :275 contrôles,8 scénarios PIDFD
+Un job Debian13 par arbre gelé :275 contrôles,8 scénarios PIDFD
 parents,8 census parents et8 nouveaux scénarios réels. Ces derniers couvrent
 le fsuid non leader avec trois leaders dans une invocation, zombie non lié et
 non-correspondance conservée, descripteurs possédés/fermés, changement fsuid
@@ -133,3 +133,22 @@ effectives de leader. Puis identités configurées, chaînes d'exécution, unit�
 sans processus et autres familles de lanceurs. Les neuf producteurs, maintenance/
 sauvegarde exhaustives, upgrade réel, reprise/rollback et wizard restent ouverts.
 Checkpoint puis arrêt ; aucune opération ne continue après la livraison.
+
+## Premier job et diagnostic borné
+
+Le candidat120602353818bda011fe9ad92dca5f6733097445, arbre
+f066f143cd67531d3fc4667861b477e1f0a069b2, a échoué au run36253303139 :
+275 contrôleurs verts,7 cas PIDFD verts et1 échec. Le cas historique de sélection
+absente a reçu INVOCATION_TRANSPORT_UNAVAILABLE au lieu de NOT_LISTED. Le produit
+a refusé ; la cause interne n'est pas disponible dans ce premier journal.
+Les recettes census et nouvelle liaison n'ont pas été exécutées. Cette première
+qualification n'est donc pas acquise et les preuves sont conservées.
+
+La recette parent imprime désormais au plus8 types/codes fermés de la chaîne
+d'exceptions, y compris les contextes masqués par from-None. Aucun texte libre,
+changement runtime, délai supplémentaire ou assertion affaiblie. Les recettes
+indépendantes suivantes sont exécutées même après échec d'une recette parent,
+qui reste bloquant pour le job. Les nouveaux refus après mutation exigent aussi
+que cette mutation réelle ait été atteinte. Une seconde exécution ciblée est
+prévue sur ce nouvel arbre gelé ; aucune relance identique et aucune campagne
+globale. Un éventuel succès ne suffira pas à déclarer l'incident initial corrigé.

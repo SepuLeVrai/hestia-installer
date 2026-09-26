@@ -108,7 +108,9 @@ class CensusInvocationLive(unittest.TestCase):
                 if pid==fixture['pid'] and not self.changed:
                     self.changed=True;action(fixture)
                 return result
-        with self.assertRaises(z.c.CensusError):Changing(self.target,self.storage).collect()
+        reader=Changing(self.target,self.storage)
+        with self.assertRaises(z.c.CensusError):reader.collect()
+        self.assertTrue(reader.changed, 'Fixture must reach the actual mutation before rejection')
         self.assertEqual(fds(),before);return fixture
 
     def test_04_thread_fsuid_changes_during_bus_reads_refused(self):

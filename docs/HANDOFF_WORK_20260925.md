@@ -1,12 +1,16 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+Qualification du lot courant : premier job36253303139 en échec sur un diagnostic
+parent inattendu. Une seconde exécution avec diagnostic de fixture est prévue ;
+preuves et limites dans PHASE5_CENSUS_INVOCATIONS.md. Aucun succès anticipé.
+
 ## Reprise après liaison census/invocations
 
 Base4a14c8d98b077401ef9dfc82f1753240972aecd2, arbre8b543bd091d132c1d5e3dd4f3f91e78bf2e7e900.
 Lire [PHASE5_CENSUS_INVOCATIONS.md](PHASE5_CENSUS_INVOCATIONS.md) avant la suite.
 La liaison privée réutilise les FD encore détenus et conserve les inconnus ;
 elle ne livre aucun drainage, inventaire exhaustif ou enrôlement.275 contrôles
-et24 cas réels attendus dans un seul job, preuves exactes au checkpoint après
+et24 cas réels attendus dans le second job ciblé, preuves exactes au checkpoint après
 le gel. Ne pas attribuer les résultats du parent à ce nouvel arbre. Prochaine
 reprise : relations et sélection conservatrice depuis ce census vivant.
 Ne pas revenir au prototype nommé c2acc806. Checkpoint puis arrêt.

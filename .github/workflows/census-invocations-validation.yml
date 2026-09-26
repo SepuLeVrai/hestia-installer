@@ -2,7 +2,7 @@ name: Targeted census invocation bridge
 
 on:
   push:
-    branches: ['work/phase5-census-invocations-20260926']
+    branches: ['work/phase5-census-invocations-diagnostics-20260926']
 
 permissions:
   contents: read
@@ -62,12 +62,14 @@ jobs:
             python3 /opt/hestia-installer/tests/integration/systemd_invocation_systemd.py \
             --report /evidence/systemd-invocation.json 2>&1 | tee evidence/systemd-invocation.log
       - name: Census real tasks and cross-identity descendants
+        if: success() || failure()
         run: |
           set -Eeuo pipefail
           docker exec -e HESTIA_SYSTEMD_DISCOVERY_TEST=1 hestia-discovery \
             python3 /opt/hestia-installer/tests/integration/process_census_systemd.py \
             --report /evidence/process-census.json 2>&1 | tee evidence/process-census.log
       - name: Bind census-owned descriptors to actual invocations
+        if: success() || failure()
         run: |
           set -Eeuo pipefail
           docker exec -e HESTIA_SYSTEMD_DISCOVERY_TEST=1 hestia-discovery \
