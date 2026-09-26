@@ -1,5 +1,17 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Reprise après relations des candidats vivants
+
+Base b1078e9d02820b19945a25271953df95dd3e9efb, arbre e96bb8853af307079857a72e4a566c3d5a0e3f85.
+Lire [PHASE5_CENSUS_RELATIONS.md](PHASE5_CENSUS_RELATIONS.md). Le nouveau lecteur
+compose census, liaisons, Names/huit relations et faits candidats du modèle pur.
+Il garde tous les FD jusqu'aux contrôles finaux, les inconnus et les limites.
+Pas d'enrôlement, exclusion ni drain. 299 contrôles et24 cas réels prévus dans
+un seul job ciblé après gel ; preuves exactes au checkpoint. Prochaine reprise :
+identités configurées et contexte d'exécution, sans adresse d'unité nommée.
+Ne pas présenter le refus parent12060235 ni l'intermittence DOM comme corrigés.
+Checkpoint puis arrêt ; les sections ci-dessous sont historiques.
+
 Qualification du lot courant : premier job36253303139 en échec sur un diagnostic
 parent inattendu. Une seconde exécution avec diagnostic de fixture est prévue ;
 preuves et limites dans PHASE5_CENSUS_INVOCATIONS.md. Aucun succès anticipé.

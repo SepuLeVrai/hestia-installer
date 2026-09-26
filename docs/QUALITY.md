@@ -1,5 +1,15 @@
 # Quality et non-régression de HESTIA Installer
 
+## Relations du census : qualification ciblée après gel
+
+[Lot courant](PHASE5_CENSUS_RELATIONS.md) :24 tests supplémentaires,
+299 contrôleurs locaux et Debian13 ; 931 core détectables/926 requis, aucun
+retrait de baseline. Un seul job avec24 cas réels :8 relations parents,
+8 liaisons census parents et8 nouveaux. Sources/modes et artefact exacts,
+zéro erreur/échec/skip requis. Aucun succès anticipé ; résultats au checkpoint.
+Les incidents parent12060235 et DOM restent ouverts, preuves négatives conservées.
+Aucune Quality globale ni promotion dans ce lot.
+
 Qualification du lot courant : premier job36253303139 en échec sur un diagnostic
 parent inattendu. Une seconde exécution avec diagnostic de fixture est prévue ;
 preuves et limites dans PHASE5_CENSUS_INVOCATIONS.md. Aucun succès anticipé.

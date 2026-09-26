@@ -1,5 +1,8 @@
 # Noms et relations observés par invocation
 
+Extension ultérieure : [census vivant et sélection par relations](PHASE5_CENSUS_RELATIONS.md).
+Le périmètre autonome décrit ci-dessous reste distinct.
+
 ## Base et périmètre
 
 Base Installer `8a2f4ce538b1c6dbdb788d9384d32fdcdc0ae247`, arbre

@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Relations acquises avec des FD encore détenus
+
+Le [nouveau raccordement](PHASE5_CENSUS_RELATIONS.md) lit Names et huit relations
+sur les seules invocations liées, sans résolution récursive. FD, credentials et
+population restent recontrôlés après ces lectures. Les faits de candidats ne
+falsifient ni identité effective de leader ni déclaration opérateur. Les inconnus
+ne sont pas des graines positives, les non-correspondances ne sont pas exclues.
+Budget24+8N+18M, au plus128 leaders/faits, digests exacts et enveloppe4Mio ;
+modèle pur toujours déclaratif, aucune autorité durable ou de drainage.
+
 ## Continuité census/PIDFD/invocation
 
 La [liaison privée](PHASE5_CENSUS_INVOCATIONS.md) conserve tous les PIDFD_THREAD

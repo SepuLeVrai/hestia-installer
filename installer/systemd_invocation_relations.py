@@ -74,19 +74,22 @@ class SystemdInvocationRelations(v.SystemdInvocationTransport):
         return raw
 
     def _pass(self, hints, units, owned, owner, budget):
-        results, name_count, relation_count = [], 0, 0
+        results, counts = [], [0, 0]
         for hint, fd in zip(hints, owned):
             binding = self._binding(hint, units[hint.object_path], fd, owner, budget)
-            names = _names(self._relation_query('Names', binding, owner, budget),
-                           d.MAX_NAMES - name_count, primary=binding.primary_name)
-            name_count += len(names)
-            relations = []
-            for property in RELATIONS:
-                values = _names(self._relation_query(property, binding, owner, budget), r.MAX_RELATIONS - relation_count)
-                relation_count += len(values); relations.append((property, values))
-            v._alive(fd)
-            results.append(InvocationRelations(binding, names, tuple(relations)))
+            results.append(self._detail(binding, fd, owner, budget, counts))
         return tuple(results)
+
+    def _detail(self, binding, fd, owner, budget, counts):
+        names = _names(self._relation_query('Names', binding, owner, budget),
+                       d.MAX_NAMES - counts[0], primary=binding.primary_name)
+        counts[0] += len(names)
+        relations = []
+        for property in RELATIONS:
+            values = _names(self._relation_query(property, binding, owner, budget), r.MAX_RELATIONS - counts[1])
+            counts[1] += len(values); relations.append((property, values))
+        v._alive(fd)
+        return InvocationRelations(binding, names, tuple(relations))
 
     def _sample(self, scan, index, details, context, budget):
         by_object = {x.binding.object_path: x for x in details}

@@ -1,5 +1,8 @@
 # Sélection privée de pertinence systemd
 
+Extension ultérieure : [census vivant et sélection par relations](PHASE5_CENSUS_RELATIONS.md).
+Le périmètre autonome décrit ci-dessous reste distinct.
+
 ## Premier producteur de faits de relation observés
 
 Le [transport par invocation](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md) fournit

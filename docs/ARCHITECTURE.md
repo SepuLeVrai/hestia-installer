@@ -1,5 +1,15 @@
 # Architecture HESTIA Installer
 
+## Relations et signaux du census vivant
+
+[systemd_census_relations](PHASE5_CENSUS_RELATIONS.md) étend la liaison privée
+par deux lectures de propriétés par unité distincte. Le helper de détails du
+lecteur parent est partagé. Le modèle pur ajoute CensusCandidateFact, distinct
+d'IdentityFact et d'ExternalBinding : raisons fermées, leader/contextes et digests
+du census/binding. L'index lie tous les leaders, pas seulement le représentant.
+Une raison inconnue ne démarre pas l'expansion du graphe ; les raisons positives
+élargissent uniquement la revue. Aucun consommateur de mutation ou wizard ajouté.
+
 ## Liaison des candidats pendant la collecte
 
 [systemd_census_invocations](PHASE5_CENSUS_INVOCATIONS.md) compose le census

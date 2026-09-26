@@ -1,5 +1,8 @@
 # HESTIA Installer
 
+Phase5 en cours : [relations et candidats du census vivant](docs/PHASE5_CENSUS_RELATIONS.md).
+Sélection privée de revue ; aucune clôture globale ni promotion.
+
 Phase5 en cours : [census et invocations](docs/PHASE5_CENSUS_INVOCATIONS.md),
 observations privées pour revue, sans promotion ni clôture globale.
 

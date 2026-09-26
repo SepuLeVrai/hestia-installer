@@ -1,5 +1,8 @@
 # Candidats du recensement et invocations systemd
 
+Extension ultérieure : [census vivant et sélection par relations](PHASE5_CENSUS_RELATIONS.md).
+Le périmètre autonome décrit ci-dessous reste distinct.
+
 ## Base, entrée et portée
 
 Base `4a14c8d98b077401ef9dfc82f1753240972aecd2`, arbre

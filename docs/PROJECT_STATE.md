@@ -1,5 +1,17 @@
 # État du projet
 
+## Candidats vivants, relations et sélection conservatrice
+
+Sur la base b1078e9d, le [raccordement census/relations](PHASE5_CENSUS_RELATIONS.md)
+conserve les FD jusqu'à clôture, lit les propriétés une fois par unité et par
+passage, puis relie des faits candidats distincts au modèle pur. Signaux de
+threads, descendants et inconnus ne sont pas des identités effectives inventées.
+24 nouveaux tests, 299 contrôles ; un seul job Debian13 de24 scénarios réels
+prévu après gel. Résultats exacts au checkpoint, sans Quality globale ni promotion.
+Prochain lot : contrat d'identités configurées et de contexte d'exécution.
+Checkpoint puis arrêt. Les sections suivantes sont historiques ; l'incident
+parent12060235 reste non résolu et sa preuve conservée.
+
 Qualification du lot courant : premier job36253303139 en échec sur un diagnostic
 parent inattendu. Une seconde exécution avec diagnostic de fixture est prévue ;
 preuves et limites dans PHASE5_CENSUS_INVOCATIONS.md. Aucun succès anticipé.

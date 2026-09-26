@@ -15,6 +15,9 @@ MAX_IDENTITIES = 1024
 MAX_PATHS = 1024
 MAX_RELATIONS = 8192
 MAX_PER_UNIT = 64
+MAX_CANDIDATES = 128
+CANDIDATE_REASONS = ('UID_MATCH_IN_TASK', 'GID_MATCH_IN_TASK', 'SUPPLEMENTARY_GROUP_MATCH_IN_TASK',
+    'DESCENDANT_AT_OBSERVATION', 'UNRESOLVED_TASK')
 LINK_PROPERTIES = frozenset({'Triggers', 'TriggeredBy', 'Requires', 'Wants',
     'BindsTo', 'Upholds', 'OnSuccess', 'OnFailure', 'Unit'})
 ORDER_PROPERTIES = frozenset({'Before', 'After'})
@@ -102,6 +105,14 @@ class ExternalBinding:
 
 
 @dataclass(frozen=True)
+class CensusCandidateFact:
+    process: ProcessBinding = field(repr=False)  # the bound leader, not its threads
+    reasons: tuple[str, ...] = field(repr=False)
+    census_sha256: str = field(repr=False)
+    binding_sha256: str = field(repr=False)
+
+
+@dataclass(frozen=True)
 class UnitFacts:
     object_path: str = field(repr=False)
     primary_name: str = field(repr=False)
@@ -109,6 +120,7 @@ class UnitFacts:
     paths: tuple[PathFact, ...] | None = field(repr=False)
     relations: tuple[RelationFact, ...] | None = field(repr=False)
     bindings: tuple[ExternalBinding, ...] | None = field(repr=False)
+    candidates: tuple[CensusCandidateFact, ...] | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -116,6 +128,7 @@ class RelevanceFacts:
     discovery_sha256: str = field(repr=False)
     observed_at: int = field(repr=False)
     units: tuple[UnitFacts, ...] = field(repr=False)
+    census_sha256: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -204,11 +217,29 @@ class SystemdRelevance:
         return {'role': role, 'phase': phase, 'state': state, 'path': fact.path,
             'mount_namespace': fact.mount_namespace, 'root_directory': fact.root_directory, 'evidence_sha256': fact.evidence_sha256}
 
+    def _candidate(self, fact, census, provenance, reasons, issues):
+        require(type(fact) is CensusCandidateFact and census is not None, 'RELEVANCE_CENSUS_BINDING_REJECTED')
+        require(l._digest(fact.census_sha256) == census, 'RELEVANCE_CENSUS_BINDING_REJECTED')
+        signals = tuple(_enum(value, CANDIDATE_REASONS) for value in d._tuple(fact.reasons, len(CANDIDATE_REASONS)))
+        require(signals and len(signals) == len(set(signals)), 'RELEVANCE_CANDIDATE_REASONS_REJECTED')
+        p = fact.process; require(type(p) is ProcessBinding)
+        process = {'pid': d._number(p.pid, 2**31-1, 2), 'start_ticks': d._number(p.start_ticks),
+            'pid_namespace': _namespace(p.pid_namespace, 'pid'), 'cgroup': _path(p.cgroup),
+            'membership_sha256': l._digest(p.membership_sha256)}
+        require(process['pid_namespace'] == provenance['pid_namespace'], 'RELEVANCE_PROCESS_BINDING_REJECTED')
+        issues.update(('CENSUS_SIGNALS_DECLARED_ONLY', 'CENSUS_NON_ATOMIC', 'THREAD_UNIT_MEMBERSHIP_UNVERIFIED'))
+        for signal in signals:
+            if signal == 'UNRESOLVED_TASK': issues.add('CENSUS_TASK_UNRESOLVED')
+            else: reasons.add('CENSUS_'+signal)
+        return {'process': process, 'reasons': sorted(signals), 'census_sha256': census,
+            'binding_sha256': l._digest(fact.binding_sha256)}
+
     def inspect(self, scan, facts, *, now):
         try:
             # Revalidate the typed scan, rather than trust arbitrary serialized index bytes.
             index = self._discovery.inspect(scan, now=now); source = index.private_manifest()
             require(type(facts) is RelevanceFacts)
+            census = None if facts.census_sha256 is None else l._digest(facts.census_sha256)
             require(l._digest(facts.discovery_sha256) == l._sha(index._canonical), 'RELEVANCE_INDEX_BINDING_REJECTED')
             observed = d._number(facts.observed_at)
             require(scan.started_at <= observed <= scan.finished_at, 'RELEVANCE_FACTS_OUTSIDE_SCAN')
@@ -218,32 +249,31 @@ class SystemdRelevance:
             reasons = {obj: set() for obj in objects}
             issues = {obj: {'EXECUTION_CONTEXT_INCOMPLETE', 'RELATIONS_NOT_EXHAUSTIVE'} for obj in objects}
             details, seen, edges, process_owners = [], set(), [], {}
-            totals = {'identities': 0, 'paths': 0, 'relations': 0}
+            process_contexts = {}
+            totals = {'identities': 0, 'paths': 0, 'relations': 0, 'candidates': 0}
             for unit in d._tuple(facts.units, MAX_DETAILS):
                 require(type(unit) is UnitFacts)
                 obj, primary = d._unit_object(unit.object_path), d._name(unit.primary_name, loaded=True)
                 require(obj in objects and objects[obj]['primary_name'] == primary, 'RELEVANCE_UNIT_BINDING_REJECTED')
                 require(obj not in seen, 'RELEVANCE_DUPLICATE_UNIT'); seen.add(obj)
                 detail = {'object_path': obj, 'primary_name': primary}
-                for key, maximum in (('identities', MAX_PER_UNIT), ('paths', MAX_PER_UNIT), ('relations', MAX_RELATIONS), ('bindings', 16)):
+                for key, maximum in (('identities', MAX_PER_UNIT), ('paths', MAX_PER_UNIT), ('relations', MAX_RELATIONS), ('bindings', 16), ('candidates', MAX_CANDIDATES)):
                     values = getattr(unit, key)
                     if values is None:
                         detail[key] = None; issues[obj].add(key.upper() + '_UNOBSERVED'); continue
                     values = d._tuple(values, maximum)
                     if key in totals:
                         totals[key] += len(values)
-                        require(totals[key] <= {'identities': MAX_IDENTITIES, 'paths': MAX_PATHS, 'relations': MAX_RELATIONS}[key],
+                        require(totals[key] <= {'identities': MAX_IDENTITIES, 'paths': MAX_PATHS, 'relations': MAX_RELATIONS, 'candidates': MAX_CANDIDATES}[key],
                                 'RELEVANCE_FACT_LIMIT')
                     rows, keys = [], set()
                     for value in values:
                         if key == 'identities':
                             row = self._identity(value, provenance, reasons[obj], issues[obj])
                             identity_key = row['process']['pid'] if row['process'] else row['kind']
-                            if row['process']:
-                                pid = row['process']['pid']
-                                require(pid not in process_owners or process_owners[pid] == obj,
-                                        'RELEVANCE_PROCESS_BINDING_REJECTED')
-                                process_owners[pid] = obj
+                        elif key == 'candidates':
+                            row = self._candidate(value, census, provenance, reasons[obj], issues[obj])
+                            identity_key = row['process']['pid']
                         elif key == 'paths':
                             row = self._path_fact(value, provenance, reasons[obj], issues[obj])
                             identity_key = (row['role'], row['phase'], row['path'])
@@ -270,7 +300,14 @@ class SystemdRelevance:
                             if prop in LINK_PROPERTIES and target is not None: edges.append((obj, target))
                             row = {'property': prop, 'target_name': name, 'target_object': target, 'evidence_sha256': l._digest(value.evidence_sha256)}
                             identity_key = (prop, name)
-                        require(identity_key not in keys, 'RELEVANCE_DUPLICATE_FACT'); keys.add(identity_key); rows.append(row)
+                        require(identity_key not in keys, 'RELEVANCE_DUPLICATE_FACT')
+                        if key in ('identities', 'candidates') and row.get('process'):
+                            process = row['process']; pid = process['pid']
+                            context = tuple(process[k] for k in ('start_ticks', 'pid_namespace', 'cgroup'))
+                            require(process_owners.get(pid, obj) == obj and process_contexts.get(pid, context) == context,
+                                    'RELEVANCE_PROCESS_BINDING_REJECTED')
+                            process_owners[pid], process_contexts[pid] = obj, context
+                        keys.add(identity_key); rows.append(row)
                     detail[key] = sorted(rows, key=d._json)
                 details.append(detail)
             # Undirected review expansion, not systemd execution semantics. Each
@@ -297,7 +334,7 @@ class SystemdRelevance:
                 jobs.append({'identifier': job['identifier'], 'decision': 'RELATED_UNMANAGED' if related else 'UNRESOLVED',
                     'reason': 'RELATED_LOADED_OBJECT' if related else 'JOB_NOT_EXCLUDED', 'unit_binding_verified_by_declarations': bound})
             result = {'version': 1, 'discovery_sha256': facts.discovery_sha256, 'discovery': source,
-                'facts': {'observed_at': observed, 'units': sorted(details, key=lambda row: row['object_path'])},
+                'facts': {'observed_at': observed, 'census_sha256': census, 'units': sorted(details, key=lambda row: row['object_path'])},
                 'loaded_units': decisions, 'manager_jobs': jobs,
                 'installed_unit_files': [{'path': row['path'], 'decision': 'UNRESOLVED', 'reason': 'FILE_OBJECT_BINDING_UNVERIFIED'}
                     for row in source['observation']['installed_unit_files']['rows']],
