@@ -1,5 +1,20 @@
 # État du projet
 
+## Contrat CLI et planificateurs : audit de source terminé
+
+Le [catalogue et contrat](PHASE5_CLI_SCHEDULERS.md) identifient douze points
+d'entrée Web et trois contextes connexes sur le pin `2a27c7a1`. Base Installer
+`cb561320`, validée uniquement par la campagne ciblée `36222491251`.
+Ce lot change exclusivement la documentation et se vérifie localement, sans
+Actions. Aucun script métier ni serveur n'est exécuté ou inspecté.
+
+Les CLI historiques ne sont pas présumés compatibles avec l'identité dédiée
+ou le gate commun. Même export-subject et le préflight IA peuvent écrire.
+Aucun lanceur géré supplémentaire, inventaire hôte complet ou promotion.
+Prochaine étape distincte : modèle privé des observations de lanceurs et de
+leur couverture. Checkpoint puis arrêt avant cette implémentation.
+Les sections ci-dessous conservent les états historiques.
+
 ## Chantier borné suivant : collecteur et timer
 
 Le [raccordement du collecteur](PHASE5_HTTP_CLEANER_DRAIN.md) part de

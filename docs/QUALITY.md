@@ -1,5 +1,16 @@
 # Quality et non-régression de HESTIA Installer
 
+## Contrat documentaire CLI/planificateurs : contrôles locaux
+
+Le [lot de catalogue](PHASE5_CLI_SCHEDULERS.md) n'édite que `docs/`, sur la base
+`cb561320`. Le Web reste inchangé. Vérifier localement les deux arbres complets,
+les douze points d'entrée, trois contextes et toutes les empreintes/ancres du
+catalogue, ainsi que les gardes statiques. Aucun code métier n'est exécuté.
+Pas de campagne Actions pour ce lot ; cela ne vaut ni Quality globale ni
+qualification de lanceurs système. L'inventaire de tests reste à 650 core.
+Les obligations globales différées des deux lots HTTP précédents persistent.
+Les résultats exacts sont conservés dans le checkpoint après gel documentaire.
+
 ## Validation ciblée HTTP et collecteur, sans promotion
 
 Le [lot suivant](PHASE5_HTTP_CLEANER_DRAIN.md) ajoute dix tests core et six

@@ -1,5 +1,14 @@
 # Maintenance coordonnée Web - contrat privé
 
+## CLI et mutations administratives
+
+Le [contrat des producteurs](PHASE5_CLI_SCHEDULERS.md) sépare les activités
+applicatives sous verrou partagé des mutations administratives sous lease
+exclusive. Un CLI historique n'est pas raccordé parce que FPM utilise le
+prepend. Une opération administrative ne doit pas attendre ce verrou partagé
+quand l'Installer détient déjà l'exclusif. Aucun bypass public ni nouvelle
+commande n'est livré par le catalogue documentaire.
+
 ## Raccordement du profil métier externe
 
 Le [profil externe](PHASE5_BUSINESS_STORAGE.md) utilise le même scope

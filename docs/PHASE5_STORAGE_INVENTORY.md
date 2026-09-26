@@ -1,5 +1,14 @@
 # Stockages et producteurs du Web épinglé
 
+## Contrat détaillé des CLI et lanceurs
+
+Le [catalogue de sources](PHASE5_CLI_SCHEDULERS.md) documente les commandes,
+identités attendues par leur code, écritures et frontières. Il distingue CLI,
+convertisseurs descendants et watchdog HTTP. Il ne modifie pas StorageInventory
+et ne remplace aucune observation effective de chemin, propriétaire, montage,
+SQL ou planificateur. Les neuf groupes restent requis ; aucun inventaire hôte
+complet ni couverture automatique des CLI n'est déduit du catalogue.
+
 ## Extension source externe explicite
 
 Le nouveau pin du [profil métier](PHASE5_BUSINESS_STORAGE.md) exige une

@@ -1,0 +1,911 @@
+{
+  "schema": 1,
+  "state": "SOURCE_COMMAND_CONTRACT_ONLY",
+  "web": {
+    "repository": "SepuLeVrai/hestia-nexus-avv",
+    "commit": "2a27c7a1f9fe0a00289eb53278f75d5f230900b7",
+    "tree": "783be5abdcd5e13addefe96d743eee3a97b7a6de",
+    "tracked_files": 1843
+  },
+  "installer_base": {
+    "commit": "cb561320253ba2d73702acfcca9a041a341ab7fe",
+    "tree": "de1a1327fa0b1496dc4ba0e9adb184f7ef2248ec",
+    "qualification": "TARGETED_ONLY"
+  },
+  "scope": {
+    "entrypoint_selection": "All tracked .php/.sh/.py under scripts/ plus docs/maintenance/hestia_root_archive.py",
+    "entrypoints": 12,
+    "embedded_contexts": 3,
+    "host_inspected": false,
+    "php_or_business_script_executed": false,
+    "production_scheduler_definitions_found_in_web_tree": [],
+    "negative_search_is_not_host_absence_proof": true,
+    "catalogue_is_not_an_execution_allowlist": true
+  },
+  "entrypoints": [
+    {
+      "id": "mobile_registry",
+      "path": "scripts/mobile_foundation.php",
+      "modes": [
+        "backfill",
+        "export-subject MAIN_USER_ID",
+        "align-subject DEV_USER_ID UUID",
+        "retire-recipe-and-align DEV_USER_ID EXPECTED_RECIPE_UUID VERIFIED_MAIN_UUID",
+        "cleanup"
+      ],
+      "identity_from_source": "Caller identity; no UID switch or common maintenance wrapper in this entry point",
+      "effects": [
+        "SQL registry mutations and transactions; export-subject can INSERT/UPDATE; cleanup revokes/expires and purges bounded rows"
+      ],
+      "storage_or_configuration": [
+        "generated includes/db.php and SQL instance",
+        "HESTIA_MOBILE_FOUNDATION_CONFIG outside webroot; read only by hm_config"
+      ],
+      "disposition": "WEB_MOBILE_AUDIT_ONLY_OUTSIDE_CURRENT_IMPLEMENTATION",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/mobile_foundation.php",
+          "sha256": "5ece23da225d58146c151018bcdcc1692c2d923fb9c15025c6afc2fcabc19c76",
+          "anchors": [
+            {
+              "text": "$registry->provisionSubject((int)$argv[2])",
+              "lines": [
+                18
+              ]
+            },
+            {
+              "text": "$registry->cleanup()",
+              "lines": [
+                25
+              ]
+            }
+          ]
+        },
+        {
+          "path": "includes/mobile_foundation/registry.php",
+          "sha256": "3e06fb83a1ff8da968f49d60a0e707edb85665cad594299bbb3294afbd1f5f37",
+          "anchors": [
+            {
+              "text": "private function ensureSubject",
+              "lines": [
+                85
+              ]
+            },
+            {
+              "text": "INSERT INTO Sec_Mobile_Subject",
+              "lines": [
+                90,
+                121,
+                142
+              ]
+            },
+            {
+              "text": "public function cleanup",
+              "lines": [
+                152
+              ]
+            },
+            {
+              "text": "LIMIT 1000",
+              "lines": [
+                163,
+                164
+              ]
+            }
+          ]
+        },
+        {
+          "path": "includes/mobile_foundation/service.php",
+          "sha256": "0c53cde8176a3e81a9787975ac878513e0d6a680f7cff6faaad74feaa513c024",
+          "anchors": [
+            {
+              "text": "getenv('HESTIA_MOBILE_FOUNDATION_CONFIG')",
+              "lines": [
+                12
+              ]
+            },
+            {
+              "text": "file_get_contents($real",
+              "lines": [
+                16
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mobile_publication",
+      "path": "scripts/publish_mobile_update.php",
+      "modes": [
+        "current.json app.apk"
+      ],
+      "identity_from_source": "Caller identity; no UID switch; caller must already have access to the external release directory",
+      "effects": [
+        "Copies package and manifests; publication lock and staging directory; atomic rename; SQL configuration read if get_pdo is available"
+      ],
+      "storage_or_configuration": [
+        "App_Config.HESTIA_MOBILE_RELEASE_DIR before environment",
+        "package/current.json, version directories, publish.lock"
+      ],
+      "disposition": "DISTRIBUTION_AUDIT_ONLY_OUTSIDE_CURRENT_IMPLEMENTATION",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/publish_mobile_update.php",
+          "sha256": "d9a1419547c1c0ad54a291c19db4617a4ce63318aa495b4f66c6a5024bcf681f",
+          "anchors": [
+            {
+              "text": "hestia_mobile_publish_update",
+              "lines": [
+                9
+              ]
+            }
+          ]
+        },
+        {
+          "path": "includes/mobile_updates.php",
+          "sha256": "3ffab40ba5a7a7682686a9ad1cfe7fdf20399f5c35dc47286b32efa21104d394",
+          "anchors": [
+            {
+              "text": "SELECT valeur FROM App_Config",
+              "lines": [
+                14
+              ]
+            },
+            {
+              "text": "getenv('HESTIA_MOBILE_RELEASE_DIR')",
+              "lines": [
+                19
+              ]
+            },
+            {
+              "text": "publish.lock",
+              "lines": [
+                109
+              ]
+            },
+            {
+              "text": "rename($tmp, $versionDir)",
+              "lines": [
+                124
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai_setup",
+      "path": "scripts/hestia_ai_setup.php",
+      "modes": [
+        "interactive or --quick",
+        "--non-interactive with explicit options",
+        "--disable",
+        "--help"
+      ],
+      "identity_from_source": "Root required when posix_geteuid exists; generated configuration root:www-data 0640 and usage root:www-data 0770",
+      "effects": [
+        "Calls external API even with --disable",
+        "Creates/changes SQL account and grants",
+        "Creates configuration and monthly usage; changes ownership and modes"
+      ],
+      "storage_or_configuration": [
+        "--config-path default /etc/hestia/conf_db_ia.php",
+        "/var/lib/hestia-ai",
+        "SQL selected via options/application database"
+      ],
+      "disposition": "LEGACY_PRIVILEGED_UNSUPPORTED_BY_MANAGED_PROFILE",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/hestia_ai_setup.php",
+          "sha256": "d6a07aafb8381d3ebd9e8d870c2d46d6de9a1c008b3328c78fa77cc7a31f1749",
+          "anchors": [
+            {
+              "text": "posix_geteuid()",
+              "lines": [
+                9
+              ]
+            },
+            {
+              "text": "testOpenAI($openaiKey, $model)",
+              "lines": [
+                242
+              ]
+            },
+            {
+              "text": "CREATE USER IF NOT EXISTS",
+              "lines": [
+                281
+              ]
+            },
+            {
+              "text": "ALTER USER",
+              "lines": [
+                282
+              ]
+            },
+            {
+              "text": "REVOKE ALL PRIVILEGES",
+              "lines": [
+                283
+              ]
+            },
+            {
+              "text": "writePhpConfig($configPath",
+              "lines": [
+                334
+              ]
+            },
+            {
+              "text": "hestia_ai_usage_record",
+              "lines": [
+                348
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai_preflight",
+      "path": "scripts/hestia_ai_preflight.php",
+      "modes": [
+        "optional configuration path"
+      ],
+      "identity_from_source": "Caller identity; script expects legacy root:www-data files; no identity transition",
+      "effects": [
+        "Reads SQL and tests a denied no-row UPDATE",
+        "Calls external API and records monthly usage; not a read-only probe"
+      ],
+      "storage_or_configuration": [
+        "configuration argument default /etc/hestia/conf_db_ia.php",
+        "usage_dir resolved by AI configuration"
+      ],
+      "disposition": "LEGACY_NETWORK_AND_USAGE_WRITER_UNSUPPORTED",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/hestia_ai_preflight.php",
+          "sha256": "416465e5247c65d9ce7ff72902e8bf68e377234d418216b64f1cb36c6f639c3b",
+          "anchors": [
+            {
+              "text": "UPDATE P_Activite SET id_activite=id_activite WHERE 1=0",
+              "lines": [
+                103
+              ]
+            },
+            {
+              "text": "$client->createResponse",
+              "lines": [
+                108
+              ]
+            },
+            {
+              "text": "hestia_ai_usage_record($config, 'preflight'",
+              "lines": [
+                123
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai_toggle",
+      "path": "scripts/hestia_ai_toggle.php",
+      "modes": [
+        "--status",
+        "--enable",
+        "--disable",
+        "--help",
+        "--config-path"
+      ],
+      "identity_from_source": "Status loads PHP configuration as caller; mutation asks root when posix_geteuid exists; target root:www-data 0640",
+      "effects": [
+        "Status loads external PHP configuration; no unconditional purity claim for that external code",
+        "Enable/disable replaces configuration atomically; no common maintenance lease"
+      ],
+      "storage_or_configuration": [
+        "--config-path default /etc/hestia/conf_db_ia.php",
+        "same-directory temporary file"
+      ],
+      "disposition": "LEGACY_CONFIGURATION_WRITER_UNSUPPORTED",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/hestia_ai_toggle.php",
+          "sha256": "4b98deab2b693c70d64c0fa7953b8de70acea4d76b4f7f656f0fe1065fb5ab20",
+          "anchors": [
+            {
+              "text": "$loaded = require $configPath",
+              "lines": [
+                42
+              ]
+            },
+            {
+              "text": "isset($options['status'])",
+              "lines": [
+                30,
+                49
+              ]
+            },
+            {
+              "text": "rename($tmp, $configPath)",
+              "lines": [
+                89
+              ]
+            },
+            {
+              "text": "posix_getgrnam('www-data')",
+              "lines": [
+                82
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai_runtime_repair",
+      "path": "scripts/hestia_ai_runtime_repair.php",
+      "modes": [
+        "--config-path",
+        "--help"
+      ],
+      "identity_from_source": "Root required when posix_geteuid exists; root:www-data configuration and usage",
+      "effects": [
+        "Changes configuration/usage ownership and modes",
+        "Starts MariaDB socket client and GRANT SELECT",
+        "May rewrite configuration and create current usage file"
+      ],
+      "storage_or_configuration": [
+        "--config-path default /etc/hestia/conf_db_ia.php",
+        "configured usage_dir default /var/lib/hestia-ai",
+        "usage-*.json",
+        "local SQL socket"
+      ],
+      "disposition": "LEGACY_PRIVILEGED_UNSUPPORTED_BY_MANAGED_PROFILE",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/hestia_ai_runtime_repair.php",
+          "sha256": "c63e72f11c742a1ea8d2325cde9d0fc64b4b67d647cd755e33841b3341be71bf",
+          "anchors": [
+            {
+              "text": "proc_open([$binary",
+              "lines": [
+                79
+              ]
+            },
+            {
+              "text": "GRANT SELECT ON",
+              "lines": [
+                126
+              ]
+            },
+            {
+              "text": "runtimeWriteConfig($configPath",
+              "lines": [
+                131
+              ]
+            },
+            {
+              "text": "hestia_ai_usage_record($config, 'runtime_repair'",
+              "lines": [
+                144
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai_secret_store",
+      "path": "scripts/setup-hestia-ai-secret-store.sh",
+      "modes": [
+        "environment HESTIA_AI_SECRET_DIR / HESTIA_WEB_USER / HESTIA_WEB_GROUP"
+      ],
+      "identity_from_source": "Root only; file assigned to configured Web UID/GID default www-data, distinct from root-owned managed envelope",
+      "effects": [
+        "Creates directory; copies historical secret or creates empty file; chown/chmod of existing target"
+      ],
+      "storage_or_configuration": [
+        "HESTIA_AI_SECRET_DIR default /etc/hestia",
+        "conf_db_ia.php",
+        "historical includes/conf_db_ia.php"
+      ],
+      "disposition": "LEGACY_CONFIGURATION_WRITER_UNSUPPORTED",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/setup-hestia-ai-secret-store.sh",
+          "sha256": "51323b3717acb2866419b586a607d382a95b0c4317eb389894d453f04a7def45",
+          "anchors": [
+            {
+              "text": "HESTIA_AI_SECRET_DIR",
+              "lines": [
+                6
+              ]
+            },
+            {
+              "text": "HESTIA_WEB_USER",
+              "lines": [
+                9
+              ]
+            },
+            {
+              "text": "LEGACY_FILE=",
+              "lines": [
+                8
+              ]
+            },
+            {
+              "text": "install -m 0640",
+              "lines": [
+                20,
+                23
+              ]
+            },
+            {
+              "text": "chown \"${WEB_USER}:${WEB_GROUP}\"",
+              "lines": [
+                25
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reference_runtime_install",
+      "path": "scripts/install_reference_export_runtime.sh",
+      "modes": [
+        "no arguments"
+      ],
+      "identity_from_source": "Root only; host package manager and converter binary",
+      "effects": [
+        "Runs apt-get update/install libreoffice-impress",
+        "Executes PHP capability probe and converter version"
+      ],
+      "storage_or_configuration": [
+        "host package database and dependencies",
+        "/usr/bin/libreoffice or soffice or /opt/libreoffice/program/soffice"
+      ],
+      "disposition": "LEGACY_HOST_INSTALLER_NOT_MANAGED_PACKAGE_PROFILE",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/install_reference_export_runtime.sh",
+          "sha256": "7788fc323cfe5da0d63ae13fabdda4dc89b5c55841cb6c20b55879f72501e533",
+          "anchors": [
+            {
+              "text": "apt-get update",
+              "lines": [
+                15
+              ]
+            },
+            {
+              "text": "apt-get install -y libreoffice-impress",
+              "lines": [
+                16
+              ]
+            },
+            {
+              "text": "\"$BIN\" --headless --version",
+              "lines": [
+                37
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "internal_apache_helper",
+      "path": "scripts/mobile_internal_apache.py",
+      "modes": [
+        "check",
+        "apply",
+        "install",
+        "rollback"
+      ],
+      "identity_from_source": "check as caller; mutations require root and a new private backup; own lock separate from instance maintenance",
+      "effects": [
+        "check reads candidate and invokes global Apache configtest",
+        "apply/install/rollback writes vhost, enabled link, backup/receipt; reloads global apache2.service"
+      ],
+      "storage_or_configuration": [
+        "/etc/apache2/sites-available",
+        "/etc/apache2/sites-enabled",
+        "explicit private backup",
+        "/run/lock/hestia-mobile-internal-apache.lock"
+      ],
+      "disposition": "LEGACY_GLOBAL_APACHE_HELPER_OUTSIDE_DEDICATED_RUNTIME",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/mobile_internal_apache.py",
+          "sha256": "0e072a082a97bc197ff4d7475471e44715a7439a287c4594d81aa5c29046ec3f",
+          "anchors": [
+            {
+              "text": "choices=['check', 'apply', 'install', 'rollback']",
+              "lines": [
+                135
+              ]
+            },
+            {
+              "text": "hestia-mobile-internal-apache.lock",
+              "lines": [
+                150
+              ]
+            },
+            {
+              "text": "run('systemctl', 'reload', 'apache2.service')",
+              "lines": [
+                106,
+                110,
+                123,
+                129
+              ]
+            },
+            {
+              "text": "receipt.json",
+              "lines": [
+                100,
+                115
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "release_metadata",
+      "path": "scripts/release_metadata.php",
+      "modes": [
+        "--json",
+        "--file",
+        "default text output"
+      ],
+      "identity_from_source": "Caller identity; no privileged operation in parser",
+      "effects": [
+        "Reads version file as text, extracts constants and writes stdout; does not require/execute selected PHP file"
+      ],
+      "storage_or_configuration": [
+        "includes/version.php by default; --file arbitrary caller-selected readable path"
+      ],
+      "disposition": "READ_ONLY_SOURCE_TOOL_NOT_A_MANAGED_LAUNCHER",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/release_metadata.php",
+          "sha256": "6b9c2efa3556b0e41c9b1274c013d2f88fa6e9e0332e7b6811f2dec63058da82",
+          "anchors": [
+            {
+              "text": "file_get_contents($file)",
+              "lines": [
+                23
+              ]
+            },
+            {
+              "text": "preg_match",
+              "lines": [
+                31,
+                46
+              ]
+            },
+            {
+              "text": "json_encode($metadata",
+              "lines": [
+                70
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quality_fixture_launcher",
+      "path": "scripts/quality-installer-core.sh",
+      "modes": [
+        "HESTIA_INSTALLER_DB_TEST=1"
+      ],
+      "identity_from_source": "Test runner identity; isolated database precondition; never deployed business job",
+      "effects": [
+        "Runs test PHP and Python fixtures, which perform disposable SQL/HTTP tests"
+      ],
+      "storage_or_configuration": [
+        "tests/installer_shared_core.php",
+        "tests/integration/installer_shared_fresh.php",
+        "tests/integration/installer_shared_http.py"
+      ],
+      "disposition": "TEST_ONLY_EXCLUDED_FROM_PRODUCT_SCHEDULING",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "scripts/quality-installer-core.sh",
+          "sha256": "3b1f48fe8dcdef0d3727d2f4b5f7d4b879c594db509d9040d4b1d06d3574fe4a",
+          "anchors": [
+            {
+              "text": "HESTIA_INSTALLER_DB_TEST",
+              "lines": [
+                5,
+                6
+              ]
+            },
+            {
+              "text": "php tests/integration/installer_shared_fresh.php",
+              "lines": [
+                10
+              ]
+            },
+            {
+              "text": "python3 tests/integration/installer_shared_http.py",
+              "lines": [
+                11
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "root_archive_operator_tool",
+      "path": "docs/maintenance/hestia_root_archive.py",
+      "modes": [
+        "default candidate listing",
+        "--plan",
+        "--apply",
+        "--verify"
+      ],
+      "identity_from_source": "Root operator tool; no automatic use in Installer",
+      "effects": [
+        "Reads files and references; --apply moves selected recipe trees and writes journal/manifest",
+        "Indicative host reference search is not a complete scheduler inventory"
+      ],
+      "storage_or_configuration": [
+        "/root",
+        "/root/_HestiaBCKP",
+        "operator-selected recipe directories"
+      ],
+      "disposition": "HISTORICAL_HOST_TOOL_OUTSIDE_AUTHORIZED_RUNTIME",
+      "managed_launcher_delivered": false,
+      "maintenance_wiring_verified": false,
+      "host_presence": "UNOBSERVED",
+      "evidence": [
+        {
+          "path": "docs/maintenance/hestia_root_archive.py",
+          "sha256": "8acac35cf519100cbb44e376acc22a6165fad222b47167f9e3f8ccb958fc8a07",
+          "anchors": [
+            {
+              "text": "ROOT = Path('/root')",
+              "lines": [
+                13
+              ]
+            },
+            {
+              "text": "Recherche indicative",
+              "lines": [
+                70
+              ]
+            },
+            {
+              "text": "source.rename(target)",
+              "lines": [
+                170
+              ]
+            },
+            {
+              "text": "os.geteuid() != 0",
+              "lines": [
+                199
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "contexts": [
+    {
+      "id": "reference_pdf_converter",
+      "kind": "PHP_CHILD_PROCESS",
+      "launch": "includes/reference_export.php: hestia_reference_export_convert_pdf",
+      "identity": "inherited PHP UID/GID and cgroup unless a caller launches it differently",
+      "effects": [
+        "PPTX/PDF and LibreOffice temporary/profile data under runtime-effective temporary directory; HOME and cwd set to conversion directory"
+      ],
+      "limits": "45-second parent loop terminates direct process; no independent descendant-drain proof for real LibreOffice",
+      "evidence": [
+        {
+          "path": "includes/reference_export.php",
+          "sha256": "d3be60b294500a4a42e9bb09426fbdf8c6d4047928b910a2ec9d7b93cd3c1425",
+          "anchors": [
+            {
+              "text": "HESTIA_LIBREOFFICE_BIN",
+              "lines": [
+                689,
+                713
+              ]
+            },
+            {
+              "text": "function hestia_reference_export_temp_dir",
+              "lines": [
+                205
+              ]
+            },
+            {
+              "text": "proc_open($command",
+              "lines": [
+                725
+              ]
+            },
+            {
+              "text": "proc_terminate($process, 9)",
+              "lines": [
+                746
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reference_layout_converter",
+      "kind": "PHP_CHILD_PROCESS",
+      "launch": "includes/reference_template_layout.php: PNG and SVG helpers",
+      "identity": "inherited PHP UID/GID and cgroup unless a caller launches it differently",
+      "effects": [
+        "Mutates temporary PPTX, generates PNG/SVG, converter HOME/cwd in temporary directory"
+      ],
+      "limits": "45-second helper timeout; real LibreOffice package, formats and descendant behavior remain unqualified",
+      "evidence": [
+        {
+          "path": "includes/reference_template_layout.php",
+          "sha256": "6073c4805b82de6340ed5faad3275947e799f412f4c9c0158ad317344021cc36",
+          "anchors": [
+            {
+              "text": "int $timeoutSeconds = 45",
+              "lines": [
+                690
+              ]
+            },
+            {
+              "text": "proc_open($command",
+              "lines": [
+                696
+              ]
+            },
+            {
+              "text": "'--convert-to', 'png'",
+              "lines": [
+                951
+              ]
+            },
+            {
+              "text": "'--convert-to', 'svg'",
+              "lines": [
+                992
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "import_http_workers",
+      "kind": "HTTP_REQUEST_AND_SHUTDOWN",
+      "launch": "ajax/import_prepare.php, import_progress.php and import_worker.php",
+      "identity": "effective PHP service identity; no shipped cron inferred from watchdog name",
+      "effects": [
+        "SQL package updates and watchdog registry under effective import storage; callbacks may write after response"
+      ],
+      "limits": "Requires HTTP and shutdown/descendant drain; not a standalone CLI scheduler",
+      "evidence": [
+        {
+          "path": "ajax/import_worker.php",
+          "sha256": "452a11317055a1abf7045cd668b287b3cc16b6114c288efd9e7a1c0e22916057",
+          "anchors": [
+            {
+              "text": "register_shutdown_function",
+              "lines": [
+                17
+              ]
+            },
+            {
+              "text": "pa_import_watchdog_release_worker",
+              "lines": [
+                26,
+                112,
+                124
+              ]
+            }
+          ]
+        },
+        {
+          "path": "ajax/import_progress.php",
+          "sha256": "fa8d0d81c858279bf7bfe80563e3effb552da733457c55bc66501ae0f4668d70",
+          "anchors": [
+            {
+              "text": "pa_import_watchdog_recover_stale_workers",
+              "lines": [
+                19
+              ]
+            }
+          ]
+        },
+        {
+          "path": "ajax/import_prepare.php",
+          "sha256": "4dd747d55be0219ae40fd2a28d687a36a431910c8915b4b3048530f3c9e6cfbe",
+          "anchors": [
+            {
+              "text": "pa_import_watchdog_recover_stale_workers",
+              "lines": [
+                21
+              ]
+            }
+          ]
+        },
+        {
+          "path": "includes/import_watchdog.php",
+          "sha256": "2554d945f97de1ac856faf6c4bba029a93c06779a9131034ba909e9b50ac5836",
+          "anchors": [
+            {
+              "text": ".worker-watchdog",
+              "lines": [
+                18
+              ]
+            },
+            {
+              "text": "KILL CONNECTION",
+              "lines": [
+                313
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "host_evidence_required": [
+    "effective systemd system and user units including transient/generated units, fragments, drop-ins, triggers and pending jobs",
+    "system and per-user cron/anacron/queued jobs plus script/interpreter/wrapper chains",
+    "actual UID/GID/supplementary groups, executable, argv shape, cwd, environment bindings and cgroups",
+    "all filesystem roots and SQL identities; dynamic or external launchers explicitly unresolved",
+    "stop future admission, drain already running descendants, reread live state before and during maintenance"
+  ],
+  "blocked_runtime_claims": {
+    "cli_launcher_delivered": false,
+    "host_scheduler_inventory_complete": false,
+    "storage_inventory_complete": false,
+    "system_wiring_verified": false,
+    "complete_web_backup": false,
+    "service_activation_delivered": false,
+    "phase5_complete": false
+  }
+}
