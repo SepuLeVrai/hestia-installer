@@ -1,5 +1,23 @@
 # État du projet
 
+## Reprise courante : contrat du contexte configuré, sans changement runtime
+
+Base exacte `7bb59a67463841db018cb70c5643eb30ad060e4a`, arbre
+`e16822ef6183a28b117cc5d0008b0ea566de798d`, 248 fichiers. Son run36256184902
+est vert :299 contrôles Debian13 et24 cas réels ;299 contrôles locaux, artefact
+et modes vérifiés. Les deux échecs du lot précédent restent conservés ; aucune
+résolution rétroactive de leur cause n'est affirmée.
+
+Le [contrat de contexte configuré](PHASE5_SYSTEMD_EXECUTION_CONTEXT.md) fixe
+20 propriétés Service, leur route par invocation, getters, sémantique et bornes.
+16 sources officielles v257 sont vérifiées par blob Git/SHA256 ;24 futurs cas
+restent non exécutés. Ce lot édite seulement docs/ : code/tests/workflows/Web
+inchangés, zéro Actions, aucune qualification runtime nouvelle ou promotion.
+Prochain chantier unique : implémenter le lecteur de ces20 propriétés dans le
+census vivant, bloc privé sans projection numérique des comptes ni résolution
+hôte des chemins. Les commandes Ex restent un chantier ultérieur distinct.
+Checkpoint puis arrêt. Les sections qui suivent sont des états historiques.
+
 Lot census/relations : deux jobs refusés (runs36255253018 et36255697233).
 Le second conserve299 contrôles et22/24 cas réels verts ; deux conflits de jobs
 systemd. Le journal montre une boucle de getty@tty1.service dans le conteneur.

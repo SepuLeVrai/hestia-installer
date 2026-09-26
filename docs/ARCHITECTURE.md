@@ -1,5 +1,17 @@
 # Architecture HESTIA Installer
 
+## Contrat du prochain lecteur de contexte configuré
+
+Le [profil Service proposé](PHASE5_SYSTEMD_EXECUTION_CONTEXT.md) compose le
+census/relations existant sans nouveau consommateur de mutation.20 propriétés,
+deux lectures par service distinct lié, FD encore ouverts, comparaison exacte,
+budget24+8N+18M+40S avec S<=M<=N<=128. La preuve privée doit lier le bloc de
+configuration à l'index, au census, aux relations et à tous les leaders.
+Aucun code de ce lecteur n'est livré ici. Sa première version conservera les
+textes configurés sans les convertir en faits numériques/effectifs ou chemins
+résolus ; la sélection existante ne gagne pas de signal inventé. Les commandes,
+unités sans processus et autres types restent hors de cette première lecture.
+
 ## Relations et signaux du census vivant
 
 [systemd_census_relations](PHASE5_CENSUS_RELATIONS.md) étend la liaison privée

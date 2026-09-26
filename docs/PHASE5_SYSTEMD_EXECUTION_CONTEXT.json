@@ -1,0 +1,929 @@
+{
+  "schema": 1,
+  "state": "EXECUTION_CONTEXT_CONTRACT_ONLY",
+  "base_commit": "7bb59a67463841db018cb70c5643eb30ad060e4a",
+  "base_tree": "e16822ef6183a28b117cc5d0008b0ea566de798d",
+  "base_files": 248,
+  "qualified_parent_run": 36256184902,
+  "parent_runtime_controllers": 299,
+  "parent_runtime_scenarios": 24,
+  "upstream": {
+    "repository": "systemd/systemd",
+    "tag": "v257",
+    "commit": "70bae7648f2c18010187c9cf20093155eaa26029",
+    "tag_object": "19581ac7710c3095a01a1267c4febdc74881f787"
+  },
+  "decision": {
+    "profile": "BOUND_SERVICE_CONFIGURATION_V1",
+    "runtime_implemented": false,
+    "runtime_verified": false,
+    "source_getters_reviewed": true,
+    "actions_planned_for_this_lot": 0,
+    "input": "TARGET_AND_STORAGE_ONLY",
+    "addressing": "OWNED_CENSUS_PIDFD_TO_CANONICAL_INVOCATION",
+    "eligible_type": "service",
+    "nonservice": "CONTEXT_NOT_COVERED_NO_SERVICE_QUERY",
+    "eligible_property_error": "REJECT_WHOLE_COLLECTION",
+    "processless": "UNRESOLVED_NO_NAMED_FALLBACK",
+    "model_projection": "NONE_KEEP_PRIVATE_CONFIGURATION_BLOCK",
+    "selection": "EXISTING_CENSUS_RELATION_SIGNALS_ONLY",
+    "numeric_identity_coercion": false,
+    "nss_resolution": false,
+    "path_resolution": false,
+    "command_collection": false,
+    "automatic_exclusion_allowed": false,
+    "drain_allowed": false,
+    "phase5_complete": false
+  },
+  "protocol": {
+    "method": "org.freedesktop.DBus.Properties.Get",
+    "input_signature": "ss",
+    "output_signature": "v",
+    "interface": "org.freedesktop.systemd1.Service",
+    "passes": 2,
+    "property_count_per_service_per_pass": 20,
+    "equality": "EXACT_TYPED_VALUES_INCLUDING_SEQUENCE_ORDER_AND_DUPLICATES",
+    "named_properties": false,
+    "fallback": false,
+    "get_all": false,
+    "caller_supplied_selectors": false,
+    "pidfd_owned_until_final_checks": true
+  },
+  "properties": [
+    {
+      "name": "User",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "s",
+      "getter": "NULL",
+      "source": "dbus-execute-v257.c",
+      "line": 1164,
+      "anchor": "SD_BUS_PROPERTY(\"User\", \"s\", NULL, offsetof(ExecContext, user), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_utf8_bytes": 256
+    },
+    {
+      "name": "Group",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "s",
+      "getter": "NULL",
+      "source": "dbus-execute-v257.c",
+      "line": 1165,
+      "anchor": "SD_BUS_PROPERTY(\"Group\", \"s\", NULL, offsetof(ExecContext, group), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_utf8_bytes": 256
+    },
+    {
+      "name": "SupplementaryGroups",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "as",
+      "getter": "NULL",
+      "source": "dbus-execute-v257.c",
+      "line": 1175,
+      "anchor": "SD_BUS_PROPERTY(\"SupplementaryGroups\", \"as\", NULL, offsetof(ExecContext, supplementary_groups), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_items": 128,
+      "item_utf8_bytes": 256
+    },
+    {
+      "name": "DynamicUser",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "b",
+      "getter": "bus_property_get_bool",
+      "source": "dbus-execute-v257.c",
+      "line": 1166,
+      "anchor": "SD_BUS_PROPERTY(\"DynamicUser\", \"b\", bus_property_get_bool, offsetof(ExecContext, dynamic_user), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false
+    },
+    {
+      "name": "PAMName",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "s",
+      "getter": "NULL",
+      "source": "dbus-execute-v257.c",
+      "line": 1176,
+      "anchor": "SD_BUS_PROPERTY(\"PAMName\", \"s\", NULL, offsetof(ExecContext, pam_name), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_utf8_bytes": 256
+    },
+    {
+      "name": "WorkingDirectory",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "s",
+      "getter": "property_get_working_directory",
+      "source": "dbus-execute-v257.c",
+      "line": 1110,
+      "anchor": "SD_BUS_PROPERTY(\"WorkingDirectory\", \"s\", property_get_working_directory, 0, SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_utf8_bytes": 2048
+    },
+    {
+      "name": "RootDirectory",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "s",
+      "getter": "NULL",
+      "source": "dbus-execute-v257.c",
+      "line": 1111,
+      "anchor": "SD_BUS_PROPERTY(\"RootDirectory\", \"s\", NULL, offsetof(ExecContext, root_directory), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_utf8_bytes": 2048
+    },
+    {
+      "name": "RootImage",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "s",
+      "getter": "NULL",
+      "source": "dbus-execute-v257.c",
+      "line": 1112,
+      "anchor": "SD_BUS_PROPERTY(\"RootImage\", \"s\", NULL, offsetof(ExecContext, root_image), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_utf8_bytes": 2048
+    },
+    {
+      "name": "RootDirectoryStartOnly",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "b",
+      "getter": "bus_property_get_bool",
+      "source": "dbus-service-v257.c",
+      "line": 343,
+      "anchor": "SD_BUS_PROPERTY(\"RootDirectoryStartOnly\", \"b\", bus_property_get_bool, offsetof(Service, root_directory_start_only), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false
+    },
+    {
+      "name": "PrivateUsersEx",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "s",
+      "getter": "property_get_private_users_ex",
+      "source": "dbus-execute-v257.c",
+      "line": 1195,
+      "anchor": "SD_BUS_PROPERTY(\"PrivateUsersEx\", \"s\", property_get_private_users_ex, offsetof(ExecContext, private_users), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "allowed_values": [
+        "no",
+        "self",
+        "identity"
+      ]
+    },
+    {
+      "name": "PrivateTmpEx",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "s",
+      "getter": "property_get_private_tmp_ex",
+      "source": "dbus-execute-v257.c",
+      "line": 1185,
+      "anchor": "SD_BUS_PROPERTY(\"PrivateTmpEx\", \"s\", property_get_private_tmp_ex, offsetof(ExecContext, private_tmp), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "allowed_values": [
+        "no",
+        "connected",
+        "disconnected"
+      ]
+    },
+    {
+      "name": "PrivateMounts",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "b",
+      "getter": "bus_property_get_tristate",
+      "source": "dbus-execute-v257.c",
+      "line": 1196,
+      "anchor": "SD_BUS_PROPERTY(\"PrivateMounts\", \"b\", bus_property_get_tristate, offsetof(ExecContext, private_mounts), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false
+    },
+    {
+      "name": "PrivateDevices",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "b",
+      "getter": "bus_property_get_bool",
+      "source": "dbus-execute-v257.c",
+      "line": 1186,
+      "anchor": "SD_BUS_PROPERTY(\"PrivateDevices\", \"b\", bus_property_get_bool, offsetof(ExecContext, private_devices), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false
+    },
+    {
+      "name": "ProtectHome",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "s",
+      "getter": "property_get_protect_home",
+      "source": "dbus-execute-v257.c",
+      "line": 1199,
+      "anchor": "SD_BUS_PROPERTY(\"ProtectHome\", \"s\", property_get_protect_home, offsetof(ExecContext, protect_home), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "allowed_values": [
+        "no",
+        "yes",
+        "read-only",
+        "tmpfs"
+      ]
+    },
+    {
+      "name": "ProtectSystem",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "s",
+      "getter": "property_get_protect_system",
+      "source": "dbus-execute-v257.c",
+      "line": 1200,
+      "anchor": "SD_BUS_PROPERTY(\"ProtectSystem\", \"s\", property_get_protect_system, offsetof(ExecContext, protect_system), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "allowed_values": [
+        "no",
+        "yes",
+        "full",
+        "strict"
+      ]
+    },
+    {
+      "name": "ReadWritePaths",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "as",
+      "getter": "NULL",
+      "source": "dbus-execute-v257.c",
+      "line": 1177,
+      "anchor": "SD_BUS_PROPERTY(\"ReadWritePaths\", \"as\", NULL, offsetof(ExecContext, read_write_paths), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_items": 256,
+      "item_utf8_bytes": 2048
+    },
+    {
+      "name": "ReadOnlyPaths",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "as",
+      "getter": "NULL",
+      "source": "dbus-execute-v257.c",
+      "line": 1178,
+      "anchor": "SD_BUS_PROPERTY(\"ReadOnlyPaths\", \"as\", NULL, offsetof(ExecContext, read_only_paths), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_items": 256,
+      "item_utf8_bytes": 2048
+    },
+    {
+      "name": "InaccessiblePaths",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "as",
+      "getter": "NULL",
+      "source": "dbus-execute-v257.c",
+      "line": 1179,
+      "anchor": "SD_BUS_PROPERTY(\"InaccessiblePaths\", \"as\", NULL, offsetof(ExecContext, inaccessible_paths), SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_items": 256,
+      "item_utf8_bytes": 2048
+    },
+    {
+      "name": "BindPaths",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "a(ssbt)",
+      "getter": "property_get_bind_paths",
+      "source": "dbus-execute-v257.c",
+      "line": 1237,
+      "anchor": "SD_BUS_PROPERTY(\"BindPaths\", \"a(ssbt)\", property_get_bind_paths, 0, SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_items": 128,
+      "path_utf8_bytes": 2048,
+      "fields": [
+        "source",
+        "destination",
+        "ignore_enoent",
+        "flags"
+      ],
+      "flags": "opaque_uint64"
+    },
+    {
+      "name": "BindReadOnlyPaths",
+      "interface": "org.freedesktop.systemd1.Service",
+      "signature": "a(ssbt)",
+      "getter": "property_get_bind_paths",
+      "source": "dbus-execute-v257.c",
+      "line": 1238,
+      "anchor": "SD_BUS_PROPERTY(\"BindReadOnlyPaths\", \"a(ssbt)\", property_get_bind_paths, 0, SD_BUS_VTABLE_PROPERTY_CONST),",
+      "phase": "FIRST_READER",
+      "runtime_implemented": false,
+      "max_items": 128,
+      "path_utf8_bytes": 2048,
+      "fields": [
+        "source",
+        "destination",
+        "ignore_enoent",
+        "flags"
+      ],
+      "flags": "opaque_uint64"
+    }
+  ],
+  "limits": {
+    "leaders": 128,
+    "units": 128,
+    "services": 128,
+    "calls_formula": "24 + 8*N + 18*M + 40*S",
+    "initial_calls_formula": "24 + 66*N",
+    "maximum_calls": 8472,
+    "reply_bytes": 2097152,
+    "total_bus_bytes": 8388608,
+    "new_utf8_bytes_per_pass": 262144,
+    "new_group_and_path_elements_per_pass": 4096,
+    "new_bind_records_per_pass": 1024,
+    "proc_leaders": 512,
+    "proc_tasks_and_fds": 1024,
+    "proc_bytes": 33554432,
+    "proc_reads": 32768,
+    "proc_entries": 32768,
+    "collection_seconds": 60,
+    "call_seconds": 5,
+    "envelope_bytes": 4194304,
+    "retries": 0
+  },
+  "deferred_exec": {
+    "read_in_first_profile": false,
+    "historical_signature": "a(sasbttttuii)",
+    "extended_signature": "a(sasasttttuii)",
+    "properties": [
+      "ExecConditionEx",
+      "ExecStartPreEx",
+      "ExecStartEx",
+      "ExecStartPostEx",
+      "ExecReloadEx",
+      "ExecStopEx",
+      "ExecStopPostEx"
+    ],
+    "risks": [
+      "ARGUMENTS_MAY_CONTAIN_SECRETS",
+      "HISTORICAL_PROPERTIES_LOSE_PRIVILEGE_FLAGS",
+      "PER_COMMAND_CREDENTIAL_AND_ROOT_OVERRIDES",
+      "RUNTIME_STATUS_IS_NOT_CONFIGURATION",
+      "NO_SHELL_OR_ENVIRONMENT_INTERPRETATION"
+    ]
+  },
+  "excluded_queries": [
+    "GetAll",
+    "Introspect",
+    "RefUnit",
+    "LoadUnit",
+    "Set",
+    "GetDynamicUsers",
+    "UID",
+    "GID",
+    "Environment",
+    "EnvironmentFiles",
+    "SetCredential",
+    "LoadCredential",
+    "FragmentPath",
+    "DropInPaths",
+    "PrivateUsers",
+    "PrivateTmp"
+  ],
+  "remaining_unknowns": [
+    "NSS_AND_PAM_EFFECTS",
+    "ALL_PHASE_EXECUTION_COMMANDS",
+    "EFFECTIVE_NAMESPACES_AND_ROOTS",
+    "UNREAD_FILESYSTEM_AND_SANDBOX_DIRECTIVES",
+    "ALL_FILE_IDENTITIES_AND_PERMISSIONS",
+    "UNSELECTED_AND_PROCESSLESS_UNITS",
+    "NON_SERVICE_EXEC_CONTEXTS",
+    "OTHER_LAUNCHER_FAMILIES",
+    "ABA_AND_TRANSIENT_TASKS",
+    "WRITER_AND_DRAIN_COVERAGE"
+  ],
+  "acceptance_cases": [
+    {
+      "id": "service_interface",
+      "scenario": "Service lié, interface exacte et 20 signatures réelles",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "nonservice",
+      "scenario": "Scope/autre unité liée : aucun appel Service, contexte non couvert",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "processless",
+      "scenario": "Unité inactive/timer sans leader : inconnue, aucun chargement nommé",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "identities",
+      "scenario": "Noms et IDs numériques conservés comme textes ; aucune résolution NSS",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "supplementary",
+      "scenario": "Liste configurée distincte des groupes réellement observés",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "dynamic",
+      "scenario": "DynamicUser réel et identité statique : aucun UID durable inventé",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "pam_boundary",
+      "scenario": "PAMName conservé sans exécuter de module ni certifier le propriétaire",
+      "required_evidence": "LOCAL_AND_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "working_directory",
+      "scenario": "Vide, home, missing_ok et préfixe ! réellement sérialisés",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "root_context",
+      "scenario": "RootDirectory/image et StartOnly restent déclarés, non résolus",
+      "required_evidence": "LOCAL_AND_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "extended_modes",
+      "scenario": "PrivateUsersEx/PrivateTmpEx : modes exacts, aucun repli booléen",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "tristate",
+      "scenario": "PrivateMounts=false ne produit pas une preuve de namespace hôte",
+      "required_evidence": "LOCAL_AND_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "binds",
+      "scenario": "Binds réels : quatre champs, ordre/doublons et flags opaques conservés",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "path_lists",
+      "scenario": "Préfixes des chemins conservés ; absence de droit RW déduit",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "grouping",
+      "scenario": "Plusieurs leaders par service : détails dédupliqués, tous mappings conservés",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "context_drift",
+      "scenario": "Modification réelle à invocation constante pendant les propriétés : refus",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "disappearance",
+      "scenario": "Disparition après liaison : ancien chemin refusé sans rechargement",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "restart",
+      "scenario": "Nouvelle invocation non adoptée ; ancien identifiant inutilisable",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "proc_drift",
+      "scenario": "Changement de tâche/fsuid/cgroup pendant détails : refus et FD fermés",
+      "required_evidence": "REAL_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "strict_decode",
+      "scenario": "Signatures/JSON/types/enums/UTF-8/tailles malformés : refus fermé",
+      "required_evidence": "LOCAL_CONTROLLER",
+      "executed": false
+    },
+    {
+      "id": "bounded_budget",
+      "scenario": "Compteur exact, budgets cumulés partagés, pas de reset/retry",
+      "required_evidence": "LOCAL_AND_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "all_bindings_digest",
+      "scenario": "Preuve finale lie index, census, relations, contexte et tous leaders",
+      "required_evidence": "LOCAL_CONTROLLER",
+      "executed": false
+    },
+    {
+      "id": "privacy",
+      "scenario": "Rapports/erreurs/repr privés, pas de commandes/secrets/environnement",
+      "required_evidence": "LOCAL_AND_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "unsupported_property",
+      "scenario": "Propriété/version manquante : refus du service éligible sans fallback",
+      "required_evidence": "LOCAL_AND_SYSTEM",
+      "executed": false
+    },
+    {
+      "id": "parent_invariants",
+      "scenario": "Non-régression des FD, listes, parents et flags globaux faux",
+      "required_evidence": "LOCAL_AND_SYSTEM",
+      "executed": false
+    }
+  ],
+  "primary_references": [
+    {
+      "file": "dbus-execute-v257.c",
+      "path": "src/core/dbus-execute.c",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/dbus-execute.c",
+      "blob_sha1": "e297323f1d3e794044f726023310cd4f582793e2",
+      "sha256": "c77ca1eb79618aed1a8358dc084aaf68927fa7bb2329844ed721d23b0798378e",
+      "bytes": 176593,
+      "anchors": [
+        {
+          "token": "const sd_bus_vtable bus_exec_vtable[]",
+          "line": 1071
+        },
+        {
+          "token": "static int property_get_working_directory(",
+          "line": 361
+        },
+        {
+          "token": "wd = strjoina(\"!\", wd);",
+          "line": 382
+        },
+        {
+          "token": "static int property_get_bind_paths(",
+          "line": 468
+        },
+        {
+          "token": "static int append_exec_ex_command(",
+          "line": 1299
+        },
+        {
+          "token": "!!(c->flags & EXEC_COMMAND_IGNORE_FAILURE)",
+          "line": 1285
+        },
+        {
+          "token": "r = exec_command_flags_to_strv(c->flags, &ex_opts);",
+          "line": 1321
+        }
+      ]
+    },
+    {
+      "file": "dbus-service-v257.c",
+      "path": "src/core/dbus-service.c",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/dbus-service.c",
+      "blob_sha1": "85eb99f218eca1dc6107ac02409fe684a88dc951",
+      "sha256": "2a180ab3f9db55b7f27d9b1d7c1f1fbd7e2d7b7cc55ed9d79ad5ca07e084cc76",
+      "bytes": 39092,
+      "anchors": [
+        {
+          "token": "const sd_bus_vtable bus_service_vtable[]",
+          "line": 321
+        },
+        {
+          "token": "BUS_EXEC_EX_COMMAND_LIST_VTABLE(\"ExecConditionEx\"",
+          "line": 375
+        },
+        {
+          "token": "BUS_EXEC_EX_COMMAND_LIST_VTABLE(\"ExecStopPostEx\"",
+          "line": 387
+        },
+        {
+          "token": "offsetof(Unit, ref_uid)",
+          "line": 365
+        }
+      ]
+    },
+    {
+      "file": "execute-v257.h",
+      "path": "src/core/execute.h",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/execute.h",
+      "blob_sha1": "32dabf177f44ab285f15d554ff37e2f6fccd191b",
+      "sha256": "0b18a3a8362376e4a52ea4a6d2cd51e44872f7dd81cfd9f8b28f002974030d7d",
+      "bytes": 29625,
+      "anchors": [
+        {
+          "token": "Does not carry runtime data, but only configuration",
+          "line": 189
+        },
+        {
+          "token": "struct ExecContext {",
+          "line": 192
+        },
+        {
+          "token": "bool working_directory_missing_ok:1;",
+          "line": 204
+        }
+      ]
+    },
+    {
+      "file": "systemd.exec-v257.xml",
+      "path": "man/systemd.exec.xml",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/man/systemd.exec.xml",
+      "blob_sha1": "14075cb4e7d5ceec0f878fbb0fafe1a86d6b7ecc",
+      "sha256": "e67c86e6d919bae4724cc6ffa09c96c3a5e072882e09aca3a1efaa3746e76325",
+      "bytes": 310674,
+      "anchors": [
+        {
+          "token": "the default group of the user is used",
+          "line": 638
+        },
+        {
+          "token": "this option does not override, but extends",
+          "line": 728
+        },
+        {
+          "token": "be associated with two units",
+          "line": 766
+        },
+        {
+          "token": "<term><varname>WorkingDirectory=</varname></term>",
+          "line": 109
+        }
+      ]
+    },
+    {
+      "file": "systemd.service-v257.xml",
+      "path": "man/systemd.service.xml",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/man/systemd.service.xml",
+      "blob_sha1": "2bb7d05189ae233d34e9a38b717d54ca2c266f07",
+      "sha256": "80f479747740d98e20ec214231a710616013238323596ea619d9159b3649e584",
+      "bytes": 108781,
+      "anchors": [
+        {
+          "token": "<term><varname>RootDirectoryStartOnly=</varname></term>",
+          "line": 1062
+        },
+        {
+          "token": "the process is executed with full privileges",
+          "line": 1405
+        },
+        {
+          "token": "exclusively alters the effect of",
+          "line": 1411
+        }
+      ]
+    },
+    {
+      "file": "bus-get-properties-v257.c",
+      "path": "src/shared/bus-get-properties.c",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/shared/bus-get-properties.c",
+      "blob_sha1": "53e5d6b99f18715ad61f99e53260997bbad76937",
+      "sha256": "53cb1619e81a6c060e8557e69e36a91bb9497562863c1c7aa91cde2c1643054d",
+      "bytes": 4592,
+      "anchors": [
+        {
+          "token": "int bus_property_get_bool(",
+          "line": 8
+        },
+        {
+          "token": "int bus_property_get_tristate(",
+          "line": 41
+        },
+        {
+          "token": "int b = (*(int*) userdata) > 0;",
+          "line": 52
+        }
+      ]
+    },
+    {
+      "file": "execute-v257.c",
+      "path": "src/core/execute.c",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/execute.c",
+      "blob_sha1": "3d55b0b772ece0546e20e6da7a7cf6cca81223b8",
+      "sha256": "ec0403029b8a5514dcdbc92e9bce496ab820e60163b09e385d7538600e5c5233",
+      "bytes": 104302,
+      "anchors": [
+        {
+          "token": "bool exec_context_get_effective_mount_apivfs(",
+          "line": 1542
+        },
+        {
+          "token": "return c->user || c->dynamic_user || c->pam_name;",
+          "line": 1809
+        }
+      ]
+    },
+    {
+      "file": "exec-invoke-v257.c",
+      "path": "src/core/exec-invoke.c",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/exec-invoke.c",
+      "blob_sha1": "9d636f552950d13c5c086c6183b33e4609333e8a",
+      "sha256": "24bd1149900942609a7b7e48b67a20a9a590e6dd9ee474ad5d025a5b447c2a99",
+      "bytes": 236771,
+      "anchors": [
+        {
+          "token": "needs_sandboxing = (params->flags & EXEC_APPLY_SANDBOXING) && !(command->flags & EXEC_COMMAND_FULLY_PRIVILEGED);",
+          "line": 4753
+        },
+        {
+          "token": "needs_setuid = (params->flags & EXEC_APPLY_SANDBOXING) && !(command->flags & (EXEC_COMMAND_FULLY_PRIVILEGED|EXEC_COMMAND_NO_SETUID));",
+          "line": 4906
+        }
+      ]
+    },
+    {
+      "file": "bus-objects-v257.c",
+      "path": "src/libsystemd/sd-bus/bus-objects.c",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/libsystemd/sd-bus/bus-objects.c",
+      "blob_sha1": "e528987a6d451373ea9adc41a43ac7f6887a24ec",
+      "sha256": "ba3655e4e4f5abf127e25f05a76a5cfed3c3ed2e0d0b7c321709c2342c54a9b4",
+      "bytes": 99550,
+      "anchors": [
+        {
+          "token": "static int invoke_property_get(",
+          "line": 422
+        },
+        {
+          "token": "/* Automatic handling if no callback is defined. */",
+          "line": 459
+        },
+        {
+          "token": "return sd_bus_message_append_strv(reply, *(char***) userdata);",
+          "line": 462
+        },
+        {
+          "token": "p = strempty(*(char**) userdata);",
+          "line": 471
+        }
+      ]
+    },
+    {
+      "file": "bus-get-properties-v257.h",
+      "path": "src/shared/bus-get-properties.h",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/shared/bus-get-properties.h",
+      "blob_sha1": "4c351265028716708c3771523856bcfe931ca146",
+      "sha256": "a530042784bdebbe50c7d69f9cb0af804ef537bdf65656ab3f1af229b6a8a529",
+      "bytes": 5722,
+      "anchors": [
+        {
+          "token": "#define BUS_DEFINE_PROPERTY_GET_REF(",
+          "line": 93
+        },
+        {
+          "token": "#define BUS_DEFINE_PROPERTY_GET_ENUM(",
+          "line": 96
+        }
+      ]
+    },
+    {
+      "file": "dbus-v257.c",
+      "path": "src/core/dbus.c",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/dbus.c",
+      "blob_sha1": "744b97f9910d4eab30e80b5e120698c9dc88c149",
+      "sha256": "02a2d27f94a72bbd9d0a035108f81ed94046eb35ba33cb2b3758cc4b2cd67bc7",
+      "bytes": 40858,
+      "anchors": [
+        {
+          "token": "static int find_unit(",
+          "line": 272
+        },
+        {
+          "token": "static int bus_exec_context_find(",
+          "line": 388
+        },
+        {
+          "token": "static const BusObjectImplementation bus_service_object = {",
+          "line": 513
+        },
+        {
+          "token": "{ bus_exec_vtable,        bus_exec_context_find }",
+          "line": 492
+        },
+        {
+          "token": "c = unit_get_exec_context(u);",
+          "line": 406
+        }
+      ]
+    },
+    {
+      "file": "namespace-v257.h",
+      "path": "src/core/namespace.h",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/namespace.h",
+      "blob_sha1": "bd48aa31da71c0e14c7eced1c6109485bf26323a",
+      "sha256": "3ab73e4d1788fbec523f5306acfe9a8df734ec3939f97a0989a92dd4ce86bb28",
+      "bytes": 7359,
+      "anchors": [
+        {
+          "token": "PRIVATE_TMP_CONNECTED",
+          "line": 58
+        },
+        {
+          "token": "PRIVATE_USERS_IDENTITY",
+          "line": 67
+        },
+        {
+          "token": "PROTECT_SYSTEM_STRICT",
+          "line": 35
+        }
+      ]
+    },
+    {
+      "file": "namespace-v257.c",
+      "path": "src/core/namespace.c",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/namespace.c",
+      "blob_sha1": "57dbbc4fc7dc5b0cddb49394476e6c63763a41b0",
+      "sha256": "872c897dc25c378add12daebf5ba71d02ffb5e4b6168f2f663d3b1825342bb9b",
+      "bytes": 135440,
+      "anchors": [
+        {
+          "token": "static const char *const protect_home_table[",
+          "line": 3299
+        },
+        {
+          "token": "static const char *const protect_system_table[",
+          "line": 3308
+        },
+        {
+          "token": "static const char* const private_tmp_table[",
+          "line": 3355
+        },
+        {
+          "token": "static const char* const private_users_table[",
+          "line": 3363
+        }
+      ]
+    },
+    {
+      "file": "manager-v257.c",
+      "path": "src/core/manager.c",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/manager.c",
+      "blob_sha1": "f21a4f7ceb828c7b3fd24da8b17f31da829b75a0",
+      "sha256": "b60965ba2499941de2f0faa7b8ffffa6ac43286ff2b45aea568eca8772b8c8da",
+      "bytes": 203586,
+      "anchors": [
+        {
+          "token": "int manager_load_unit_from_dbus_path(",
+          "line": 3480
+        },
+        {
+          "token": "u = hashmap_get(m->units_by_invocation_id, &invocation_id);",
+          "line": 3498
+        },
+        {
+          "token": "return sd_bus_error_setf(e, BUS_ERROR_NO_UNIT_FOR_INVOCATION_ID,",
+          "line": 3504
+        },
+        {
+          "token": "r = manager_load_unit(m, n, NULL, e, &u);",
+          "line": 3518
+        }
+      ]
+    },
+    {
+      "file": "unit-v257.c",
+      "path": "src/core/unit.c",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/unit.c",
+      "blob_sha1": "0d88f4f64167ed8a854fd8b30fc1e9b5b2dc1b8e",
+      "sha256": "d7acd6adb6865ed326706b5bfcad2867a4a621a7ac5774f056e2c93f0ae1a0ff",
+      "bytes": 240389,
+      "anchors": [
+        {
+          "token": "ExecContext *unit_get_exec_context(",
+          "line": 4381
+        },
+        {
+          "token": "offset = UNIT_VTABLE(u)->exec_context_offset;",
+          "line": 4388
+        }
+      ]
+    },
+    {
+      "file": "dbus-execute-v257.h",
+      "path": "src/core/dbus-execute.h",
+      "url": "https://github.com/systemd/systemd/blob/70bae7648f2c18010187c9cf20093155eaa26029/src/core/dbus-execute.h",
+      "blob_sha1": "4b7cb86d3e5070a3eeaddf848b7ac20fcf2b6134",
+      "sha256": "de3eecb884806766f00b60aaeda79de65b0892b001573cab2f790c6167d6527a",
+      "bytes": 2865,
+      "anchors": [
+        {
+          "token": "#define BUS_EXEC_COMMAND_LIST_VTABLE(",
+          "line": 20
+        },
+        {
+          "token": "#define BUS_EXEC_EX_COMMAND_LIST_VTABLE(",
+          "line": 23
+        },
+        {
+          "token": "SD_BUS_PROPERTY(name, \"a(sasasttttuii)\", bus_property_get_exec_ex_command_list, offset, flags)",
+          "line": 24
+        }
+      ]
+    }
+  ]
+}

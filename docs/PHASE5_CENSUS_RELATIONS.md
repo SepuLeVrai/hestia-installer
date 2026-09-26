@@ -1,5 +1,15 @@
 # Recensement vivant, relations et sélection de revue
 
+## Suite courante : contexte configuré, contrat seulement
+
+Le commit final7bb59a67463841db018cb70c5643eb30ad060e4a a passé le run36256184902,
+299 contrôles et24 scénarios réels. Ses deux échecs antérieurs restent conservés.
+Le [contrat suivant](PHASE5_SYSTEMD_EXECUTION_CONTEXT.md) définit20 propriétés
+Service sans modifier ce runtime ni rejouer sa campagne :16 sources primaires,
+24 futurs cas non exécutés, zéro Actions. Prochaine implémentation : bloc de
+configuration privé pendant les FD ouverts, sans commandes ni faits effectifs
+inventés. Les résultats et plans ci-dessous décrivent l'historique de ce lot.
+
 ## Base et objectif
 
 Base `b1078e9d02820b19945a25271953df95dd3e9efb`, arbre

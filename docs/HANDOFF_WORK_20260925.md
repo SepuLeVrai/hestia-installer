@@ -1,5 +1,24 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Reprise après contrat du contexte configuré systemd
+
+Lire PHASE5_SYSTEMD_EXECUTION_CONTEXT.md et son JSON avant toute implémentation.
+Le parent7bb59a67 est qualifié par run36256184902 (299 contrôles et24 cas réels).
+Ce lot documentaire ne change aucun code, test ou workflow ; zéro Actions.
+20 propriétés Service sont définies avec16 sources v257 exactes et24 futurs cas
+non exécutés. Le nouveau commit du checkpoint doit servir de base, pas main.
+
+Prochain petit lot : lecteur privé des20 propriétés sur les seules invocations
+de services liées aux PIDFD encore détenus. Conserver route/FD/budgets ; ne pas
+réutiliser un sample fermé ni interroger une cible sans processus par son nom.
+Texte User/Group != UID/GID observé ; WorkingDirectory peut porter ! ou ~ ;
+PrivateMounts=false ne certifie aucun namespace hôte. Pas de projection des
+nouveaux textes dans IdentityFact/PathFact et pas d'Exec* au premier lecteur.
+Préparer localement, figer code/docs, puis un job Debian13 réellement nécessaire.
+Les incidents64f97bf5/2907fe68/12060235, c2acc806 et DOM restent conservés.
+Aucune PR/FF avant toutes les Quality requises exactes ; aucun déploiement serveur.
+Checkpoint puis arrêt. Les sections ci-dessous sont historiques.
+
 Lot census/relations : deux jobs refusés (runs36255253018 et36255697233).
 Le second conserve299 contrôles et22/24 cas réels verts ; deux conflits de jobs
 systemd. Le journal montre une boucle de getty@tty1.service dans le conteneur.

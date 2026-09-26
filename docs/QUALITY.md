@@ -1,5 +1,21 @@
 # Quality et non-régression de HESTIA Installer
 
+## Contrat de contexte configuré : vérification documentaire locale
+
+[Ce lot](PHASE5_SYSTEMD_EXECUTION_CONTEXT.md) est documentaire :250 fichiers,
+code/tests/baseline/workflows inchangés depuis7bb59a67. Vérifier16 sources
+systemd v257 contre leurs blobs Git, SHA256, signatures/getters/ancres, les20
+propriétés fermées, les bornes et24 futurs cas tous executed=false. Gardes
+statiques et reconstruction exacte par application/réapplication du checkpoint.
+Zéro Actions, aucune nouvelle recette système prétendue. Inventaire inchangé :
+931 core détectables/926 requis. Le statut est DOCUMENTATION_VERIFIED seulement.
+
+Le runtime parent a passé run36256184902 :299 contrôles Debian13 et24 cas réels,
+avec299 contrôles locaux. Le présent arbre documentaire n'est pas présenté comme
+ayant passé ce run. Les deux échecs précédents sont conservés ; l'ancien refus
+parent12060235 reste non résolu. Quality globales, Debian12 et recettes métier
+restent requises aux portes de promotion. Les sections suivantes sont historiques.
+
 Lot census/relations : run36255253018 refusé (299 contrôles verts,20/24 cas
 système verts). Diagnostic borné ajouté aux fixtures ; deuxième job prévu.
 Sources/preuves négatives conservées, causes non établies, aucun PASS anticipé.

@@ -1,5 +1,18 @@
 # Modèle de sécurité
 
+## Contrat du contexte configuré, sans autorité nouvelle
+
+Le [contrat documentaire](PHASE5_SYSTEMD_EXECUTION_CONTEXT.md) borne20 lectures
+Service par invocation liée. Getters/macro/route relus sur16 sources v257, sans
+preuve runtime nouvelle. User/Group restent des textes ; aucun NSS, expansion,
+montage ou commande. Les variantes Ex de PrivateUsers/PrivateTmp évitent leurs
+booléens avec perte ; PrivateMounts=false reste ambigu. Les préfixes !/~ de
+WorkingDirectory et les listes de binds restent privés et non résolus.
+Configuration, credentials constatés, namespaces et chemins effectifs ne sont
+pas interchangeables. Exec* et ses arguments potentiellement sensibles ne sont
+pas collectés par ce premier profil. Toutes autorités/exclusions/drainages et
+complétudes globales restent faux ; les budgets et refus parents sont conservés.
+
 ## Relations acquises avec des FD encore détenus
 
 Le [nouveau raccordement](PHASE5_CENSUS_RELATIONS.md) lit Names et huit relations

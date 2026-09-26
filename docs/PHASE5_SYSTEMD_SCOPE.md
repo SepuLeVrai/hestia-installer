@@ -1,5 +1,15 @@
 # Contrat de découverte systemd hors du profil provisionné
 
+## Contexte configuré : frontière courante
+
+Le [contrat de lecture Service](PHASE5_SYSTEMD_EXECUTION_CONTEXT.md) définit
+20 propriétés via les seules invocations acquises depuis le census vivant.
+Aucun lecteur nouveau dans ce lot documentaire.16 sources primaires épinglées,
+24 futures exigences non exécutées ; configuration textuelle, identités effectives
+et chemins résolus restent distincts. Unités sans processus, autres types et
+commandes restent inconnus dans le premier profil ; aucun enrichissement ne
+confère droit de drain, exclusion ou complétude de l'inventaire.
+
 ## Source de candidats par tâches, liaison restant à raccorder
 
 Le [recensement procfs](PHASE5_PROCESS_CENSUS.md) ajoute une source bornée de
