@@ -1,5 +1,15 @@
 # Quality et non-régression de HESTIA Installer
 
+## Relations d'unités : qualification ciblée unique
+
+Le [lecteur](PHASE5_SYSTEMD_UNIT_RELATIONS.md) ajoute 25 tests : 812 core
+détectables, 807 requis. Sélection locale de 180 et gardes statiques sur 215
+fichiers après gel. Un job minimal Debian13 doit vérifier les mêmes contrôles
+et huit cas D-Bus réels, sources/manifeste stables, réseau none et conteneur
+supprimé. Pas de répétition de la recette précédente, ni campagne globale.
+La nouvelle recette est raccordée aux futures Quality système complètes.
+Résultats exacts dans le checkpoint ; promotions et autres Quality différées.
+
 ## Transport de découverte : un seul job ciblé
 
 Le [transport](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) ajoute 21 tests, soit

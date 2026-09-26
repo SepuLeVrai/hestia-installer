@@ -61,6 +61,10 @@ def _argv(operation, owner=None):
 
 
 class _Budget:
+    # A composed fixed reader may reserve a larger finite call set. All readers
+    # share the same byte/deadline accounting; the lists-only default stays 24.
+    call_limit = MAX_CALLS
+
     def __init__(self):
         self.started = time.monotonic()
         self.deadline = self.started + COLLECTION_SECONDS
@@ -75,7 +79,7 @@ class _Budget:
 
 def _capture(argv, budget):
     budget.remaining()
-    require(budget.calls < MAX_CALLS and budget.bytes < MAX_TOTAL, 'DISCOVERY_TRANSPORT_LIMIT')
+    require(budget.calls < budget.call_limit and budget.bytes < MAX_TOTAL, 'DISCOVERY_TRANSPORT_LIMIT')
     budget.calls += 1
     maximum = min(MAX_REPLY, MAX_TOTAL - budget.bytes)
     deadline = min(budget.deadline, time.monotonic() + CALL_SECONDS)

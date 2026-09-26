@@ -1,5 +1,19 @@
 # État du projet
 
+## Noms et relations des unités sélectionnées
+
+Sur la base `7a331ce3`, le [lecteur de détails](PHASE5_SYSTEMD_UNIT_RELATIONS.md)
+lit Id/Names et une liste fermée de relations sur 1 à 128 objets déjà listés.
+Deux lectures sont comparées entre les tours des listes/provenance ; budgets
+partagés, aucune résolution ou activation de nom. Les faits restent privés,
+liés à l'index, sans identité d'exécution ni admission au profil provisionné.
+
+25 nouveaux tests, sélection de 180 et gardes statiques sur 215 fichiers après
+gel code/docs. Un seul job ciblé Debian13 est prévu pour les 180 contrôles et
+huit cas réels ; preuves exactes dans le checkpoint. Aucune promotion ni
+qualification globale. Tous les indicateurs de clôture restent faux. Checkpoint
+puis arrêt avant le contexte d'exécution. Sections suivantes historiques.
+
 ## Transport réel des trois listes systemd
 
 Sur la base `ebafa119`, le [transport privé](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md)

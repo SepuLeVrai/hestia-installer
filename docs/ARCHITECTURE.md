@@ -1,5 +1,15 @@
 # Architecture HESTIA Installer
 
+## Lecture privée des noms et relations
+
+`systemd_unit_relations.SystemdUnitRelations` compose les deux tours de listes
+avec deux lectures Id/Names et relations sur des objets explicitement sélectionnés.
+Le [contrat](PHASE5_SYSTEMD_UNIT_RELATIONS.md) ferme propriétés, interfaces et
+budgets communs. Names enrichit uniquement ces objets ; RelevanceFacts est lié
+au nouvel index, sans faits d'identité/chemin ni signal positif de producteur.
+Le transport de listes seul reste à 24 appels ; modèles purs et pont vers les
+mutations inchangés. Ce résultat privé n'est ni une admission ni un reçu live.
+
 ## Adaptateur privé des listes du manager
 
 `systemd_discovery_transport.SystemdDiscoveryTransport` effectue 24 appels

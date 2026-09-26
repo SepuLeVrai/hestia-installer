@@ -1,5 +1,13 @@
 # Transport privé de découverte du manager système
 
+## Extension distincte, listes seules inchangées
+
+Le [lot suivant](PHASE5_SYSTEMD_UNIT_RELATIONS.md) compose ce transport avec
+Id/Names et des relations sur objets sélectionnés. Le budget privé permet une
+réservation finie supplémentaire à ce seul lecteur ; collect() des listes seul
+reste limité à ses 24 appels. Les sections suivantes décrivent sa qualification
+historique ; elles n'attestent pas le nouveau lecteur de détails.
+
 ## Périmètre
 
 Base `ebafa1199a1a68f6410ce17d24508a1a30feb99b`, arbre

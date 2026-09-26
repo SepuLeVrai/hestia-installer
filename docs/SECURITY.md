@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Détails d'unités sans résolution ou autorité
+
+Le [lecteur privé](PHASE5_SYSTEMD_UNIT_RELATIONS.md) accepte uniquement des
+objets présents dans la liste validée. Properties.Get fermé, sans GetAll,
+GetUnit/LoadUnit, récursion ou lecture d'environnement. Alias contradictoires,
+réponse invalide, disparition ou dérive annulent la collecte. Budgets communs
+pendant lecture ; objet inconnu jamais chargé. Ni les relations observées ni
+un cycle ne prouvent l'identité effective, l'absence de producteur ou un droit
+de contrôle. La sélection est partielle, les intervalles ne sont pas atomiques.
+
 ## Lecture des listes système sans admission d'exécution
 
 Le [transport fermé](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) refuse le broker
