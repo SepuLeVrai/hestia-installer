@@ -1,5 +1,14 @@
 # Contrat de lecture du contexte configuré systemd
 
+## Suite courante : lecteur implémenté, preuves séparées
+
+[Le lot lecteur](PHASE5_EXECUTION_CONTEXT_READER.md) implémente les20 propriétés
+sur la base1b3a0887 avec26 tests nouveaux et une recette réelle à12 cas. Les
+résultats exacts appartiennent à son checkpoint après gel. Le présent contrat,
+son JSON et ses24 futurs cas sont conservés comme conception historique ; ils
+ne sont pas transformés rétroactivement en campagne exécutée. Les commandes Ex
+et la projection de configuration dans le modèle restent hors du lecteur livré.
+
 ## Décision et état exact
 
 Base `7bb59a67463841db018cb70c5643eb30ad060e4a`, arbre

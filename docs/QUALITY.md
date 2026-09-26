@@ -1,5 +1,16 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lecteur de contexte Service : qualification ciblée requise
+
+[Ce lot](PHASE5_EXECUTION_CONTEXT_READER.md) ajoute26 tests core obligatoires,
+957 détectables/952 requis.325 contrôles affectés, puis8 scénarios census/relations
+parents et12 nouveaux réels en un seul job Debian13. Exiger zéro erreur/échec/skip,
+source/modes stables, artefact exact et docs gelées avec le code. Les résultats
+sont publiés dans le checkpoint, sans attribuer les campagnes parentes au nouvel
+arbre. Globales/paquets/SQL/Web/DOM et Debian12 restent différés jusqu'aux portes
+requises ; aucun droit de promotion sur ce seul job. JSON24 cas de conception
+historique inchangé ; mapping des nouvelles recettes dans le document du lot.
+
 ## Contrat de contexte configuré : vérification documentaire locale
 
 [Ce lot](PHASE5_SYSTEMD_EXECUTION_CONTEXT.md) est documentaire :250 fichiers,

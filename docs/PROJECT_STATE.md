@@ -1,5 +1,15 @@
 # État du projet
 
+## Reprise courante : lecteur du contexte Service configuré
+
+Sur1b3a0887, [le lecteur](PHASE5_EXECUTION_CONTEXT_READER.md) implémente les20
+propriétés dans le cycle de FD du census. Données privées, aucune projection
+numérique ou chemin résolu ; modèle et primitives parentes inchangés.26 tests
+nouveaux,325 sélectionnés ;957 core détectables/952 requis. Un seul job Debian13
+prévu après gel :8 cas parents et12 nouveaux. Résultats exacts au checkpoint,
+pas de Quality globale ni promotion. Prochaine frontière : contrat des commandes
+Ex et confidentialité des argv. Checkpoint puis arrêt ; historique ci-dessous.
+
 ## Reprise courante : contrat du contexte configuré, sans changement runtime
 
 Base exacte `7bb59a67463841db018cb70c5643eb30ad060e4a`, arbre

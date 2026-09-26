@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Contexte Service acquis, toujours sans autorité
+
+Le [lecteur configuré](PHASE5_EXECUTION_CONTEXT_READER.md) applique le contrat
+fermé, les types exacts et budgets cumulés ; les textes n'entrent dans aucun NSS,
+shell, API de montage ou résolution de chemin. Disparition, nouvelle invocation,
+configuration différente ou dérive des tâches refuse l'ensemble. Les indices
+privés lient tout le census et tous les leaders, sans nouveau motif d'exclusion.
+Les FD ferment au retour ; effectivité/commandes/complétude et drain restent faux.
+Le bloc de configuration et ses valeurs opaques ne sont pas exposés au rapport.
+
 ## Contrat du contexte configuré, sans autorité nouvelle
 
 Le [contrat documentaire](PHASE5_SYSTEMD_EXECUTION_CONTEXT.md) borne20 lectures

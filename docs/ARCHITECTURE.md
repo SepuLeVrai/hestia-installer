@@ -1,5 +1,15 @@
 # Architecture HESTIA Installer
 
+## Lecteur configuré sans projection de pertinence
+
+[SystemdExecutionContext](PHASE5_EXECUTION_CONTEXT_READER.md) compose le census/
+relations avec un transport Service à20 propriétés fixes. Deux passages, détails
+regroupés par service mais mappings de tous les leaders conservés. Non-Service
+lié : properties=null. La preuve enrichit le digest précédent par le contexte,
+puis relie les mêmes faits à l'index obtenu. Le modèle ne reçoit aucun nouveau
+signal d'identité/chemin et les primitives parentes restent inchangées. Pas de
+nouveau endpoint, wizard, contrôle de service ou reçu durable.
+
 ## Contrat du prochain lecteur de contexte configuré
 
 Le [profil Service proposé](PHASE5_SYSTEMD_EXECUTION_CONTEXT.md) compose le

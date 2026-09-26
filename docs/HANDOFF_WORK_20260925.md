@@ -1,5 +1,17 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Reprise après lecteur du contexte Service
+
+Lire PHASE5_EXECUTION_CONTEXT_READER.md puis le contrat SYSTEMD_EXECUTION_CONTEXT.
+Base1b3a0887, runtime nouveau dans systemd_execution_context.py uniquement :20
+propriétés, routes d'invocation, FD encore détenus et preuve rattachée au census.
+Aucune projection de User/Group vers UID/GID ou de chemin vers l'hôte. Modèle
+parent inchangé.325 contrôles et20 cas réels (8 parents,12 nouveaux) requis dans
+un job ciblé après gel ; résultats au checkpoint exact, sans vert anticipé.
+Prochain petit lot : contrat des sept familles Exec*Ex, flags/phases, états et
+confidentialité ; ne pas collecter argv/environnement implicitement. Les autres
+frontières restent ouvertes. Checkpoint puis arrêt, états historiques ci-dessous.
+
 ## Reprise après contrat du contexte configuré systemd
 
 Lire PHASE5_SYSTEMD_EXECUTION_CONTEXT.md et son JSON avant toute implémentation.
