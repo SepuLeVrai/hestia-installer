@@ -1,8 +1,8 @@
-"""Stop only the two provisioned HTTP units; never certify all host writers.
+"""Stop provisioned HTTP, optionally its exact collector and timer.
 
-A procfs thread census rejects an observed dedicated identity outside those
-units. It is a point-in-time check in systemd's PID namespace, not a scheduler
-fence, SQL barrier or defence against a concurrent privileged administrator.
+The collector is enrolled by its verified typed provisioner, not an allowlist
+exception. A procfs census remains a point-in-time check, not an all-host
+scheduler fence, SQL barrier or defence against a privileged administrator.
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from installer import http_runtime as h
 from installer import maintenance as m
 from installer import php_transport as p
 from installer import system_drain as s
+from installer import session_cleaner as c
 from installer.model import strict_json_loads
 
 ROLES = ('apache', 'php')
@@ -73,7 +74,7 @@ def identity_census(uid, gid, allowed_units):
     """Read every visible thread, including real/saved/fs IDs and shared groups."""
     require(type(uid) is int and type(gid) is int and uid > 0 and gid > 0
             and type(allowed_units) is tuple and all(type(unit) is str and re.fullmatch(
-                r'hestia-[a-f0-9]{32}-(apache|php)\.service', unit) for unit in allowed_units),
+                r'hestia-[a-f0-9]{32}-(apache|php|session-cleaner)\.service', unit) for unit in allowed_units),
             'HTTP_DRAIN_CENSUS_REJECTED')
     require(os.readlink('/proc/self/ns/pid') == os.readlink('/proc/1/ns/pid'),
             'HTTP_DRAIN_CENSUS_VISIBILITY_REQUIRED')
@@ -122,25 +123,47 @@ def identity_census(uid, gid, allowed_units):
 
 
 class HttpDrain:
-    def __init__(self, runtime):
+    def __init__(self, runtime, *, cleaner=None):
         require(type(runtime) is h.HttpRuntime, 'HTTP_DRAIN_INPUT_REJECTED')
-        self.runtime = runtime
+        require(cleaner is None or (type(cleaner) is c.SessionCleaner and cleaner.runtime is runtime),
+                'HTTP_DRAIN_COLLECTOR_MISMATCH')
+        self.runtime, self.cleaner = runtime, cleaner
+        self.roles = ROLES + (('session-cleaner',) if cleaner is not None else ())
 
-    def __repr__(self): return '<HttpDrain private two-service barrier>'
+    def __repr__(self): return '<HttpDrain private provisioned service barrier>'
 
-    def _audit(self, *, stopped=False, expected=None):
+    def _unit(self, role):
+        require(role in self.roles, 'HTTP_DRAIN_INPUT_REJECTED')
+        return self.cleaner.unit if role == 'session-cleaner' else self.runtime.unit(role)
+
+    def _audit(self, *, stopped=False, expected=None, timer_stopped=False):
         account, extension, plan, _ = self.runtime._inspect_configuration()
         scope = self.runtime._scope(account)
         generated = self.runtime._files(account, extension)
         bindings = tuple(s.UnitBinding(role, f._sha(generated[s.UNIT_ROOT / self.runtime.unit(role)])) for role in ROLES)
+        extra = {}
+        if self.cleaner is not None:
+            require(type(self.cleaner) is c.SessionCleaner and self.cleaner.runtime is self.runtime,
+                    'HTTP_DRAIN_COLLECTOR_MISMATCH')
+            owner, gate, files, cleaner_plan = self.cleaner._inspect_configuration()
+            require((owner.pw_uid, owner.pw_gid, gate.instance, gate.directory) ==
+                    (account.pw_uid, account.pw_gid, scope.instance, scope.directory), 'HTTP_DRAIN_COLLECTOR_MISMATCH')
+            bindings += (s.UnitBinding('session-cleaner', f._sha(files[s.UNIT_ROOT / self.cleaner.unit])),)
+            self.cleaner._timer_state(stopped=stopped or timer_stopped)
+            extra = {'policy': 'PROVISIONED_HTTP_AND_CLEANER_STOP_ONLY_V1',
+                     'cleaner_plan_sha256': f._sha(cleaner_plan),
+                     'timer_sha256': f._sha(files[s.UNIT_ROOT / self.cleaner.timer])}
         profile = p._json({'version': 1, 'instance': scope.instance, 'maintenance': str(scope.directory),
             'policy': 'PROVISIONED_HTTP_STOP_ONLY_V1', 'runtime_plan_sha256': f._sha(plan),
             'uid': account.pw_uid, 'gid': account.pw_gid,
-            'units': [{'role': b.role, 'fragment_sha256': b.fragment_sha256} for b in bindings]})
+            'units': [{'role': b.role, 'fragment_sha256': b.fragment_sha256} for b in bindings], **extra})
         require(expected is None or profile == expected, 'HTTP_DRAIN_PROFILE_CHANGED')
-        for binding in bindings: s.audit_unit(scope, binding, stopped=stopped)
+        for binding in bindings:
+            if binding.role == 'session-cleaner' and not stopped:
+                s.audit_unit(scope, binding, running_collector=True)
+            else: s.audit_unit(scope, binding, stopped=stopped)
         identity_census(account.pw_uid, account.pw_gid,
-                        () if stopped else tuple(self.runtime.unit(role) for role in ROLES))
+                        () if stopped else tuple(self._unit(role) for role in self.roles))
         return scope, profile
 
     def acquire(self, *, confirmed, timeout=30, cancel=None):
@@ -164,11 +187,16 @@ class HttpDrain:
                 try: old = f._read(fd, name, scope.web_gid)
                 except FileNotFoundError: f._write(fd, name, profile, scope.web_gid)
                 else: require(old == profile, 'HTTP_DRAIN_RECOVERY_MISMATCH')
-            for role in ROLES:
+            if self.cleaner is not None:
                 lease.assert_held()
                 require(cancel is None or not cancel.is_set(), 'HTTP_DRAIN_INTERRUPTED')
                 self._audit(expected=profile)
-                s._systemctl('stop', self.runtime.unit(role))
+                self.cleaner._stop_timer()
+            for role in self.roles:
+                lease.assert_held()
+                require(cancel is None or not cancel.is_set(), 'HTTP_DRAIN_INTERRUPTED')
+                self._audit(expected=profile, timer_stopped=self.cleaner is not None)
+                s._systemctl('stop', self._unit(role))
                 binding = next(row for row in strict_json_loads(profile)['units'] if row['role'] == role)
                 s.audit_unit(scope, s.UnitBinding(role, binding['fragment_sha256']), stopped=True)
             self._audit(stopped=True, expected=profile)
@@ -177,7 +205,7 @@ class HttpDrain:
             return HttpDrainLease(self, lease, profile)
         except BaseException as error:
             if lease is not None: lease.close()
-            if isinstance(error, (HttpDrainError, h.HttpRuntimeError, m.MaintenanceError, s.SystemDrainError,
+            if isinstance(error, (HttpDrainError, h.HttpRuntimeError, c.SessionCleanerError, m.MaintenanceError, s.SystemDrainError,
                                   KeyboardInterrupt, SystemExit)): raise
             raise HttpDrainError('HTTP_DRAIN_UNAVAILABLE') from None
 
@@ -198,7 +226,7 @@ class HttpDrainLease:
                         'HTTP_DRAIN_RECOVERY_MISMATCH')
             self._drain._audit(stopped=True, expected=self._profile)
             self._lease.assert_held()
-        except (HttpDrainError, h.HttpRuntimeError, m.MaintenanceError, s.SystemDrainError): raise
+        except (HttpDrainError, h.HttpRuntimeError, c.SessionCleanerError, m.MaintenanceError, s.SystemDrainError): raise
         except Exception: raise HttpDrainError('HTTP_DRAIN_UNAVAILABLE') from None
 
     @property
@@ -207,7 +235,9 @@ class HttpDrainLease:
 
     def report(self):
         self.assert_held()
-        return {'state': 'PROVISIONED_HTTP_SERVICES_DRAINED', 'services': 2,
+        combined = self._drain.cleaner is not None
+        return {'state': 'PROVISIONED_HTTP_AND_CLEANER_DRAINED' if combined else 'PROVISIONED_HTTP_SERVICES_DRAINED',
+            'services': len(self._drain.roles), 'timers_stopped': int(combined),
             'profile_sha256': f._sha(self._profile), 'cgroup_empty_verified': True,
             'identity_processes_absent_at_observation': True, 'census_is_point_in_time': True,
             'automatic_restart_blocked_by_gate': True, 'other_producers_controlled': False,

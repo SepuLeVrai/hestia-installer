@@ -1,5 +1,14 @@
 # Architecture HESTIA Installer
 
+## Composition HTTP et collecteur
+
+`HttpDrain(runtime, cleaner=collector)` ajoute le collecteur vérifié du même
+runtime et son timer à la barrière. Le contrôle privé de configuration conserve
+la preuve du staging original, tandis que l'audit vivant vérifie les trois
+services et le timer arrêté. Le profil durable distingue cette composition du
+profil HTTP seul. Voir [le contrat](PHASE5_HTTP_CLEANER_DRAIN.md). Aucun
+orchestrateur global, redémarrage ou raccordement au wizard n'est ajouté.
+
 ## Arrêt HTTP indépendant de l'activation
 
 `http_drain.HttpDrain` compose les contrôles de configuration privés de

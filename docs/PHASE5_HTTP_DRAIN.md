@@ -1,5 +1,12 @@
 # Arrêt des deux services HTTP provisionnés
 
+## Extension explicite au collecteur dédié
+
+Ce document décrit le profil HTTP seul, toujours disponible. Le
+[contrat complémentaire](PHASE5_HTTP_CLEANER_DRAIN.md) ajoute le paramètre
+optionnel typé `cleaner`, lié au même runtime, avec trois services et arrêt du
+timer exact. Il ne généralise pas le périmètre aux autres producteurs.
+
 ## Base et frontière du chantier
 
 Base Installer qualifiée `3a5e2a44c411895653bd6a0b173c7b575988183d`, arbre

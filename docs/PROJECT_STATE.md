@@ -1,5 +1,20 @@
 # État du projet
 
+## Chantier borné suivant : collecteur et timer
+
+Le [raccordement du collecteur](PHASE5_HTTP_CLEANER_DRAIN.md) part de
+`8de010e1`, validé par la campagne ciblée `36221268362`, sans qualification
+globale. Il compose les deux services HTTP avec le collecteur exact et son
+timer, garde la maintenance durable et recontrôle tout réarmement. Le worker,
+la rétention 43200 secondes et le nettoyage Debian natif restent inchangés.
+
+74 contrôles locaux puis un seul job Debian 13 de 47 scénarios système sont
+prévus. Code et documentation sont gelés ensemble ; les preuves exactes seront
+dans le checkpoint. Aucun changement Web, aucune promotion ; les Quality
+globales sont différées. Tous les indicateurs de clôture restent faux.
+Après ce lot : checkpoint et arrêt, sans ouvrir automatiquement le suivant.
+Les sections suivantes décrivent les étapes historiques.
+
 ## Chantier borné du 26 septembre : drainage HTTP
 
 La base `3a5e2a44` et ses cinq campagnes Installer/Web sont qualifiées ; voir

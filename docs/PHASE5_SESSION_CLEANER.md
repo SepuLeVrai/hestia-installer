@@ -1,5 +1,13 @@
 # Phase 5 — nettoyage dédié des sessions
 
+## Extension : arrêt coordonné avec HTTP
+
+Le [contrat de drainage](PHASE5_HTTP_CLEANER_DRAIN.md) vérifie la configuration
+scellée après activation, arrête le timer exact puis HTTP et le collecteur,
+et recontrôle leurs états à chaque lecture. L'observation initiale reste
+stricte. Worker, unité, timer généré, rétention et nettoyage natif ne changent
+pas. La composition attend le verrou exclusif commun du collecteur en cours.
+
 ## Extension : gate commun au slot SQL
 
 Pour le [profil métier externe](PHASE5_BUSINESS_STORAGE.md), le worker reçoit

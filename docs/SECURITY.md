@@ -1,5 +1,14 @@
 # Modèle de sécurité
 
+## Collecteur associé et timer recontrôlé
+
+Le [profil HTTP/collecteur](PHASE5_HTTP_CLEANER_DRAIN.md) n'accepte que le
+collecteur provisionné pour le même objet runtime. Plan, fichiers, gate,
+identité, unités et timer exacts sont liés au reçu durable. Le timer est arrêté
+avant Apache/PHP ; le réarmer invalide la preuve. Seule l'inspection explicite
+du collecteur autorise son job oneshot en cours ; l'arrêt final reste strict.
+Les autres producteurs, planificateurs et clients SQL restent à contrôler.
+
 ## Barrière HTTP limitée à deux unités
 
 [HttpDrain](PHASE5_HTTP_DRAIN.md) dérive les deux unités du provisionnement

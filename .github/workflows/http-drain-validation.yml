@@ -1,8 +1,8 @@
-name: Targeted HTTP drain validation
+name: Targeted HTTP and collector validation
 
 on:
   push:
-    branches: ['work/phase5-http-drain-20260926']
+    branches: ['work/phase5-http-cleaner-drain-20260926']
 
 permissions:
   contents: read
@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   drain:
-    name: HTTP drain only / Debian 13
+    name: HTTP and collector only / Debian 13
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -53,7 +53,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           docker exec -w /opt/hestia-installer -e PYTHONPATH=tests hestia-http-drain \
-            python3 -m unittest test_http_drain test_http_runtime test_system_drain test_session_cleaner -v \
+            python3 -m unittest test_http_drain test_http_cleaner_drain test_http_runtime test_system_drain test_session_cleaner -v \
             2>&1 | tee evidence/controllers.log
       - name: Test HTTP multipart, descendants, foreign writers and controller death
         run: |
@@ -79,7 +79,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
-          name: http-drain-targeted-debian13
+          name: http-cleaner-targeted-debian13
           path: evidence/
           if-no-files-found: error
           retention-days: 7

@@ -1,6 +1,6 @@
 """Private exclusive staging of a dedicated session collector and its timer.
 
-Requires the exact initially-gated HTTP runtime. Neither starts/enables a timer
+Staging requires the exact initially-gated HTTP runtime. Never starts/enables a timer
 nor alters Debian's native phpsessionclean, cron, PHP or Apache configuration.
 """
 import os
@@ -38,6 +38,9 @@ class SessionCleaner:
     def _inputs(self):
         result = self.runtime.observe()
         account, _ = self.runtime._host(); scope = self.runtime._scope(account)
+        return self._profile_inputs(account, scope, result['plan_sha256'])
+
+    def _profile_inputs(self, account, scope, runtime_plan_sha256):
         python = Path('/usr/bin/python' + {'8.2': '3.11', '8.4': '3.13'}[self.runtime.spec.php_family])
         dependencies = {str(path): h._system_file_digest(path) for path in (
             python, Path('/usr/lib/php/sessionclean'), Path('/etc/cron.d/php'),
@@ -87,7 +90,7 @@ WantedBy=timers.target
         files = {self.directory / 'worker.py': worker, s.UNIT_ROOT / self.unit: fragment,
                  s.UNIT_ROOT / self.timer: timer,
                  s.UNIT_ROOT / (self.unit + '.d/50-hestia-maintenance.conf'): s.condition_dropin(scope)}
-        plan = p._json({'version': 1, 'runtime_plan_sha256': result['plan_sha256'],
+        plan = p._json({'version': 1, 'runtime_plan_sha256': runtime_plan_sha256,
             'dependencies': dependencies, 'lifetime': 43200,
             'files': {str(path): f._sha(data) for path, data in files.items()}})
         return account, scope, files, plan
@@ -129,7 +132,8 @@ WantedBy=timers.target
         except SessionCleanerError: raise
         except Exception: raise SessionCleanerError('SESSION_CLEANER_INCOMPLETE') from None
 
-    def _timer_state(self):
+    def _timer_state(self, *, stopped=True):
+        require(type(stopped) is bool)
         result = subprocess.run(['/usr/bin/systemctl', '--no-pager', '--no-ask-password', 'show',
             '--property=' + ','.join(TIMER_PROPERTIES), '--', self.timer], stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5, check=False,
@@ -139,23 +143,48 @@ WantedBy=timers.target
         for row in result.stdout.decode().splitlines():
             key, sep, text = row.partition('=')
             require(sep == '=' and key in TIMER_PROPERTIES and key not in value); value[key] = text
-        require(value == {'Id': self.timer, 'LoadState': 'loaded', 'FragmentPath': str(s.UNIT_ROOT / self.timer),
-            'DropInPaths': '', 'NeedDaemonReload': 'no', 'ActiveState': 'inactive', 'SubState': 'dead',
-            'Job': '', 'Unit': self.unit})
+        expected = {'Id': self.timer, 'LoadState': 'loaded', 'FragmentPath': str(s.UNIT_ROOT / self.timer),
+            'DropInPaths': '', 'NeedDaemonReload': 'no', 'Job': '', 'Unit': self.unit}
+        require(set(value) == set(TIMER_PROPERTIES) and all(value[k] == v for k, v in expected.items()))
+        state = (value['ActiveState'], value['SubState'])
+        require(state == ('inactive', 'dead') if stopped else state in
+                (('inactive', 'dead'), ('active', 'waiting'), ('active', 'running'), ('active', 'elapsed')))
+        return value
+
+    def _stop_timer(self):
+        # This private lifecycle operation never enables, starts or disables it.
+        self._timer_state(stopped=False)
+        result = subprocess.run(['/usr/bin/systemctl', '--no-pager', '--no-ask-password',
+            'stop', '--', self.timer], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, timeout=5, check=False,
+            env={'PATH': '/usr/sbin:/usr/bin', 'LANG': 'C', 'SYSTEMD_PAGER': ''})
+        require(result.returncode == 0, 'SESSION_CLEANER_TIMER_STOP_FAILED')
+        self._timer_state()
+
+    def _verify_configuration(self, account, files, plan, lease_id):
+        with fs._directory(self.directory) as fd:
+            info = os.fstat(fd)
+            require(info.st_gid == account.pw_gid and info.st_mode & 0o7777 == 0o750)
+            require(f._read(fd, 'cleaner.attempt', 0) == plan)
+            require(f._json_read(fd, 'staged.json', 0) == {'version': 1, 'state': 'SESSION_CLEANER_STAGED',
+                'plan_sha256': f._sha(plan), 'lease_id': lease_id})
+        for path, data in files.items():
+            with fs._directory(path.parent) as fd:
+                require(f._read(fd, path.name, account.pw_gid if path.parent == self.directory else 0,
+                    mode=0o640 if path.parent == self.directory else 0o644) == data)
+
+    def _inspect_configuration(self):
+        """Private immutable proof, never a staging or running observation."""
+        account, _, runtime_plan, initial = self.runtime._inspect_configuration()
+        scope = self.runtime._scope(account)
+        account, scope, files, plan = self._profile_inputs(account, scope, f._sha(runtime_plan))
+        self._verify_configuration(account, files, plan, initial['lease_id'])
+        return account, scope, files, plan
 
     def observe(self):
         try:
             account, scope, files, plan = self._inputs()
-            with fs._directory(self.directory) as fd:
-                info = os.fstat(fd)
-                require(info.st_gid == account.pw_gid and info.st_mode & 0o7777 == 0o750)
-                require(f._read(fd, 'cleaner.attempt', 0) == plan)
-                require(f._json_read(fd, 'staged.json', 0) == {'version': 1, 'state': 'SESSION_CLEANER_STAGED',
-                    'plan_sha256': f._sha(plan), 'lease_id': scope.observe()['lease_id']})
-            for path, data in files.items():
-                with fs._directory(path.parent) as fd:
-                    require(f._read(fd, path.name, account.pw_gid if path.parent == self.directory else 0,
-                        mode=0o640 if path.parent == self.directory else 0o644) == data)
+            self._verify_configuration(account, files, plan, scope.observe()['lease_id'])
             s.audit_unit(scope, s.UnitBinding('session-cleaner', f._sha(files[s.UNIT_ROOT / self.unit])), stopped=True)
             self._timer_state()
             return {'state': 'SESSION_CLEANER_STAGED', 'plan_sha256': f._sha(plan), 'lifetime_seconds': 43200,

@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Dedicated UID collector, real PHP/flock/systemd/timers and native coexistence."""
 import argparse
+import fcntl
 import hashlib
 import json
+import multiprocessing
 import os
 from pathlib import Path
 import pwd
+import signal
 import subprocess
 import sys
 import threading
@@ -16,6 +19,8 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from installer import session_cleaner as c
+from installer import http_drain as hd
+from installer import http_runtime as h
 from installer import system_drain as s
 from installer.operations import RecoveryDecision
 from http_runtime_systemd import HttpRuntimeLive, command, until
@@ -212,6 +217,130 @@ class SessionCleanerLive(unittest.TestCase):
             release.touch(); waiter.join(6)
             for lease in leases: lease.close()
 
+    def coordinated(self): return hd.HttpDrain(self.fx.runtime, cleaner=self.cleaner)
+
+    def armed(self):
+        command('systemctl', 'start', self.cleaner.timer)
+        until(lambda: s._show(self.cleaner.unit)['ActiveState'] == 'inactive')
+        self.assertEqual(self.cleaner._timer_state(stopped=False)['ActiveState'], 'active')
+
+    def assert_coordinated(self, lease):
+        report = lease.report()
+        self.assertEqual(report['state'], 'PROVISIONED_HTTP_AND_CLEANER_DRAINED')
+        self.assertEqual((report['services'], report['timers_stopped']), (3, 1))
+        self.assertFalse(report['other_producers_controlled']); self.assertFalse(report['storage_inventory_complete'])
+        self.assertEqual(self.cleaner._timer_state()['ActiveState'], 'inactive')
+        for unit in (self.fx.runtime.unit('apache'), self.fx.runtime.unit('php'), self.cleaner.unit):
+            self.assertTrue(s._empty_cgroup(unit)); self.assertEqual(s._show(unit)['Result'], 'success')
+            command('systemctl', 'start', unit)
+            self.assertEqual(s._show(unit)['ActiveState'], 'inactive')
+        with self.assertRaises(c.SessionCleanerError): self.cleaner.observe()
+        with self.assertRaises(h.HttpRuntimeError): self.fx.runtime.observe()
+
+    def test_coordinated_drain_stops_original_timer_and_three_services_preserving_sessions(self):
+        self.stage(); self.fx.activate_fixture(); self.armed()
+        kept = [self.file('sess_' + str(age), age) for age in (3600, 14400, 28800, 50000)]
+        before = {p: (p.read_bytes(), p.stat().st_mtime_ns, p.stat().st_ctime_ns) for p in kept}
+        with self.coordinated().acquire(confirmed=True) as lease:
+            self.assert_coordinated(lease); self.execute()
+            self.assertEqual(before, {p: (p.read_bytes(), p.stat().st_mtime_ns, p.stat().st_ctime_ns) for p in kept})
+            self.assertEqual({str(p): p.read_bytes() for p in self.fx.global_paths}, self.fx.global_before)
+        self.assertEqual(self.fx.scope.observe()['state'], 'MAINTENANCE_REQUIRED')
+
+    def test_coordinated_drain_waits_for_real_collector_holding_lock_and_publishes_gate(self):
+        self.stage(); self.resume_fixture()
+        # Use the exact installed worker/unit. Pause its real process only after
+        # it owns admission; no replacement worker, profile or timer schedule.
+        for index in range(9000): self.file('sess_bulk' + str(index), 100)
+        old = self.file(); worker = subprocess.Popen(['systemctl', 'start', self.cleaner.unit],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        lock = os.open(self.fx.scope.directory / 'activity.lock', os.O_RDONLY)
+        self.addCleanup(os.close, lock)
+        pid = None; waiter = None; leases = []; errors = []
+        def locked_worker():
+            nonlocal pid
+            current = s._show(self.cleaner.unit)['MainPID']
+            if current == '0': return False
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(lock, fcntl.LOCK_UN); return False
+            except BlockingIOError:
+                pid = int(current); return True
+        try:
+            until(locked_worker); os.kill(pid, signal.SIGSTOP)
+            with self.assertRaises(BlockingIOError): fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.assertEqual(s._show(self.cleaner.unit)['ActiveState'], 'activating')
+            def acquire():
+                try: leases.append(self.coordinated().acquire(confirmed=True, timeout=5))
+                except Exception as error: errors.append(error)
+            waiter = threading.Thread(target=acquire); waiter.start()
+            until(lambda: (self.fx.scope.directory / 'maintenance.attempt').exists())
+            self.assertFalse(leases)
+            os.kill(pid, signal.SIGCONT)
+            stdout, stderr = worker.communicate(timeout=6); waiter.join(6)
+            self.assertEqual(worker.returncode, 0, stderr.decode())
+            self.assertFalse(waiter.is_alive()); self.assertFalse(errors, repr(errors))
+            self.assertEqual(len(leases), 1); self.assertTrue(old.exists())
+            self.assert_coordinated(leases[0])
+        finally:
+            if pid is not None:
+                try: os.kill(pid, signal.SIGCONT)
+                except ProcessLookupError: pass
+            if waiter is not None: waiter.join(7)
+            for lease in leases: lease.close()
+            if worker.poll() is None: worker.terminate(); worker.wait(timeout=5)
+
+    def test_coordinated_live_receipt_refuses_rearmed_timer_without_resuming_services(self):
+        self.stage(); self.fx.activate_fixture(); self.armed()
+        with self.coordinated().acquire(confirmed=True) as lease:
+            self.assert_coordinated(lease)
+            command('systemctl', 'start', self.cleaner.timer)
+            with self.assertRaises(c.SessionCleanerError): lease.report()
+            self.assertEqual(self.fx.scope.observe()['state'], 'MAINTENANCE_REQUIRED')
+            self.assertEqual(s._show(self.fx.runtime.unit('php'))['ActiveState'], 'inactive')
+
+    def test_coordinated_collector_drift_is_refused_before_gate_and_timer_stop(self):
+        self.stage(); self.fx.activate_fixture(); self.armed()
+        path = self.cleaner.directory / 'worker.py'; original = path.read_bytes()
+        path.write_bytes(original + b'\n# drift\n')
+        with self.assertRaises(c.SessionCleanerError): self.coordinated().acquire(confirmed=True)
+        self.assertEqual(self.fx.scope.observe()['state'], 'SERVING'); self.assertTrue(self.fx.ready())
+        self.assertEqual(self.cleaner._timer_state(stopped=False)['ActiveState'], 'active')
+        self.assertFalse(list(self.fx.scope.directory.glob('http-drain-*.attempt')))
+        path.write_bytes(original)
+
+    def test_coordinated_controller_sigkill_after_timer_stop_keeps_gate_and_recovers(self):
+        self.stage(); self.fx.activate_fixture(); self.armed()
+        context = multiprocessing.get_context('fork'); ready = context.Event(); original = self.cleaner._stop_timer
+        def child():
+            def pause(): original(); ready.set(); time.sleep(20)
+            with patch.object(self.cleaner, '_stop_timer', side_effect=pause): self.coordinated().acquire(confirmed=True)
+        process = context.Process(target=child); process.start()
+        try:
+            self.assertTrue(ready.wait(12)); process.kill(); process.join(5)
+            self.assertEqual(process.exitcode, -signal.SIGKILL)
+        finally:
+            if process.is_alive(): process.kill(); process.join(5)
+        state = self.fx.scope.observe(); self.assertEqual(state['state'], 'MAINTENANCE_REQUIRED')
+        self.assertEqual(self.cleaner._timer_state()['ActiveState'], 'inactive')
+        self.assertEqual(s._show(self.fx.runtime.unit('apache'))['ActiveState'], 'active')
+        self.assertTrue(list(self.fx.scope.directory.glob('http-drain-*.attempt')))
+        with self.coordinated().recover(state['lease_id'], confirmed=True) as lease: self.assert_coordinated(lease)
+
+    def test_coordinated_allowlist_does_not_adopt_other_processes_of_same_identity(self):
+        self.stage(); self.fx.activate_fixture(); self.armed()
+        unit = 'hestia-foreign-' + self.fx.instance + '.service'; self.fx.units.append(unit)
+        path = s.UNIT_ROOT / unit
+        fragment = f'[Service]\nUser={self.account.pw_name}\nExecStart=/usr/bin/sleep infinity\n'
+        path.write_text(fragment); path.chmod(0o644)
+        command('systemctl', 'daemon-reload'); command('systemctl', 'start', unit)
+        pid = command('systemctl', 'show', '--value', '--property=MainPID', unit).stdout.strip()
+        until(lambda: hd._credentials(Path('/proc/' + pid.decode() + '/status').read_text())['Uid'][1] == self.account.pw_uid)
+        with self.assertRaisesRegex(hd.HttpDrainError, 'FOREIGN_IDENTITY_PROCESS'): self.coordinated().acquire(confirmed=True)
+        self.assertEqual(command('systemctl', 'is-active', unit).stdout.strip(), b'active')
+        self.assertEqual(path.read_text(), fragment); self.assertEqual(self.fx.scope.observe()['state'], 'SERVING')
+        self.assertEqual(self.cleaner._timer_state(stopped=False)['ActiveState'], 'active')
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--report', type=Path, required=True)
@@ -219,8 +348,8 @@ if __name__ == '__main__':
     result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(SessionCleanerLive))
     stable = before == quality.snapshot(ROOT)
     report = {'suite': 'Dedicated session collection and unchanged native cleaner', 'tests': result.testsRun,
-        'expected': 12, 'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
-        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 12 and not result.skipped and stable else 'FAIL',
+        'expected': 18, 'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
+        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 18 and not result.skipped and stable else 'FAIL',
         'source_stable': stable, 'source_files': len(before), 'web_application_qualified': False,
         'functional_session_policy_qualified': False, 'native_cleaner_unchanged': True,
         'service_activation_delivered': False}

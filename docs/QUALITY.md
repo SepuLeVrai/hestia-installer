@@ -1,5 +1,19 @@
 # Quality et non-régression de HESTIA Installer
 
+## Validation ciblée HTTP et collecteur, sans promotion
+
+Le [lot suivant](PHASE5_HTTP_CLEANER_DRAIN.md) ajoute dix tests core et six
+scénarios réels de collecteur. Inventaire complet détectable : 650 core.
+La sélection affectée compte 74 contrôles ; la recette système compte 47 cas
+(18 HTTP, 11 cgroups, 18 collecteur). Un seul job Debian 13, dix minutes maximum,
+après vérifications locales. Les tests historiques ne sont pas retirés.
+
+La base `8de010e1` n'avait qu'une validation ciblée (`36221268362`). Les Quality
+globales, Debian 12, paquets, SQL/proxy/Web et navigateur restent différés pour
+les deux lots. Aucun résultat ancien ne qualifie cet arbre. Les manifestes,
+comptages et preuves exactes sont vérifiés avant le checkpoint ; aucune PR de
+promotion ni fast-forward avant les campagnes requises sur une source gelée.
+
 ## Validation ciblée du drainage HTTP, sans promotion
 
 Le [lot borné](PHASE5_HTTP_DRAIN.md) ajoute 12 tests core, soit 640 détectables

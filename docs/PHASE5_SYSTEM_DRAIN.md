@@ -1,5 +1,13 @@
 # Barrière d'arrêt des services de l'instance
 
+## Composition privée du collecteur
+
+Le [raccordement HTTP/collecteur](PHASE5_HTTP_CLEANER_DRAIN.md) utilise un audit
+explicite acceptant le job numérique d'un oneshot collecteur réellement en
+activation. Le contrat à quatre rôles n'active pas cette option. Les audits
+d'arrêt continuent d'exiger Job vide, Result=success et cgroup vide. Le timer
+est contrôlé et arrêté séparément par son provisionneur typé.
+
 ## Raccordement HTTP distinct
 
 Le contrat à quatre rôles reste inchangé. Le [chantier HTTP](PHASE5_HTTP_DRAIN.md)

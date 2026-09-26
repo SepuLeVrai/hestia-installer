@@ -137,6 +137,18 @@ class SystemDrainTests(unittest.TestCase):
         with self.host(empty=False), self.assertRaisesRegex(s.SystemDrainError, 'NOT_EMPTY'):
             self.drain._audit(self.bindings[1], stopped=True)
 
+    def test_only_explicit_running_collector_accepts_oneshot_start_job(self):
+        state = {'Type': 'oneshot', 'ActiveState': 'activating', 'SubState': 'start', 'Job': '123'}
+        binding = self.bindings[-1]
+        with self.host(changes=state):
+            with self.assertRaises(s.SystemDrainError): s.audit_unit(self.scope, binding)
+            s.audit_unit(self.scope, binding, running_collector=True)
+            with self.assertRaises(s.SystemDrainError): s.audit_unit(self.scope, binding, stopped=True, running_collector=True)
+            with self.assertRaises(s.SystemDrainError): s.audit_unit(self.scope, self.bindings[0], running_collector=True)
+        for bad in ({'Type':'simple'}, {'ActiveState':'deactivating'}, {'SubState':'stop'}, {'Job':'unexpected'}):
+            with self.subTest(bad=bad), self.host(changes=state | bad), self.assertRaises(s.SystemDrainError):
+                s.audit_unit(self.scope, binding, running_collector=True)
+
     def test_stopped_proof_refuses_failed_active_queued_or_control_process(self):
         for key, value in {'ActiveState': 'active', 'SubState': 'running', 'Result': 'timeout',
                            'MainPID': '42', 'ControlPID': '43'}.items():

@@ -118,21 +118,28 @@ def _empty_cgroup(unit: str) -> bool:
         os.close(fd)
 
 
-def audit_unit(scope: m.MaintenanceScope, binding: UnitBinding, *, stopped=False) -> None:
+def audit_unit(scope: m.MaintenanceScope, binding: UnitBinding, *, stopped=False, running_collector=False) -> None:
     """Read-only single-unit observation; never grants a four-producer lease."""
     require(type(scope) is m.MaintenanceScope and type(binding) is UnitBinding and binding.role in ROLES
             and type(binding.fragment_sha256) is str and re.fullmatch(r'[a-f0-9]{64}', binding.fragment_sha256),
             'SYSTEM_DRAIN_PROFILE_REJECTED')
+    require(type(running_collector) is bool and (not running_collector or
+            (binding.role == 'session-cleaner' and not stopped)), 'SYSTEM_DRAIN_PROFILE_REJECTED')
     unit = 'hestia-' + scope.instance + '-' + binding.role + '.service'
     fragment = UNIT_ROOT / unit
     dropin = UNIT_ROOT / (unit + '.d') / '50-hestia-maintenance.conf'
     require(hashlib.sha256(_root_file(fragment)).hexdigest() == binding.fragment_sha256
             and _root_file(dropin) == condition_dropin(scope), 'SYSTEM_DRAIN_UNIT_DRIFT')
     value = _show(unit)
+    # Only the typed collector composition may wait for a genuine oneshot
+    # activation job. The four-role barrier and final stopped proof stay strict.
+    pending = (running_collector and value['Type'] == 'oneshot'
+        and value['ActiveState'] == 'activating' and value['SubState'] == 'start'
+        and re.fullmatch(r'[1-9][0-9]*', value['Job']) is not None)
     required = {'Id': unit, 'LoadState': 'loaded', 'FragmentPath': str(fragment),
         'DropInPaths': str(dropin), 'NeedDaemonReload': 'no', 'KillMode': 'control-group',
         'SendSIGKILL': 'yes', 'Delegate': 'no', 'Slice': 'system.slice', 'Restart': 'no',
-        'RemainAfterExit': 'no', 'RefuseManualStop': 'no', 'Job': ''}
+        'RemainAfterExit': 'no', 'RefuseManualStop': 'no', 'Job': value['Job'] if pending else ''}
     require(all(value[k] == v for k, v in required.items())
             and value['Type'] in ('simple', 'exec', 'notify', 'oneshot')
             and value['ControlGroup'] in ('', '/system.slice/' + unit), 'SYSTEM_DRAIN_UNIT_REJECTED')
