@@ -69,7 +69,7 @@ ordre, listes répétées, compteurs cumulés, regroupement, non-service et abse
 de candidat, erreurs sans repli, dérives, FD fermés, preuve liée à tout le census,
 confidentialité, absence de projection et plafond final de l'enveloppe.
 
-Un seul job Debian13 ciblé prévu :325 contrôles puis8 cas réels census/relations
+Chaque job Debian13 ciblé contient325 contrôles puis8 cas réels census/relations
 parents et12 nouveaux cas. Pas de matrice globale, SQL, packages, DOM ou Web
 rejouée pour ce lot. Les recettes indépendantes continuent après un échec
 précédent mais cet échec reste bloquant. Résultats exacts dans le checkpoint,
@@ -102,6 +102,19 @@ image ou d'un namespace utilisateur : le PID et son namespace sont comparés.
 Le cas12 utilise une vraie racine jetable contenant le sleep officiel et ses
 librairies déjà installées ; le banc vérifie /proc/PID/root. Cela ne transforme
 pas le lecteur en résolveur de rootfs ni ne qualifie un moteur d'images.
+
+Premier candidat b92c1075, arbre bda44455d45e0e1065a78cc0385acb61d090cfc2 :
+run36260640278 refusé.325 contrôles Debian13 et8 cas parents passent ; les12
+nouveaux cas ne démarrent pas (setUpClass,0 tests,1 erreur,0 skip). Le journal
+montre context-root.service refusé à EXEC, Permission denied. Sa racine contenant
+les exécutables était sous le tmpfs /run du conteneur. La correction du banc
+place seulement ce mini-rootfs sous /var/lib/hestia-context-root-fixture ; /run
+conserve les données et le helper interprété. Elle exige et enregistre statvfs :
+/run noexec, mini-rootfs exécutable. Ce contrôle rend l'hypothèse de montage
+vérifiable au prochain run ; le premier journal seul ne contenait pas ses flags.
+Le lecteur et ses26 tests sont inchangés. Second job ciblé requis après nouveau
+gel, sans modification de seuil ni suppression de scénario. Conserver l'artefact
+négatif10911767821, SHA256 f591d865f7444fc068f70adfa77e8b3151ceee72b0b4e08e30510b3a3013becb.
 
 Les24 lignes executed=false du JSON parent restent une matrice de conception
 historique, pas des résultats de tests. Les contrôles locaux couvrent notamment

@@ -1,5 +1,11 @@
 # État du projet
 
+Le premier job du lecteur (b92c1075/run36260640278) conserve325 contrôles et8
+cas parents verts, mais0/12 nouveaux cas exécutés : préparation rootfs refusée
+à EXEC. Le banc déplace sa racine exécutable de /run vers /var/lib et vérifie
+explicitement les flags noexec ; lecteur inchangé. Second job ciblé requis,
+résultat dans le checkpoint. Aucune qualification globale ou promotion.
+
 ## Reprise courante : lecteur du contexte Service configuré
 
 Sur1b3a0887, [le lecteur](PHASE5_EXECUTION_CONTEXT_READER.md) implémente les20

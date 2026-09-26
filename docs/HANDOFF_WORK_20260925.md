@@ -1,5 +1,11 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+Priorité : premier essai b92c1075/run36260640278 refusé avant les12 nouveaux cas,
+avec325 contrôles et8 cas parents verts. Correction de fixture uniquement :
+mini-rootfs sous /var/lib, statvfs prouvant /run noexec et rootfs exécutable.
+Second job ciblé après gel ; conserver sources et artefact négatif, ne pas
+annoncer le lecteur qualifié avant vérification du nouveau résultat.
+
 ## Reprise après lecteur du contexte Service
 
 Lire PHASE5_EXECUTION_CONTEXT_READER.md puis le contrat SYSTEMD_EXECUTION_CONTEXT.

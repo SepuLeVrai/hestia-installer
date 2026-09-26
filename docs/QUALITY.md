@@ -1,5 +1,11 @@
 # Quality et non-régression de HESTIA Installer
 
+Correctif du banc après run36260640278 :325 contrôles et8 scénarios parents
+verts, erreur setUpClass avant les12 cas nouveaux (Permission denied à EXEC).
+Mini-rootfs déplacé hors du tmpfs /run ; flags noexec/exécutable vérifiés et
+conservés par statvfs. Nouveau gel et second job ciblé ; code produit inchangé,
+aucune assertion affaiblie. Premier artefact négatif conservé au checkpoint.
+
 ## Lecteur de contexte Service : qualification ciblée requise
 
 [Ce lot](PHASE5_EXECUTION_CONTEXT_READER.md) ajoute26 tests core obligatoires,

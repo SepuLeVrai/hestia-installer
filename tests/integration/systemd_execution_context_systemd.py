@@ -19,6 +19,7 @@ from process_census_systemd import HELPER
 from discovery_diagnostics import DiagnosedCollect
 sys.path.insert(0,str(ROOT/'scripts'));import quality
 WORK=Path('/run/hestia-context-fixture');ACCOUNT='hestia-context';OTHER='hestia-context-other'
+ROOTFS=Path('/var/lib/hestia-context-root-fixture')
 NAMES={key:'context-'+key+'.service' for key in ('multi','change','vanish','restart','named','numeric','home','binds',
     'dynamic','dynamic-static','declared','root','unloaded')}
 SCOPE='context-external.scope';TIMER='context-unused.timer'
@@ -44,7 +45,12 @@ class ExecutionContextLive(unittest.TestCase):
         for name in (ACCOUNT,OTHER):
             command('useradd','--system','--user-group','--no-create-home','--home-dir',str(WORK/'home'),'--shell','/usr/sbin/nologin',name)
         cls.account=pwd.getpwnam(ACCOUNT);cls.other=pwd.getpwnam(OTHER)
-        for name in ('home','source','destination','readonly','hidden','root'):(WORK/name).mkdir(mode=0o755)
+        for name in ('home','source','destination','readonly','hidden'):(WORK/name).mkdir(mode=0o755)
+        ROOTFS.mkdir(mode=0o755)
+        mounts={'work_noexec':bool(os.statvfs(WORK).f_flag & os.ST_NOEXEC),
+            'rootfs_noexec':bool(os.statvfs(ROOTFS).f_flag & os.ST_NOEXEC)}
+        Path('/evidence/fixture-execution-mounts.json').write_text(json.dumps(mounts)+'\n')
+        if mounts!={'work_noexec':True,'rootfs_noexec':False}:raise RuntimeError('Unexpected fixture execution mounts')
         (WORK/'source/data').write_text('fixture-binding-content');(WORK/'root.img').write_bytes(b'not-mounted-fixture-marker')
         (WORK/'helper.py').write_text(HELPER)
         p=e.t.o._provenance();release=e.d.l.get_release(e.d.l.STORAGE_COMMIT)
@@ -67,7 +73,7 @@ class ExecutionContextLive(unittest.TestCase):
             if key=='binds':unit+='PrivateTmp=disconnected\nPrivateMounts=yes\nBindPaths='+str(WORK/'source')+':'+str(WORK/'destination')+'\nBindReadOnlyPaths='+str(WORK/'source')+':'+str(WORK/'readonly')+'\nReadWritePaths=-'+str(WORK/'absent-rw')+'\nReadOnlyPaths='+str(WORK/'source')+'\nInaccessiblePaths='+str(WORK/'hidden')+'\n'
             if key=='dynamic':unit='[Service]\nUser=hestia-context-dynamic\nDynamicUser=yes\nSupplementaryGroups='+ACCOUNT+'\nExecStart=/usr/bin/sleep infinity\n'
             if key=='dynamic-static':unit+='DynamicUser=yes\n'
-            if key=='root':unit+='RootDirectory='+str(WORK/'root')+'\nRootDirectoryStartOnly=yes\n'
+            if key=='root':unit+='RootDirectory='+str(ROOTFS)+'\nRootDirectoryStartOnly=yes\n'
             unit=unit.replace('[Service]\n','[Service]\nType=exec\n',1)
             cls.units[key]=unit;(UNIT_ROOT/name).write_text(unit)
         # Fixture-only minimal rootfs from the already installed official sleep
@@ -78,7 +84,7 @@ class ExecutionContextLive(unittest.TestCase):
         for value in paths:
             source=Path(value)
             if not source.is_file() or not value.startswith(('/usr/','/lib/','/lib64/')):raise RuntimeError('Unexpected fixture library')
-            dest=WORK/'root'/value.lstrip('/');dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,dest);dest.chmod(0o755)
+            dest=ROOTFS/value.lstrip('/');dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,dest);dest.chmod(0o755)
         (UNIT_ROOT/TIMER).write_text('[Timer]\nOnActiveSec=1h\nUnit='+NAMES['unloaded']+'\n')
         command('systemctl','daemon-reload')
         cls.start_helper('multi')
@@ -108,7 +114,7 @@ class ExecutionContextLive(unittest.TestCase):
     def tearDownClass(cls):
         command('systemctl','stop',SCOPE,check=False);cls.scope.wait(timeout=10)
         for name in NAMES.values():command('systemctl','stop',name,check=False);(UNIT_ROOT/name).unlink(missing_ok=True)
-        (UNIT_ROOT/TIMER).unlink(missing_ok=True);command('systemctl','daemon-reload');shutil.rmtree(WORK)
+        (UNIT_ROOT/TIMER).unlink(missing_ok=True);command('systemctl','daemon-reload');shutil.rmtree(WORK);shutil.rmtree(ROOTFS)
     def reader(self,transport=Audited):
         result=Observed(self.target,self.storage);result._transport=transport(self.target,self.storage);return result
     def context(self,sample,key):
@@ -230,8 +236,8 @@ class ExecutionContextLive(unittest.TestCase):
 
     def test_12_actual_disposable_rootfs_is_observed_as_configured_only(self):
         sample=self.reader().collect();values=self.context(sample,'root');process=pid(NAMES['root'])
-        self.assertEqual(os.readlink('/proc/'+str(process)+'/root'),str(WORK/'root'))
-        self.assertEqual(values['RootDirectory'],str(WORK/'root'));self.assertIs(values['RootDirectoryStartOnly'],True)
+        self.assertEqual(os.readlink('/proc/'+str(process)+'/root'),str(ROOTFS))
+        self.assertEqual(values['RootDirectory'],str(ROOTFS));self.assertIs(values['RootDirectoryStartOnly'],True)
         self.assertEqual(values['RootImage'],'');self.assertFalse(sample.report()['effective_context_verified'])
 
 
