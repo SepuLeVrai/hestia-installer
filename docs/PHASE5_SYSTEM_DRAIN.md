@@ -1,5 +1,12 @@
 # Barrière d'arrêt des services de l'instance
 
+## Raccordement HTTP distinct
+
+Le contrat à quatre rôles reste inchangé. Le [chantier HTTP](PHASE5_HTTP_DRAIN.md)
+ajoute une barrière séparée pour les deux unités issues de HttpRuntime, avec
+observation ponctuelle des threads de l'identité dédiée. Il n'invente pas une
+unité CLI et ne transforme pas ce sous-ensemble en inventaire exhaustif.
+
 ## Base et périmètre
 
 Base qualifiée : `ed7707c9eb7f6314e5d3d3b899f0efe1cef92d53`, arbre

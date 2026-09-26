@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Barrière HTTP limitée à deux unités
+
+[HttpDrain](PHASE5_HTTP_DRAIN.md) dérive les deux unités du provisionnement
+vérifié, conserve la maintenance après échec et refuse un thread visible portant
+l'UID/GID dédié hors de ces cgroups. Aucune action par PID observé, aucun arrêt
+de service étranger et aucune adoption ne sont permis. Le recensement borné
+est ponctuel ; root, les planificateurs et les autres écrivains SQL ne sont pas
+neutralisés par cette observation. Le reçu ne certifie ni inventaire exhaustif,
+ni activation, ni sauvegarde complète. Les contrôles de staging restent stricts.
+
 ## Frontière du stockage métier externe
 
 Le [profil externe](PHASE5_BUSINESS_STORAGE.md) refuse source inconnue, slot

@@ -1,5 +1,20 @@
 # Quality et non-régression de HESTIA Installer
 
+## Validation ciblée du drainage HTTP, sans promotion
+
+Le [lot borné](PHASE5_HTTP_DRAIN.md) ajoute 12 tests core, soit 640 détectables
+dans la suite complète, sans retirer de tests historiques. À la demande de
+Bastien pour réduire le coût Actions, seule la sélection affectée de 64 tests
+et 41 scénarios système est prévue dans un job Debian 13. Les gardes statiques
+et les 64 tests sont exécutés localement avant tout lancement.
+
+La branche work dédiée ne déclenche ni Quality globale ni paquets. Les six
+nouvelles recettes restent dans la suite système permanente pour la prochaine
+qualification intégrale. Aucun résultat antérieur ne qualifie ce nouvel arbre.
+Debian 12, navigateur, SQL/proxy/Web et campagnes globales sont explicitement
+différés. Une validation ciblée verte n'autorise aucune PR de promotion ni
+fast-forward. Résultats exacts et limites dans le checkpoint après gel.
+
 ## Profil métier externe : qualification du nouvel arbre
 
 [Contrat et neuf scénarios](PHASE5_BUSINESS_STORAGE.md). Les **628 core** par

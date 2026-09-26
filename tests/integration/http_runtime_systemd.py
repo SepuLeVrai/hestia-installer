@@ -9,15 +9,18 @@ import dataclasses
 import hashlib
 import http.client
 import json
+import multiprocessing
 import os
 from pathlib import Path
 import pwd
 import shutil
+import signal
 import socket
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -25,6 +28,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from installer import http_runtime as h
+from installer import http_drain as hd
 from installer import system_drain as s
 from installer.operations import RecoveryDecision
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -280,6 +284,129 @@ echo json_encode(['ready'=>true, 'session'=>session_save_path(), 'ttl'=>ini_get(
             for unit in self.units:
                 command('systemctl', 'start', unit); self.assertEqual(s._show(unit)['ActiveState'], 'inactive')
 
+    def partial_upload(self):
+        stream = socket.create_connection(('127.0.0.1', self.port), timeout=5)
+        self.addCleanup(stream.close)
+        stream.sendall((f'POST /upload.php HTTP/1.1\r\nHost: {self.spec.hostname}\r\n'
+            'Content-Type: multipart/form-data; boundary=drain-boundary\r\nContent-Length: 10000000\r\n\r\n'
+            '--drain-boundary\r\nContent-Disposition: form-data; name="file"; filename="fixture.bin"\r\n'
+            'Content-Type: application/octet-stream\r\n\r\n').encode() + b'x' * (512 * 1024))
+        until(lambda: any((self.root / 'data/upload-tmp').iterdir()))
+        return stream
+
+    def assert_http_drained(self, lease):
+        report = lease.report()
+        self.assertEqual(report['services'], 2); self.assertTrue(report['cgroup_empty_verified'])
+        self.assertFalse(report['other_producers_controlled']); self.assertFalse(report['storage_inventory_complete'])
+        for unit in self.units[:2]:
+            self.assertTrue(s._empty_cgroup(unit)); self.assertEqual(s._show(unit)['Result'], 'success')
+            command('systemctl', 'start', unit)
+            self.assertEqual(s._show(unit)['ActiveState'], 'inactive')
+        self.assertEqual(self.scope.observe()['state'], 'MAINTENANCE_REQUIRED')
+        with self.assertRaises(OSError): self.request()
+        with self.assertRaises(h.HttpRuntimeError): self.runtime.observe()
+
+    def test_direct_http_drain_stops_partial_multipart_before_guard_with_real_product_timeouts(self):
+        marker = self.root / 'data/tmp/upload-entered'
+        self.write('upload.php', '<?php file_put_contents(hex2bin("' + os.fsencode(marker).hex() + '"),"entered");')
+        self.create(); self.activate_fixture(); self.partial_upload()
+        self.assertFalse(marker.exists())
+        with hd.HttpDrain(self.runtime).acquire(confirmed=True) as lease:
+            self.assert_http_drained(lease)
+            before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in (self.root / 'data/upload-tmp').iterdir()}
+            time.sleep(.2)
+            self.assertEqual(before, {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in (self.root / 'data/upload-tmp').iterdir()})
+            self.assertFalse(marker.exists())
+
+    def test_direct_http_drain_removes_setsid_descendant_after_real_fpm_worker_death(self):
+        helper = self.web / 'orphan.py'; data = self.root / 'data/tmp'
+        self.write('orphan.py', 'import os,pathlib,time\nos.setsid()\nroot=pathlib.Path(' + repr(str(data))
+            + ')\n(root/"child-pid").write_text(str(os.getpid()))\nos.closerange(0,256)\nwhile True:\n'
+            + '    with (root/"heartbeat").open("ab") as out: out.write(b"x")\n    time.sleep(.01)\n')
+        literal = lambda path: 'hex2bin("' + os.fsencode(path).hex() + '")'
+        self.write('orphan.php', '<?php file_put_contents(' + literal(data / 'worker-pid') + ',(string)getmypid()); '
+            + '$p=proc_open(["/usr/bin/python3",' + literal(helper)
+            + '],[0=>["file","/dev/null","r"],1=>["file","/dev/null","w"],2=>["file","/dev/null","w"]],$pipes); sleep(20);')
+        self.create(); self.activate_fixture()
+        def request():
+            try: self.request('/orphan.php')
+            except (OSError, http.client.HTTPException): pass
+        thread = threading.Thread(target=request, daemon=True); thread.start()
+        until(lambda: (data / 'child-pid').exists() and (data / 'worker-pid').exists())
+        child = int((data / 'child-pid').read_text()); worker = int((data / 'worker-pid').read_text())
+        self.assertEqual(os.getsid(child), child)
+        self.assertIn(self.runtime.unit('php'), Path(f'/proc/{child}/cgroup').read_text())
+        os.kill(worker, signal.SIGKILL); thread.join(6); self.assertFalse(thread.is_alive())
+        heartbeat = data / 'heartbeat'; before = heartbeat.stat().st_size
+        until(lambda: heartbeat.stat().st_size > before)
+        with hd.HttpDrain(self.runtime).acquire(confirmed=True) as lease:
+            self.assert_http_drained(lease)
+            size = heartbeat.stat().st_size; time.sleep(.2); self.assertEqual(size, heartbeat.stat().st_size)
+            until(lambda: not Path(f'/proc/{child}').exists())
+
+    def foreign_writer(self):
+        unit = 'hestia-foreign-' + self.instance + '.service'; self.units.append(unit)
+        fragment = f'[Service]\nUser={self.account.pw_name}\nExecStart=/usr/bin/sleep infinity\n'
+        path = s.UNIT_ROOT / unit; path.write_text(fragment); path.chmod(0o644)
+        command('systemctl', 'daemon-reload'); command('systemctl', 'start', unit)
+        pid = command('systemctl', 'show', '--value', '--property=MainPID', unit).stdout.strip()
+        self.assertNotEqual(pid, b'0')
+        until(lambda: Path('/proc/' + pid.decode() + '/status').is_file()
+              and hd._credentials(Path('/proc/' + pid.decode() + '/status').read_text())['Uid'][1] == self.account.pw_uid)
+        return unit, path, fragment, pid
+
+    def test_direct_http_drain_refuses_foreign_identity_before_gate_without_touching_service(self):
+        self.create(); self.activate_fixture(); unit, path, fragment, pid = self.foreign_writer()
+        with self.assertRaisesRegex(hd.HttpDrainError, 'FOREIGN_IDENTITY_PROCESS'):
+            hd.HttpDrain(self.runtime).acquire(confirmed=True)
+        self.assertEqual(self.scope.observe()['state'], 'SERVING'); self.assertTrue(self.ready())
+        self.assertFalse(list(self.scope.directory.glob('http-drain-*.attempt')))
+        self.assertEqual(path.read_text(), fragment)
+        self.assertEqual(command('systemctl', 'show', '--value', '--property=MainPID', unit).stdout.strip(), pid)
+
+    def test_direct_http_drain_live_receipt_revokes_when_privileged_scheduler_starts_foreign_identity(self):
+        self.create(); self.activate_fixture()
+        with hd.HttpDrain(self.runtime).acquire(confirmed=True) as lease:
+            self.assert_http_drained(lease)
+            unit, _, _, _ = self.foreign_writer()
+            with self.assertRaisesRegex(hd.HttpDrainError, 'FOREIGN_IDENTITY_PROCESS'): lease.report()
+            self.assertEqual(command('systemctl', 'is-active', unit).stdout.strip(), b'active')
+            self.assertEqual(self.scope.observe()['state'], 'MAINTENANCE_REQUIRED')
+
+    def test_direct_http_drain_controller_sigkill_keeps_gate_and_recovers_exact_two_units(self):
+        self.create(); self.activate_fixture()
+        context = multiprocessing.get_context('fork'); ready = context.Event(); original = s._systemctl
+        def child():
+            def pause(action, unit):
+                value = original(action, unit)
+                if action == 'stop' and unit == self.runtime.unit('apache'):
+                    ready.set(); time.sleep(20)
+                return value
+            with patch.object(s, '_systemctl', side_effect=pause): hd.HttpDrain(self.runtime).acquire(confirmed=True)
+        process = context.Process(target=child); process.start()
+        try:
+            self.assertTrue(ready.wait(12)); process.kill(); process.join(5)
+            self.assertEqual(process.exitcode, -signal.SIGKILL)
+        finally:
+            if process.is_alive(): process.kill(); process.join(5)
+        state = self.scope.observe(); self.assertEqual(state['state'], 'MAINTENANCE_REQUIRED')
+        self.assertTrue(list(self.scope.directory.glob('http-drain-*.attempt')))
+        self.assertEqual(s._show(self.runtime.unit('apache'))['ActiveState'], 'inactive')
+        self.assertEqual(s._show(self.runtime.unit('php'))['ActiveState'], 'active')
+        with hd.HttpDrain(self.runtime).recover(state['lease_id'], confirmed=True) as lease:
+            self.assert_http_drained(lease)
+
+    def test_direct_http_drain_rechecks_configuration_after_activation_without_relaxing_stage_receipt(self):
+        self.create(); self.activate_fixture(); path = self.root / 'conf/fpm.conf'; original = path.read_bytes()
+        path.write_bytes(original + b'\n; drift\n')
+        with self.assertRaises(h.HttpRuntimeError): hd.HttpDrain(self.runtime).acquire(confirmed=True)
+        self.assertEqual(self.scope.observe()['state'], 'SERVING')
+        path.write_bytes(original)
+        with hd.HttpDrain(self.runtime).acquire(confirmed=True) as lease:
+            self.assert_http_drained(lease)
+            path.write_bytes(original + b'\n; drift\n')
+            with self.assertRaises(h.HttpRuntimeError): lease.report()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--report', type=Path, required=True)
@@ -288,8 +415,8 @@ if __name__ == '__main__':
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     stable = source == quality.snapshot(ROOT)
     report = {'suite': 'Generated dedicated Apache FPM runtime staging', 'tests': result.testsRun,
-        'expected': 12, 'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
-        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 12 and not result.skipped and stable else 'FAIL',
+        'expected': 18, 'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
+        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 18 and not result.skipped and stable else 'FAIL',
         'source_stable': stable, 'source_files': len(source), 'web_application_qualified': False,
         'native_session_cleaner_qualified': False, 'service_activation_delivered': False}
     args.report.parent.mkdir(parents=True, exist_ok=True)

@@ -1,5 +1,12 @@
 # Phase 5 — préparation privée du runtime Apache/PHP-FPM
 
+## Contrat distinct d'arrêt
+
+Le [drainage HTTP](PHASE5_HTTP_DRAIN.md) utilise le provisionnement vérifié après
+activation. L'observation de staging conserve ses exigences initiales ; la
+factorisation privée des contrôles de configuration ne délivre aucun état
+runtime et n'assouplit pas les reçus existants.
+
 ## Extension opt-in : stockages métier et gate SQL commun
 
 Le [profil externe](PHASE5_BUSINESS_STORAGE.md) ajoute `external_uploads=True`

@@ -1,5 +1,20 @@
 # État du projet
 
+## Chantier borné du 26 septembre : drainage HTTP
+
+La base `3a5e2a44` et ses cinq campagnes Installer/Web sont qualifiées ; voir
+[PHASE5_HTTP_DRAIN.md](PHASE5_HTTP_DRAIN.md) pour leurs références exactes.
+Le chantier courant raccorde la barrière aux deux services HTTP réellement
+provisionnés et refuse les producteurs de l'identité observés hors périmètre.
+Il conserve les contrats précédents et tous les indicateurs de clôture faux.
+
+À la demande de Bastien, un seul job ciblé Debian 13 doit exercer les contrôleurs
+affectés et 41 recettes système. Les campagnes globales sont différées pour
+maîtriser les coûts ; ce candidat n'est pas promouvable et n'est pas déclaré
+globalement qualifié. Aucun changement Web. Après vérification des preuves et
+checkpoint, arrêt pour redémarrage, sans enchaîner le chantier suivant.
+Les sections ci-dessous restent historiques.
+
 ## Reprise active : profil de stockages métier externes
 
 Base qualifiée `357d7164af7161aaa113dc50ca33d44dd46ba873`, arbre

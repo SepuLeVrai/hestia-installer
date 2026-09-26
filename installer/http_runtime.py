@@ -438,26 +438,35 @@ Delegate=no
         except HttpRuntimeError: raise
         except Exception: raise HttpRuntimeError('HTTP_RUNTIME_INCOMPLETE') from None
 
+    def _inspect_configuration(self):
+        """Verify the immutable provisioned layout, independently of service state.
+
+        Private input to separate lifecycle contracts. This is not a staging,
+        running or drained receipt; observe() still requires its original gate.
+        """
+        account, extension = self._host(); plan = self._plan(account, extension)
+        with fs._directory(self.spec.root) as fd:
+            require(f._read(fd, 'provision.attempt', 0) == plan, 'HTTP_RUNTIME_DRIFT')
+            saved = f._json_read(fd, 'staged.json', 0)
+            require(set(saved) == {'version', 'plan_sha256', 'lease_id', 'state'} and saved['version'] == 1
+                    and saved['plan_sha256'] == f._sha(plan) and saved['state'] == 'HTTP_RUNTIME_STAGED',
+                    'HTTP_RUNTIME_DRIFT')
+        for path, expected in self._directories(account).items():
+            with fs._directory(path.parent) as parent:
+                handle = os.open(path.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+                try:
+                    info = os.fstat(handle); fs._no_acl(handle)
+                    require((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == expected, 'HTTP_RUNTIME_DRIFT')
+                finally: os.close(handle)
+        for path, data in self._files(account, extension).items():
+            with fs._directory(path.parent) as parent:
+                require(f._read(parent, path.name, 0,
+                    mode=0o644 if path.is_relative_to(drain.UNIT_ROOT) else 0o640) == data, 'HTTP_RUNTIME_DRIFT')
+        return account, extension, plan, saved
+
     def observe(self) -> dict:
         try:
-            account, extension = self._host(); plan = self._plan(account, extension)
-            with fs._directory(self.spec.root) as fd:
-                require(f._read(fd, 'provision.attempt', 0) == plan, 'HTTP_RUNTIME_DRIFT')
-                saved = f._json_read(fd, 'staged.json', 0)
-                require(set(saved) == {'version', 'plan_sha256', 'lease_id', 'state'} and saved['version'] == 1
-                        and saved['plan_sha256'] == f._sha(plan) and saved['state'] == 'HTTP_RUNTIME_STAGED',
-                        'HTTP_RUNTIME_DRIFT')
-            for path, expected in self._directories(account).items():
-                with fs._directory(path.parent) as parent:
-                    handle = os.open(path.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
-                    try:
-                        info = os.fstat(handle); fs._no_acl(handle)
-                        require((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == expected, 'HTTP_RUNTIME_DRIFT')
-                    finally: os.close(handle)
-            for path, data in self._files(account, extension).items():
-                with fs._directory(path.parent) as parent:
-                    require(f._read(parent, path.name, 0,
-                        mode=0o644 if path.is_relative_to(drain.UNIT_ROOT) else 0o640) == data, 'HTTP_RUNTIME_DRIFT')
+            account, extension, plan, saved = self._inspect_configuration()
             scope = self._scope(account)
             state = scope.observe()
             require(state.get('lease_id') == saved['lease_id'], 'HTTP_RUNTIME_GATE_REQUIRED')

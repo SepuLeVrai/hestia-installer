@@ -1,5 +1,14 @@
 # Architecture HESTIA Installer
 
+## Arrêt HTTP indépendant de l'activation
+
+`http_drain.HttpDrain` compose les contrôles de configuration privés de
+`HttpRuntime`, la maintenance durable et l'audit cgroup de `SystemDrain` pour
+les seuls rôles Apache et PHP. Un recensement procfs des threads invalide la
+preuve si l'identité dédiée est observée hors périmètre. La lease reste vivante,
+recontrôlée et non sérialisable. Le staging n'est pas réutilisé comme reçu de
+runtime. Voir le [contrat et sa qualification ciblée](PHASE5_HTTP_DRAIN.md).
+
 ## Profil métier externe et identités de source
 
 `web_releases.py` contient deux identités fermées (commit, arbre, nombre de
