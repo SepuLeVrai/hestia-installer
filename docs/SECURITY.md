@@ -1,5 +1,16 @@
 # Modèle de sécurité
 
+## Pertinence déclarative sans autorité
+
+Le [sélecteur privé](PHASE5_SYSTEMD_RELEVANCE_MODEL.md) conserve les inconnus,
+refuse les liaisons contradictoires et ne produit aucune exclusion automatique.
+Ses faits sont non authentifiés. Identité configurée/effective, chemin textuel/
+contexte déclaré et relation restent distincts ; root, chroot, namespace inconnu
+ou wrapper opaque ne sont jamais exclus par absence de signal. Aucune décision
+KNOWN_PROVISIONED sans pont vérifié, ni extension du drain au proxy partagé.
+Rapport réduit et erreurs fixes ; index, faits et noms restent privés. Aucune
+exécution, collecte, attestation de fichier ou fermeture d'un indicateur global.
+
 ## Découverte déclarative, sans certificat d'hôte
 
 Le [modèle pur](PHASE5_SYSTEMD_DISCOVERY_MODEL.md) refuse énumérations

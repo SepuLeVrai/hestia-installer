@@ -1,5 +1,19 @@
 # Quality et non-régression de HESTIA Installer
 
+## Sélection déclarative de pertinence : tests locaux
+
+Le [modèle pur](PHASE5_SYSTEMD_RELEVANCE_MODEL.md) ajoute 42 tests : inventaire
+core 766 détectables, 761 requis. Sélection locale de 134 : relevance42,
+discovery35, launcher_inventory23, storage_inventory18, systemd_observations16.
+Vérifier code et documentation gelés ensemble, gardes statiques sur 204 fichiers
+et manifestes octets/modes avant/après. Scans et faits synthétiques uniquement.
+
+Les limites effectives 4096 unités, 8192 relations et 4 Mio sont exercées ;
+aucune preuve hôte, SQL/Web ou KNOWN_PROVISIONED. Zéro Actions pour ce lot,
+workflows inchangés. Les 28 critères historiques ne deviennent pas une campagne
+exécutée. Quality globales et promotions restent différées ; preuves du lot
+exact dans le checkpoint. Les sections suivantes conservent les états antérieurs.
+
 ## Modèle pur de découverte : sélection locale
 
 [Contrat](PHASE5_SYSTEMD_DISCOVERY_MODEL.md) : 35 nouveaux tests, 724 core

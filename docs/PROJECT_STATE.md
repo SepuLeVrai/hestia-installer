@@ -1,5 +1,18 @@
 # État du projet
 
+## Sélection conservatrice de pertinence systemd
+
+Sur la base `2677d0ef`, le [modèle privé](PHASE5_SYSTEMD_RELEVANCE_MODEL.md)
+classe des faits typés liés au digest de découverte. Identités, chemins et
+relations élargissent la revue ; les inconnus ne deviennent pas des exclusions.
+Ni collecte hôte ni admission KNOWN_PROVISIONED, projection ou mutation.
+Le collecteur fermé, le Web et tous les indicateurs de clôture restent inchangés.
+
+42 nouveaux tests, sélection locale de 134 et gardes statiques requis après gel.
+Zéro Actions prévu ; aucune qualification globale ou promotion revendiquée.
+Checkpoint puis arrêt. Prochain lot borné au transport réel des trois listes,
+sans lecteurs détaillés supplémentaires. Sections suivantes historiques.
+
 ## Modèle pur de découverte systemd
 
 Sur la base `847cea06`, le [modèle privé](PHASE5_SYSTEMD_DISCOVERY_MODEL.md)

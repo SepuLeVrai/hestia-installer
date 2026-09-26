@@ -1,5 +1,15 @@
 # Architecture HESTIA Installer
 
+## Sélection déclarative privée de pertinence
+
+`systemd_relevance.SystemdRelevance` revalide la DiscoveryScan puis lie les
+faits typés à son index entier par digest. Aucun IO, horloge implicite ou
+modification du modèle de découverte. Les signaux d'identité, chemin, liaison
+externe et relation produisent RELATED_UNMANAGED ou UNRESOLVED. La propagation
+élargit seulement la revue. Fichiers, jobs et inconnus restent dans le résultat.
+Le [contrat détaillé](PHASE5_SYSTEMD_RELEVANCE_MODEL.md) conserve tous les blocages.
+Pas de pont provisionneur, projection, endpoint ou consommateur de mutation.
+
 ## Index privé des trois populations systemd
 
 `systemd_discovery.SystemdDiscovery` réutilise le contrat cible/stockage de

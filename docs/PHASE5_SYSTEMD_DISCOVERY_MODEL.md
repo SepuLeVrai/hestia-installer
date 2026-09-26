@@ -1,5 +1,14 @@
 # Modèle privé de découverte systemd
 
+## Consommateur de pertinence livré séparément
+
+Le [sélecteur pur](PHASE5_SYSTEMD_RELEVANCE_MODEL.md) revalide une DiscoveryScan
+et lie ses faits au digest de cet index complet. Ce module de découverte reste
+inchangé et ne collecte toujours rien. Le sélecteur ne livre ni transport,
+projection ou permission ; les inconnus et limites de preuve sont conservés.
+Le prochain lot de transport est distinct. Le texte ci-dessous décrit le lot
+historique du modèle de découverte et ses 35 tests.
+
 ## Périmètre livré
 
 Base `847cea069daa1f9077bc266f1fec4dbbe3464a72`, arbre

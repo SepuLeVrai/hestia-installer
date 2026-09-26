@@ -1,5 +1,14 @@
 # Contrat de découverte systemd hors du profil provisionné
 
+## Sélection déclarative partielle désormais implémentée
+
+Le [modèle de pertinence](PHASE5_SYSTEMD_RELEVANCE_MODEL.md) consomme les faits
+liés à la découverte, sans transport. Il élargit la revue sur signaux positifs
+et conserve les inconnus. KNOWN_PROVISIONED, les détails effectifs et leurs
+preuves système restent différés. La matrice JSON de 28 critères demeure le
+contrat historique non exécuté comme campagne globale ; les tests locaux du
+sélecteur ne remplacent pas ces recettes. Sections suivantes historiques.
+
 ## Première implémentation partielle du contrat
 
 Le [modèle pur de découverte](PHASE5_SYSTEMD_DISCOVERY_MODEL.md) implémente
