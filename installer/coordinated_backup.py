@@ -22,6 +22,7 @@ from installer import database_step as d
 from installer import finalization as f
 from installer import maintenance as m
 from installer import http_drain as hd, sql_read_fence as rf
+from installer import provisioned_admission as admission
 from installer import php_transport as p
 from installer import upgrade_backup as sql
 from installer.model import strict_json_loads
@@ -103,6 +104,7 @@ class CoordinatedBackup:
                           service_barrier: hd.HttpDrainLease | None = None) -> CoordinatedVerification:
         started = False
         fence = None
+        configuration = None
         def held():
             _held(maintenance)
             if service_barrier is not None:
@@ -110,6 +112,7 @@ class CoordinatedBackup:
                         'COORDINATED_SERVICE_BARRIER_REQUIRED')
                 service_barrier.assert_held()
             if fence is not None: fence.assert_held()
+            if configuration is not None: configuration.assert_held()
         try:
             require(confirmed is True and allow_global_read_lock is True, 'COORDINATED_CONSENT_REQUIRED')
             held()
@@ -166,6 +169,7 @@ class CoordinatedBackup:
                 require(info.st_gid == 0 and stat.S_IMODE(info.st_mode) == 0o700, 'COORDINATED_PATH_REJECTED')
                 require(cancel is None or not cancel.is_set(), 'COORDINATED_INTERRUPTED')
                 if service_barrier is not None:
+                    configuration = stack.enter_context(admission.acquire(conf, web, gid))
                     fence = stack.enter_context(rf.acquire(self.runtime, self.source, database, ca, authority, cancel=cancel))
                     held()
                 backup_id = os.urandom(16).hex()
@@ -221,7 +225,7 @@ class CoordinatedBackup:
                             'storage_inventory_complete': False, 'system_wiring_verified': False}
                 if barrier_profile is not None:
                     manifest['service_barrier'] = {'profile_sha256': barrier_profile,
-                        'policy': 'PROVISIONED_HTTP_CLEANER_AND_SQL_FENCE_V1'}
+                        'policy': 'PROVISIONED_HTTP_CLEANER_SQL_AND_CONFIGURATION_V2'}
                 sql._new_file(slot / 'coordinated.json', p._json(manifest))
                 held()
                 require(cancel is None or not cancel.is_set(), 'COORDINATED_INTERRUPTED')
@@ -236,6 +240,7 @@ class CoordinatedBackup:
                 if barrier_profile is not None:
                     result.update(state='PROVISIONED_BACKUP_RESTORE_VERIFIED',
                         provisioned_services_drained=True, sql_read_fence_verified=True,
+                        installer_settings_fenced=True, configuration_storage_admitted=True,
                         service_profile_sha256=barrier_profile, phase5_complete=False)
                 held()
                 with fs._directory(slot) as fd:
@@ -247,6 +252,10 @@ class CoordinatedBackup:
                 return CoordinatedVerification(p._json(result))
         except Exception as error:
             code = str(error) if isinstance(error, CoordinatedBackupError) else 'COORDINATED_OPERATION_UNAVAILABLE'
+            if isinstance(error, (rf.SqlReadFenceError, admission.AdmissionError)) and str(error) in (
+                    *rf.PROFILE_REJECTIONS, 'PROVISIONED_SETTINGS_BUSY', 'PROVISIONED_CONFIGURATION_CHANGED',
+                    'PROVISIONED_EXTERNAL_STORAGE_REJECTED'):
+                code = str(error)
             if started:
                 try:
                     (slot / 'verified.json').unlink(missing_ok=True)

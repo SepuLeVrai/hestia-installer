@@ -1,5 +1,62 @@
 # Sauvegarde intégrée des services provisionnés
 
+## Admission de configuration — lot du27septembre2026
+
+Le parent c8a32e619067f44976f876a2231d4893afba2f84 est acquis : run36265588722,
+66 contrôles locaux,98 contrôles Debian13 et7 scénarios intégrés, sans échec,
+erreur ou skip. Les attentes et compteurs de la section historique plus bas
+restent ceux de ce parent. Le présent lot ajoute huit contrôles locaux et six
+scénarios réels ; gel prévu à74 contrôles locaux,106 Debian13 et13 scénarios.
+Un seul job ciblé est prévu ; les résultats exacts appartiennent au checkpoint.
+
+Le coordinateur provisionné prend désormais deux verrous partagés :
+`assistant-edit.lock` root0600 (créé exclusivement s'il manque), puis
+`assistant.json` root/groupe Web0660. Ils restent ouverts autour de toute la
+copie/restauration et des contrôles finaux, y compris en dehors du composant SQL.
+Les lecteurs imbriqués restent compatibles ; l'API Installer et le writer Web
+utilisent les verrous exclusifs correspondants. Un writer déjà actif refuse
+l'admission avant réservation. Les inodes, propriétaires, modes, ACL, octets et
+journaux de réglages sont revérifiés ; remplacement, tentative incomplète ou
+dérive refuse le reçu. Aucun secret n'est affiché ni modifié par l'admission.
+
+Le worker SQL vérifie avant, puis sous son verrou global, l'absence d'autre
+schéma utilisateur que la base cible. Les schémas système MariaDB sont admis.
+La vérification revient à chaque échange, sans reconnexion. Deux clés fixes
+App_Config sont lues avec un résultat borné à3 lignes et4096octets par valeur.
+`HESTIA_MOBILE_RELEASE_DIR` doit être absent ou vide. `security.ged_legacy_roots`
+doit être absent, vide ou contenir au plus16 chemins relatifs valides, sans
+traversée, segment vide, contrôle ou profondeur supérieure à64 ; ils désignent
+les descendants déjà sauvegardés de `uploads/ged_legacy`. Les liens restent
+refusés par la capture des données. Aucune destination mobile n'est provisionnée.
+Les refus SQL exposent seulement les codes fermés SERVER_PROFILE_REJECTED ou
+STORAGE_PROFILE_REJECTED préfixés SQL_FENCE ; jamais les noms ou valeurs privées.
+
+Le profil PHP-FPM exact fixe les racines uploads/imports/session/temp/log et
+clear_env ; il n'injecte ni chemin Assistant historique, ni racines GED externes,
+ni configuration mobile fondation. Pour le chemin IA ancien encore présent dans
+le Web épinglé, l'admission exige l'absence de `/etc/hestia/conf_db_ia.php`,
+`<webroot>/includes/conf_db_ia.php` et `/var/lib/hestia-ai`. Tout élément présent,
+y compris lien ou répertoire vide, refuse ; les parents doivent être protégés.
+Ces fichiers PHP ne sont jamais exécutés ni lus. L'absence est revérifiée pendant
+la fenêtre, sans prétendre empêcher un administrateur root de modifier l'hôte.
+
+Le reçu ajoute `installer_settings_fenced` et `configuration_storage_admitted`
+et le manifeste utilise PROVISIONED_HTTP_CLEANER_SQL_AND_CONFIGURATION_V2.
+Ces assertions concernent cette fenêtre et le profil borné, pas tous les
+producteurs de l'hôte. Les CLI, planificateurs étrangers et écritures root
+restent une admission distincte à fermer. `storage_inventory_complete`,
+`complete_web_backup`, `system_wiring_verified` et `phase5_complete` restent faux.
+Le chemin coordonné historique sans barrière de services ne change pas.
+
+La recette positive restaure aussi une racine GED relative et bloque réellement
+l'API de réglages pendant la copie, sans journal ni changement de secret ; les
+verrous redeviennent disponibles après la sortie. Six scénarios négatifs ajoutés :
+schéma SQL étranger, destination mobile externe, traversée GED, stockage IA ancien,
+writer de réglages concurrent, apparition du stockage IA après copie. Les sept
+scénarios parents sont repris parce que la nouvelle admission les traverse.
+Le moteur systemd/SQL/Web réel reste nécessaire ; les contrôles de pipes et
+flock locaux ne le remplacent pas.
+
 ## Périmètre du lot du 26 septembre 2026
 
 Base Installer `8e063bc3d58e94f7694373ff5360165af38222b4`, arbre
@@ -92,7 +149,7 @@ Elle ne remplace pas les données originales et ne démarre aucun service.
 
 ## Qualification du lot
 
-66 contrôles ciblés locaux ;97 avec les32 cas de fichiers/coordinateur dans le
+66 contrôles ciblés locaux ;98 avec les32 cas de fichiers/coordinateur dans le
 conteneur Debian13. Sept nouveaux cas système/SQL/Web réels : chemin complet
 et écriture SQL concurrente, mort du worker SQL, altération de barrière après
 copie, processus étranger, racine supplémentaire, annulation, autorité SQL fausse.

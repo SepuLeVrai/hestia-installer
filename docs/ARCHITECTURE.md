@@ -1,5 +1,22 @@
 # Architecture HESTIA Installer
 
+## Bail de configuration autour du parcours provisionné
+
+Le parent c8a32e61/run36265588722 est qualifié (66 locaux,98 Debian13,7 réels).
+Le [lot d’admission](PHASE5_PROVISIONED_BACKUP.md) étend les verrous des réglages
+à toute la sauvegarde, refuse les configurations de stockage non couvertes et
+vérifie le serveur SQL dédié sous le verrou continu. Aucun ancien PHP secret
+n’est chargé. Huit contrôles ajoutés sans retrait :74 locaux,106 dans Debian13 ;
+13 scénarios réels ciblés, dont six nouveaux refus et le parcours positif enrichi.
+Un seul job prévu après gel code/documentation ; résultats exacts au checkpoint,
+pas de succès global anticipé ni de promotion.
+
+Les producteurs CLI/planificateurs étrangers et l’exhaustivité5C2 restent ouverts,
+puis5C3 transition réelle,5C4 reprise/rollback,5D activation/wizard et gates finaux.
+La découverte générique Exec*Ex reste différée. Les sections suivantes décrivent
+les états historiques ; leurs campagnes déjà acquises ne sont pas à recommencer.
+
+
 ## Parcours intégré de sauvegarde provisionnée
 
 [ProvisionedBackup](PHASE5_PROVISIONED_BACKUP.md) compose HttpDrain avec son

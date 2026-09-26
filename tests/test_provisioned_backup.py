@@ -96,6 +96,13 @@ class ProvisionedBackupTests(unittest.TestCase):
 
 
 class SqlFenceChannelTests(unittest.TestCase):
+    def test_only_closed_profile_rejections_with_valid_binding_are_reported(self):
+        for state in (*sorted(r.PROFILE_REJECTIONS),'private-server-detail'):
+            fence=self.channel('import sys,json\nv=json.loads(sys.stdin.readline());print(json.dumps({"request_id":v["request_id"],"sequence":v["sequence"],"state":'+repr(state)+'}),flush=True)')
+            with self.assertRaisesRegex(r.SqlReadFenceError,state if state in r.PROFILE_REJECTIONS else 'PROTOCOL'):
+                fence.assert_held()
+            fence.close()
+
     def test_large_shared_bridge_uses_source_bundle_and_keeps_secret_limit(self):
         shared=(Path(r.__file__).parent/'private/backup_bridge.php').read_bytes()
         self.assertGreater(len(shared),16384)

@@ -14,6 +14,8 @@ from installer.model import strict_json_loads
 
 class SqlReadFenceError(RuntimeError): pass
 
+PROFILE_REJECTIONS=frozenset(('SQL_FENCE_SERVER_PROFILE_REJECTED','SQL_FENCE_STORAGE_PROFILE_REJECTED'))
+
 
 def require(ok, code='SQL_FENCE_UNAVAILABLE'):
     if not ok: raise SqlReadFenceError(code)
@@ -52,8 +54,11 @@ class SqlReadFence:
                     require(offset==len(wire) and output.endswith(b'\n') and output.count(b'\n')==1,'SQL_FENCE_PROTOCOL')
                     try: value=strict_json_loads(bytes(output[:-1]))
                     except Exception: raise SqlReadFenceError('SQL_FENCE_PROTOCOL') from None
-                    require(type(value) is dict and type(value.get('sequence')) is int and value==
-                        {'request_id':self._id,'sequence':self._sequence,'state':state},'SQL_FENCE_PROTOCOL')
+                    require(type(value) is dict and set(value)=={'request_id','sequence','state'}
+                        and type(value['sequence']) is int and value['sequence']==self._sequence
+                        and value['request_id']==self._id and type(value['state']) is str,'SQL_FENCE_PROTOCOL')
+                    if value['state'] in PROFILE_REJECTIONS: raise SqlReadFenceError(value['state'])
+                    require(value['state']==state,'SQL_FENCE_PROTOCOL')
                     return
 
     def assert_held(self):

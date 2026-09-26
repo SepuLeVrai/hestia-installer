@@ -26,6 +26,31 @@ function rf_emit(string $id,int $sequence,string $state): void {
     $raw=bk_json(['request_id'=>$id,'sequence'=>$sequence,'state'=>$state])."\n";
     bk_require(fwrite(STDOUT,$raw)===strlen($raw)&&fflush(STDOUT),'FENCE_CHANNEL');
 }
+function rf_profile(PDO $db,string $name): void {
+    $query=$db->prepare("SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN ('information_schema','performance_schema','mysql','sys') AND BINARY SCHEMA_NAME <> BINARY ? LIMIT 1");
+    $query->execute([$name]);
+    bk_require($query->fetch(PDO::FETCH_ASSOC)===false,'SQL_FENCE_SERVER_PROFILE_REJECTED');
+    $rows=$db->query("SELECT cle, OCTET_LENGTH(valeur) AS bytes, LEFT(valeur,4097) AS value FROM App_Config WHERE cle IN ('security.ged_legacy_roots','HESTIA_MOBILE_RELEASE_DIR') LIMIT 3")->fetchAll(PDO::FETCH_ASSOC);
+    bk_require(count($rows)<=2,'SQL_FENCE_STORAGE_PROFILE_REJECTED');$seen=[];
+    foreach($rows as $row) {
+        $key=$row['cle'];$value=$row['value'];
+        bk_require(in_array($key,['security.ged_legacy_roots','HESTIA_MOBILE_RELEASE_DIR'],true)
+            &&!isset($seen[$key])&&is_string($value)&&$row['bytes']!==null
+            &&(int)$row['bytes']<=4096&&strlen($value)===(int)$row['bytes'], 'SQL_FENCE_STORAGE_PROFILE_REJECTED');
+        $seen[$key]=true;
+        if($key==='HESTIA_MOBILE_RELEASE_DIR') {
+            bk_require($value==='','SQL_FENCE_STORAGE_PROFILE_REJECTED');continue;
+        }
+        bk_require(preg_match('/[\x00-\x1f\x7f]/',$value)===0,'SQL_FENCE_STORAGE_PROFILE_REJECTED');
+        if(trim($value)==='') continue;
+        $roots=explode(',',$value);bk_require(count($roots)<=16,'SQL_FENCE_STORAGE_PROFILE_REJECTED');
+        foreach($roots as $root) {
+            $root=str_replace('\\','/',trim($root));$parts=explode('/',$root);
+            bk_require(preg_match('~^[A-Za-z0-9._/-]+$~D',$root)===1&&count($parts)<=64
+                &&!array_intersect($parts,['','.','..']),'SQL_FENCE_STORAGE_PROFILE_REJECTED');
+        }
+    }
+}
 $locker=null;$locked=false;$id='';$sequence=0;$code=20;
 try {
     bk_require(PHP_SAPI==='cli','FENCE_PROTOCOL');
@@ -42,7 +67,9 @@ try {
     $locker->exec('SET SESSION lock_wait_timeout=5');
     $locker->exec('SET SESSION max_statement_time=10');
     $connection=bk_scalar($locker,'SELECT CONNECTION_ID()');
+    $name=$v['target']['name'];rf_profile($locker,$name);
     $locker->exec('FLUSH TABLES WITH READ LOCK');$locked=true;
+    rf_profile($locker,$name);
     rf_emit($id,0,'LOCK_HELD');unset($v);
     while(true) {
         $v=rf_line(1024,$deadline);++$sequence;
@@ -50,6 +77,7 @@ try {
             &&$v['request_id']===$id&&$v['sequence']===$sequence
             &&in_array($v['operation'],['check','release'],true),'FENCE_PROTOCOL');
         bk_require(bk_scalar($locker,'SELECT CONNECTION_ID()')===$connection,'FENCE_LOST');
+        rf_profile($locker,$name);
         if($v['operation']==='release') {
             $locker->exec('UNLOCK TABLES');$locked=false;rf_emit($id,$sequence,'RELEASED');$code=0;break;
         }
@@ -57,7 +85,9 @@ try {
     }
 } catch(Throwable $error) {
     // No PDO message, target or credential is returned, even on malformed input.
-    try {rf_emit($id,$sequence,'FAILED');} catch(Throwable $ignored) {}
+    $state=in_array($error->getMessage(),['SQL_FENCE_SERVER_PROFILE_REJECTED','SQL_FENCE_STORAGE_PROFILE_REJECTED'],true)
+        ?$error->getMessage():'FAILED';
+    try {rf_emit($id,$sequence,$state);} catch(Throwable $ignored) {}
 } finally {
     if($locked&&$locker!==null) {try {$locker->exec('UNLOCK TABLES');} catch(Throwable $ignored) {}}
     $locker=null;
