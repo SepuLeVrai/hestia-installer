@@ -1,5 +1,14 @@
 # Architecture HESTIA Installer
 
+## Contrat futur de liaison d'invocation
+
+Le [protocole PIDFD](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md) acquiert l'ID par
+Manager.GetUnitByPIDFD et choisit le chemin par GetUnitByInvocationID. La première
+implémentation proposée ne lirait que Id/InvocationID, deux fois et avec des
+PIDFD possédés bornés. Aucun nouveau composant exécutable dans ce lot. La source
+des PID et la couverture des unités sans processus restent distinctes, sans
+admission au profil, identité effective ou résultat d'inventaire exhaustif.
+
 ## Acquisition des détails suspendue après preuve négative
 
 Le [lecteur expérimental de propriétés](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md)

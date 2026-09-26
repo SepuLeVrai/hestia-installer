@@ -1,5 +1,19 @@
 # État du projet
 
+## Contrat de remplacement par PIDFD et invocation
+
+Sur `d86e406a`, le [nouveau contrat](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md)
+retient des PID proposés explicitement, liaison GetUnitByPIDFD puis lectures
+Id/InvocationID exclusivement par adresse d'invocation. La chaîne est relue
+dans les sources, pas encore implémentée ou qualifiée sur système réel.
+Unités sans PID/processus et Debian12/v252 restent non couvertes ; aucun repli
+vers un chemin nommé. Le prototype c2acc806 et son échec restent rejetés.
+
+Lot documentaire : 214 fichiers, quatorze références primaires, seize futurs
+cas non exécutés. Code/tests/workflows inchangés, zéro Actions et aucune
+promotion. Prochain chantier borné : liaison minimale et preuve de disparition
+sans rechargement, avant Names/relations. Checkpoint puis arrêt.
+
 ## Blocage confirmé : propriétés d'unités et chargement implicite
 
 La [preuve négative](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md) invalide la proposition

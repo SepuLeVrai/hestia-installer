@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Alternative conçue, sans réhabilitation du chemin nommé
+
+Le [contrat d'invocation](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md) impose un ID
+non nul acquis depuis un PIDFD possédé, son chemin canonique et deux liaisons
+contrôlées. La source montre une résolution par table sans fallback au nom ;
+la preuve runtime reste à apporter. FD fournis, repli par nom, RefUnit, signal
+aux observés et collecte implicite de commandes/environnement sont interdits.
+Un PIDFD ne certifie ni toutes les unités propriétaires ni le contexte effectif.
+Le rejet c2acc806 reste valable et le code courant ne change pas.
+
 ## Properties.Get nommé peut recharger une unité disparue
 
 La [preuve réelle et la source officielle](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md)

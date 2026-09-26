@@ -1,0 +1,619 @@
+{
+  "schema": 1,
+  "state": "INVOCATION_BINDING_CONTRACT_ONLY",
+  "base_commit": "d86e406a11868b45c59cf945d71b5076cd7c052e",
+  "runtime_base": "7a331ce38f032e2a6a96a8896062f5bf4541862b",
+  "rejected_prototype": "c2acc8068d68ade12e7ff0fea9d810b8217b008f",
+  "negative_run": 36238806917,
+  "decision": {
+    "acquisition": "EXPLICIT_PID_TO_OWNED_PIDFD",
+    "addressing": "MANAGER_GET_UNIT_BY_INVOCATION_ID",
+    "first_properties": [
+      "Id",
+      "InvocationID"
+    ],
+    "input_pid_is_untrusted_hint": true,
+    "automatic_pid_discovery": false,
+    "caller_supplied_fd_allowed": false,
+    "caller_supplied_invocation_allowed": false,
+    "named_unit_property_allowed": false,
+    "fallback_allowed": false,
+    "unit_reference_allowed": false,
+    "signal_observed_process_allowed": false,
+    "no_load_source_chain_reviewed": true,
+    "runtime_verified": false,
+    "replacement_delivered": false
+  },
+  "platform": {
+    "first_target": "Debian13 systemd257 busctl257 dbus-daemon cgroupv2",
+    "debian12_v252_supported": false,
+    "runtime_version_alone_sufficient": false
+  },
+  "protocol": {
+    "manager_methods": [
+      {
+        "name": "GetUnitByPIDFD",
+        "in": "h",
+        "out": "osay"
+      },
+      {
+        "name": "GetUnitByInvocationID",
+        "in": "ay",
+        "out": "o"
+      }
+    ],
+    "property_interface": "org.freedesktop.systemd1.Unit",
+    "property_types": {
+      "Id": "s",
+      "InvocationID": "ay"
+    },
+    "passes": 2,
+    "calls_per_binding_per_pass": 4,
+    "base_list_calls": 24,
+    "nonzero_invocation_bytes": 16,
+    "pid_min": 2,
+    "pid_max": 2147483647,
+    "pidfd_flags": 0,
+    "pidfd_retained_between_passes": true,
+    "child_inherited_fds_for_mapping": 1,
+    "child_inherited_fds_other_calls": 0,
+    "process_exit_poll_required": true
+  },
+  "limits": {
+    "bindings": 128,
+    "owned_pidfds": 128,
+    "calls": 1048,
+    "reply_bytes": 2097152,
+    "total_bytes": 8388608,
+    "envelope_bytes": 4194304,
+    "call_seconds": 5,
+    "collection_seconds": 60,
+    "retries": 0
+  },
+  "unknowns": [
+    "UNSELECTED_UNITS",
+    "NO_PID_HINT",
+    "NO_USABLE_PROCESS",
+    "UNSUPPORTED_API",
+    "EXECUTION_CONTEXT",
+    "OTHER_UNIT_OWNERS",
+    "COMPLETE_PID_INVENTORY"
+  ],
+  "path_vectors": [
+    {
+      "invocation_hex": "a1111111111111111111111111111111",
+      "object_path": "/org/freedesktop/systemd1/unit/a1111111111111111111111111111111"
+    },
+    {
+      "invocation_hex": "11111111111111111111111111111111",
+      "object_path": "/org/freedesktop/systemd1/unit/_311111111111111111111111111111111"
+    },
+    {
+      "invocation_hex": "0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "object_path": "/org/freedesktop/systemd1/unit/_30aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "invocation_hex": "90000000000000000000000000000000",
+      "object_path": "/org/freedesktop/systemd1/unit/_390000000000000000000000000000000"
+    }
+  ],
+  "acceptance_cases": [
+    {
+      "id": "live_binding",
+      "scenario": "PIDFD réel, tuple osay conforme, Id et InvocationID liés à l’objet listé.",
+      "expected": "BINDING_RECORDED",
+      "executed": false
+    },
+    {
+      "id": "canonical_path",
+      "scenario": "ID commençant par lettre puis chiffre : échappement canonique exact, chemins nommés/malformés refusés.",
+      "expected": "CANONICAL_PATH_REQUIRED",
+      "executed": false
+    },
+    {
+      "id": "null_id",
+      "scenario": "ID vide, tout nul, mauvaise longueur, booléen dans les octets : aucun appel de propriété.",
+      "expected": "COLLECTION_REJECTED",
+      "executed": false
+    },
+    {
+      "id": "pidfd_unavailable",
+      "scenario": "pidfd_open absent/refusé, FD non hérité ou mauvais type : aucun repli PID numérique ou chemin nommé.",
+      "expected": "COLLECTION_REJECTED",
+      "executed": false
+    },
+    {
+      "id": "foreign_mapping",
+      "scenario": "PID vivant dans une autre unité ou objet non listé : aucune propriété lue.",
+      "expected": "COLLECTION_REJECTED",
+      "executed": false
+    },
+    {
+      "id": "unsupported_manager",
+      "scenario": "API GetUnitByPIDFD absente, notamment profil v252 : inconnu/refus, aucun fallback.",
+      "expected": "COLLECTION_REJECTED",
+      "executed": false
+    },
+    {
+      "id": "process_exit_or_reuse",
+      "scenario": "Sortie du processus pointé par le FD ; une réutilisation du numéro ne rend pas ce FD valide.",
+      "expected": "COLLECTION_REJECTED",
+      "executed": false
+    },
+    {
+      "id": "invocation_replaced",
+      "scenario": "Même nom redémarré avec nouvelle invocation : ancienne adresse refusée, nouvelle non adoptée.",
+      "expected": "COLLECTION_REJECTED",
+      "executed": false
+    },
+    {
+      "id": "removed_unit_no_load",
+      "scenario": "Unité transitoire retirée entre acquisition et propriété : erreur et absence persistante dans ListUnits, sans chargement.",
+      "expected": "NO_IMPLICIT_LOAD",
+      "executed": false
+    },
+    {
+      "id": "provenance_change",
+      "scenario": "Bus, manager, boot, namespace ou listes changent : pas de reçu exploitable.",
+      "expected": "COLLECTION_REJECTED",
+      "executed": false
+    },
+    {
+      "id": "finite_budgets",
+      "scenario": "128 couples, FD, nombre exact d’appels, plafonds de flux/document et délai partagé.",
+      "expected": "LIMITS_ENFORCED",
+      "executed": false
+    },
+    {
+      "id": "privacy",
+      "scenario": "Rapport et erreurs sans PID, nom, chemin, ID ou stderr ; pas de lecture de commandes/environnement.",
+      "expected": "PRIVATE_ENVELOPE_ONLY",
+      "executed": false
+    },
+    {
+      "id": "fd_lifetime",
+      "scenario": "Seul le PIDFD voulu est transmis ; tous les FD fermés après succès/échec, aucun signal aux observés.",
+      "expected": "FD_OWNERSHIP_ENFORCED",
+      "executed": false
+    },
+    {
+      "id": "unknown_coverage",
+      "scenario": "Unités non sélectionnées, sans processus ou sans PID fourni gardées inconnues, aucun writer exclu.",
+      "expected": "PARTIAL_UNKNOWN",
+      "executed": false
+    },
+    {
+      "id": "property_drift",
+      "scenario": "Id/InvocationID contradictoires, mal typés ou modifiés entre passages.",
+      "expected": "COLLECTION_REJECTED",
+      "executed": false
+    },
+    {
+      "id": "manager_pidref_fallback",
+      "scenario": "Préconditions locales PIDFD conservées même si la copie interne du manager n’est pas attestable.",
+      "expected": "NO_INTERNAL_FD_ATTESTATION",
+      "executed": false
+    }
+  ],
+  "primary_references": [
+    {
+      "local_evidence_file": "dbus-manager-v257.c",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/core/dbus-manager.c",
+      "sha256": "f4e5d85e84d3a9efe4cdee77a91521ea66c8b988ffa9707e12839049d8b35311",
+      "bytes": 153970,
+      "anchors": [
+        {
+          "token": "static int method_get_unit_by_pidfd(",
+          "lines": [
+            633
+          ]
+        },
+        {
+          "token": "r = pidref_set_pidfd(&pidref, pidfd);",
+          "lines": [
+            647
+          ]
+        },
+        {
+          "token": "r = sd_bus_message_append(reply, \"os\", path, u->id);",
+          "lines": [
+            667
+          ]
+        },
+        {
+          "token": "r = sd_bus_message_append_array(reply, 'y', u->invocation_id.bytes, sizeof(u->invocation_id.bytes));",
+          "lines": [
+            671
+          ]
+        },
+        {
+          "token": "r = pidref_verify(&pidref);",
+          "lines": [
+            677
+          ]
+        },
+        {
+          "token": "static int method_get_unit_by_invocation_id(",
+          "lines": [
+            569
+          ]
+        },
+        {
+          "token": "path = unit_dbus_path_invocation_id(u);",
+          "lines": [
+            607
+          ]
+        },
+        {
+          "token": "bus_unit_method_ref, GENERIC_UNIT_LOAD|GENERIC_UNIT_VALIDATE_LOADED",
+          "lines": [
+            871
+          ]
+        },
+        {
+          "token": "bus_unit_method_get_processes, /* flags = */ 0",
+          "lines": [
+            956
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "dbus-manager-v252.c",
+      "url": "https://github.com/systemd/systemd/blob/v252/src/core/dbus-manager.c",
+      "sha256": "592eee34801d4c1f4e5048a098d2ce5b233540d5d806f4405f5ef1a2af7b103c",
+      "bytes": 137148,
+      "anchors": [
+        {
+          "token": "static int method_get_unit_by_invocation_id(",
+          "lines": [
+            578
+          ]
+        },
+        {
+          "token": "if (sd_id128_is_null(id)) {",
+          "lines": [
+            601
+          ]
+        },
+        {
+          "token": "u = hashmap_get(m->units_by_invocation_id, &id);",
+          "lines": [
+            618
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "systemd1-v257.xml",
+      "url": "https://github.com/systemd/systemd/blob/v257/man/org.freedesktop.systemd1.xml",
+      "sha256": "d4e804af76e7d50b458b0d964117a2eb8ee812ab54a7070b667acadeef625ca0",
+      "bytes": 558071,
+      "anchors": [
+        {
+          "token": "GetUnitByPIDFD(in  h pidfd,",
+          "lines": [
+            68
+          ]
+        },
+        {
+          "token": "<function>DisableUnitFilesWithFlagsAndInstallInfo()</function> were added in version 253.",
+          "lines": [
+            12229
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "dbus-v257.c",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/core/dbus.c",
+      "sha256": "02a2d27f94a72bbd9d0a035108f81ed94046eb35ba33cb2b3758cc4b2cd67bc7",
+      "bytes": 40858,
+      "anchors": [
+        {
+          "token": "static int find_unit(",
+          "lines": [
+            272
+          ]
+        },
+        {
+          "token": "r = manager_load_unit_from_dbus_path(m, path, error, &u);",
+          "lines": [
+            296
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "manager-v257.c",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/core/manager.c",
+      "sha256": "b60965ba2499941de2f0faa7b8ffffa6ac43286ff2b45aea568eca8772b8c8da",
+      "bytes": 203586,
+      "anchors": [
+        {
+          "token": "int manager_load_unit_from_dbus_path(",
+          "lines": [
+            3480
+          ]
+        },
+        {
+          "token": "u = hashmap_get(m->units_by_invocation_id, &invocation_id);",
+          "lines": [
+            3498
+          ]
+        },
+        {
+          "token": "return sd_bus_error_setf(e, BUS_ERROR_NO_UNIT_FOR_INVOCATION_ID,",
+          "lines": [
+            3504
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "cgroup-v257.c",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/core/cgroup.c",
+      "sha256": "be8d41604073ca24157c04c980a8afa6925c107318ad8b1f14b5cf8d1927d8d4",
+      "bytes": 220823,
+      "anchors": [
+        {
+          "token": "Unit* manager_get_unit_by_cgroup(",
+          "lines": [
+            4332
+          ]
+        },
+        {
+          "token": "Unit *manager_get_unit_by_pidref(",
+          "lines": [
+            4389
+          ]
+        },
+        {
+          "token": "u = manager_get_unit_by_pidref_cgroup(m, pid);",
+          "lines": [
+            4407
+          ]
+        },
+        {
+          "token": "u = manager_get_unit_by_pidref_watching(m, pid);",
+          "lines": [
+            4411
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "unit-v257.c",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/core/unit.c",
+      "sha256": "d7acd6adb6865ed326706b5bfcad2867a4a621a7ac5774f056e2c93f0ae1a0ff",
+      "bytes": 240389,
+      "anchors": [
+        {
+          "token": "char* unit_dbus_path_invocation_id(",
+          "lines": [
+            3339
+          ]
+        },
+        {
+          "token": "return unit_dbus_path_from_name(u->invocation_id_string);",
+          "lines": [
+            3345
+          ]
+        },
+        {
+          "token": "(void) hashmap_remove_value(u->manager->units_by_invocation_id, &u->invocation_id, u);",
+          "lines": [
+            3359
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "unit-def-v257.c",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/basic/unit-def.c",
+      "sha256": "ef20160b00f1b90b0701d65cf876745fbec7d6d473eec6a95dbbf43a777bbaa9",
+      "bytes": 13916,
+      "anchors": [
+        {
+          "token": "char* unit_dbus_path_from_name(",
+          "lines": [
+            9
+          ]
+        },
+        {
+          "token": "e = bus_label_escape(name);",
+          "lines": [
+            14
+          ]
+        },
+        {
+          "token": "n = bus_label_unescape(e);",
+          "lines": [
+            29
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "bus-label-v257.c",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/basic/bus-label.c",
+      "sha256": "4b9decc62df4e880f8b0bb020de275a0187aa66b440ac253095cf7059c7b06ea",
+      "bytes": 2084,
+      "anchors": [
+        {
+          "token": "char* bus_label_escape(",
+          "lines": [
+            10
+          ]
+        },
+        {
+          "token": "/* Escape everything that is not a-zA-Z0-9. We also escape 0-9 if it's the first character */",
+          "lines": [
+            29
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "busctl-v257.c",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/busctl/busctl.c",
+      "sha256": "70132e45325bfe0c07c73eca37e203ec063045cefd3c043cb0ac13c7ae9ea65c",
+      "bytes": 102147,
+      "anchors": [
+        {
+          "token": "static int message_append_cmdline(",
+          "lines": [
+            1489
+          ]
+        },
+        {
+          "token": "if (!fdset_contains(*passed_fdset, fd))",
+          "lines": [
+            1717
+          ]
+        },
+        {
+          "token": "r = sd_bus_message_append_basic(m, t, &fd);",
+          "lines": [
+            1720
+          ]
+        },
+        {
+          "token": "static int json_transform_message(",
+          "lines": [
+            75,
+            2063
+          ]
+        },
+        {
+          "token": "r = sd_bus_message_set_auto_start(m, arg_auto_start);",
+          "lines": [
+            2114,
+            2209
+          ]
+        },
+        {
+          "token": "r = sd_bus_message_set_allow_interactive_authorization(m, arg_allow_interactive_authorization);",
+          "lines": [
+            2118
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "pidref-v257.c",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/basic/pidref.c",
+      "sha256": "38a17eb9e6afabd4e3583204608cd9cc32a75c6fa823374595c0a60305b6624d",
+      "bytes": 13130,
+      "anchors": [
+        {
+          "token": "int pidref_set_pidfd(",
+          "lines": [
+            142
+          ]
+        },
+        {
+          "token": "/* Graceful fallback if we are out of fds */",
+          "lines": [
+            157
+          ]
+        },
+        {
+          "token": "int pidref_verify(",
+          "lines": [
+            387
+          ]
+        },
+        {
+          "token": "return 0; /* If we don't have a pidfd we cannot validate it, hence we assume it's all OK → return 0 */",
+          "lines": [
+            404
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "dbus-unit-v257.c",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/core/dbus-unit.c",
+      "sha256": "ec5fb69bef164dce9308b6c80e6621e967728839f6e8d63cd75edfa8882426bf",
+      "bytes": 105153,
+      "anchors": [
+        {
+          "token": "static int append_process(",
+          "lines": [
+            1262
+          ]
+        },
+        {
+          "token": "SIZE_MAX,",
+          "lines": [
+            1287
+          ]
+        },
+        {
+          "token": "static int append_cgroup(",
+          "lines": [
+            1298
+          ]
+        },
+        {
+          "token": "int bus_unit_method_get_processes(",
+          "lines": [
+            1366
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "linux-pid-v6.12.c",
+      "url": "https://github.com/torvalds/linux/blob/v6.12/kernel/pid.c",
+      "sha256": "3a9065c03bf74805a58ce3a372a69f911b3382db769237414aa2034fe218e60c",
+      "bytes": 19199,
+      "anchors": [
+        {
+          "token": "SYSCALL_DEFINE2(pidfd_open, pid_t, pid, unsigned int, flags)",
+          "lines": [
+            629
+          ]
+        },
+        {
+          "token": "* This creates a new pid file descriptor with the O_CLOEXEC flag set for",
+          "lines": [
+            622
+          ]
+        }
+      ]
+    },
+    {
+      "local_evidence_file": "linux-pidfs-v6.12.c",
+      "url": "https://github.com/torvalds/linux/blob/v6.12/fs/pidfs.c",
+      "sha256": "fae3fa65abd35998c65d111b73f4acd7aa3b2ecf6bea2a18f573dd93860e3334",
+      "bytes": 11022,
+      "anchors": [
+        {
+          "token": "static __poll_t pidfd_poll(",
+          "lines": [
+            95
+          ]
+        },
+        {
+          "token": "poll_flags = EPOLLIN | EPOLLRDNORM | EPOLLHUP;",
+          "lines": [
+            110
+          ]
+        },
+        {
+          "token": "else if (task->exit_state && (thread || thread_group_empty(task)))",
+          "lines": [
+            111
+          ]
+        }
+      ]
+    }
+  ],
+  "actions_requested": 0,
+  "runtime_code_changed": false,
+  "phase5_complete": false,
+  "promotion_allowed": false,
+  "next_lot": "Implement and qualify minimum invocation binding only; no Names, relations or effective identities."
+}

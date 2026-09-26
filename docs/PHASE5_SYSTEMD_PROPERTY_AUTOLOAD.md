@@ -1,5 +1,12 @@
 # Blocage du lecteur de propriétés : chargement implicite
 
+## Contrat suivant, blocage historique préservé
+
+Le [lot d'invocation](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md) étaye une acquisition
+par PIDFD puis adresse d'invocation, sans propriété sur chemin nommé. Il reste
+à implémenter et qualifier ; le prototype et l'échec ci-dessous ne deviennent
+pas verts. Aucun code runtime changé ni Actions dans ce nouveau lot de contrat.
+
 ## Décision de reprise
 
 Le lecteur expérimental Id/Names/relations n'est pas livré. Le candidat de

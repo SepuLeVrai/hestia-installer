@@ -1,5 +1,15 @@
 # Quality et non-régression de HESTIA Installer
 
+## Contrat PIDFD/invocation : validation locale seulement
+
+Le [contrat](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md) conserve le runtime de
+7a331ce3 via d86e406a. Vérifier 214 fichiers, toutes les empreintes/ancres des
+quatorze sources primaires, seize futurs cas executed=false, budgets/formats,
+catalogue Web et invariance hors docs. Core 787 détectables/782 requis inchangés,
+gardes statiques requis. Zéro Actions pour ce lot ; pas de nouvelle recette verte.
+La prochaine implémentation minimale nécessitera ses preuves locales et système,
+sans assimiler analyse de source et qualification. Promotions différées.
+
 ## Preuve négative du lecteur de propriétés
 
 Le [diagnostic](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md) conserve le run unique

@@ -51,7 +51,9 @@
     "automatic_retries": 0,
     "property_transport_status": "REJECTED_NAMED_OBJECTS_CAN_AUTOLOAD",
     "correction_document": "PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md",
-    "negative_run": 36238806917
+    "negative_run": 36238806917,
+    "alternative_contract": "PHASE5_SYSTEMD_INVOCATION_CONTRACT.md",
+    "alternative_status": "SOURCE_REVIEWED_NOT_IMPLEMENTED_OR_RUNTIME_QUALIFIED"
   },
   "classification": {
     "outcomes": [

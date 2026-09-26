@@ -1,5 +1,13 @@
 # Contrat de découverte systemd hors du profil provisionné
 
+## Alternative bornée à qualifier : liaison par invocation
+
+Le [contrat PIDFD/invocation](PHASE5_SYSTEMD_INVOCATION_CONTRACT.md) définit
+l'acquisition minimale possible sans propriété sur chemin nommé, à partir de
+PID explicites. Analyse de source uniquement, seize futurs cas non exécutés ;
+aucun remplacement de transport livré. Absence de PID/API = inconnu/refus, pas
+fallback. L'interdiction et la preuve négative ci-dessous restent applicables.
+
 ## Correction impérative : proposition Properties.Get rejetée
 
 La [recette négative 36238806917](PHASE5_SYSTEMD_PROPERTY_AUTOLOAD.md) et la
