@@ -1,5 +1,8 @@
 # HESTIA Installer
 
+Phase5 en cours : [census et invocations](docs/PHASE5_CENSUS_INVOCATIONS.md),
+observations privées pour revue, sans promotion ni clôture globale.
+
 ## Reprise active — paquets système officiels
 
 Le [lot paquets](docs/PHASE5_SYSTEM_PACKAGES.md) acquiert un plan Debian authentifié

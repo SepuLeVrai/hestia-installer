@@ -1,5 +1,16 @@
 # Architecture HESTIA Installer
 
+## Liaison des candidats pendant la collecte
+
+[systemd_census_invocations](PHASE5_CENSUS_INVOCATIONS.md) compose le census
+et le transport PIDFD par trois hooks privés de cycle de vie. Les FD restent
+possédés pendant les deux lectures D-Bus et jusqu'aux contrôles finaux procfs.
+La confirmation d'invocation est partagée avec le lecteur parent. Entrée cible/
+stockage validée uniquement ; aucun callback, PID ou reçu historique accepté.
+Plusieurs leaders par objet sont conservés ; aucune appartenance des autres
+threads n'est inférée. Le modèle pur, les relations et le wizard restent
+inchangés ; le résultat sert à la revue, sans consommateur de mutation.
+
 ## Recensement privé des tâches visibles
 
 [process_census.ProcessCensus](PHASE5_PROCESS_CENSUS.md) ajoute un collecteur

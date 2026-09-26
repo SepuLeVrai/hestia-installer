@@ -131,6 +131,11 @@ class SystemdInvocationTransport(t.SystemdDiscoveryTransport):
         path, primary, identifier = _mapping(self._invocation_query('GetUnitByPIDFD', budget, owner, fd=fd))
         _alive(fd)
         require((path, primary) == (hint.object_path, name), 'INVOCATION_BINDING_MISMATCH')
+        return self._confirm(hint.pid, path, primary, identifier, fd, owner, budget)
+
+    def _confirm(self, pid, path, name, identifier, fd, owner, budget):
+        # Shared only after a live PIDFD mapping and complete-list membership
+        # check. The object read below is always the invocation identifier.
         invocation_path = t._reply(self._invocation_query('GetUnitByInvocationID', budget, owner,
                                                        identifier=identifier), 'o')
         require(type(invocation_path) is str and invocation_path == _path(identifier), 'INVOCATION_PATH_REJECTED')
@@ -140,7 +145,7 @@ class SystemdInvocationTransport(t.SystemdDiscoveryTransport):
         _alive(fd)
         require(type(unit_id) is str and unit_id == name and invocation_id == identifier,
                 'INVOCATION_PROPERTY_MISMATCH')
-        return InvocationBinding(path, primary, hint.pid, identifier, invocation_path)
+        return InvocationBinding(path, name, pid, identifier, invocation_path)
 
     def _pass(self, hints, units, owned, owner, budget):
         return tuple(self._binding(h, units[h.object_path], fd, owner, budget) for h, fd in zip(hints, owned))

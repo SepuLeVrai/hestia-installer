@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Continuité census/PIDFD/invocation
+
+La [liaison privée](PHASE5_CENSUS_INVOCATIONS.md) conserve tous les PIDFD_THREAD
+ouverts durant les lectures et compare identités/population ensuite. Aucun
+PID numérique rouvert, binding de thread déduit, adoption ou exclusion d'inconnu.
+Le manager peut rapporter une association de surveillance : sa réponse ne prouve
+ni propriétaire unique ni writer HESTIA. FD fermés au retour, courses ABA non
+exclues, aucune autorité durable. Budget partagé60s,24+8N appels pour au plus128
+leaders et enveloppe combinée4Mio ; propriétés uniquement par invocation.
+
 ## Parcours procfs et threads individuels
 
 Le [recensement borné](PHASE5_PROCESS_CENSUS.md) utilise scandir en flux,

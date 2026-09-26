@@ -1,5 +1,14 @@
 # Quality et non-régression de HESTIA Installer
 
+## Census vers invocations : un seul job après gel
+
+[Lot de liaison](PHASE5_CENSUS_INVOCATIONS.md) :22 tests supplémentaires,
+275 contrôleurs locaux et Debian13,907 core détectables/902 requis. Un seul
+job ciblé avec24 cas système (8 PIDFD,8 census,8 liaison). Zéro skip/erreur/échec,
+sources/modes stables, artefact exact requis ; résultats au checkpoint.
+Aucune Quality globale ou promotion sur cette seule recette. L'intermittence
+DOM demeure ouverte. La nouvelle recette rejoint la future matrice Debian13.
+
 ## Recensement des tâches : qualification ciblée
 
 [Lot census](PHASE5_PROCESS_CENSUS.md) :27 nouveaux tests,253 contrôles locaux et

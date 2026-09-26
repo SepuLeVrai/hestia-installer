@@ -1,5 +1,8 @@
 # Liaison privée PIDFD / invocation systemd
 
+Extension ultérieure : [liaison des candidats vivants](PHASE5_CENSUS_INVOCATIONS.md).
+Le contrat autonome décrit ci-dessous reste distinct.
+
 ## Extension ultérieure bornée
 
 Le [lot noms/relations](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md) ajoute un lecteur

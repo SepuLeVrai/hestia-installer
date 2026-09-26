@@ -214,10 +214,17 @@ class ProcessCensus:
                         rows.append(_inspect(proc,task,tgid,tid,len(tids),owned[tid],context,budget))
         return tuple(rows)
 
+    # Private lifecycle hooks: a composing observer can use the still-owned
+    # task descriptors. No caller-supplied sample, PID, FD or callback is accepted.
+    def _begin(self, budget, started): return None
+    def _between(self, rows, owned, budget, state): return None
+    def _sample(self, data, budget, state, observations): return CensusSample(d._json(data))
+
     def collect(self):
         owned = {}
         try:
             budget = _Budget(); started = int(time.time())
+            state = self._begin(budget, started)
             with p._directory('/proc') as proc:
                 context, provenance = _context(proc,budget)
                 topology = _topology(proc,budget)
@@ -233,6 +240,7 @@ class ProcessCensus:
                         require(fd >= 3 and not os.get_inheritable(fd), 'CENSUS_PIDFD_REJECTED')
                 first = self._pass(proc,topology,owned,context,budget)
                 require(_topology(proc,budget) == topology, 'CENSUS_POPULATION_CHANGED')
+                observations = self._between(first, owned, budget, state)
                 second = self._pass(proc,topology,owned,context,budget)
                 require(first == second, 'CENSUS_TASK_CHANGED')
                 require(_topology(proc,budget) == topology, 'CENSUS_POPULATION_CHANGED')
@@ -250,7 +258,7 @@ class ProcessCensus:
                     'limitations':['NON_ATOMIC_ABA_NOT_EXCLUDED','OBSERVER_NAMESPACE_ONLY','UNKNOWN_TASKS_NOT_EXCLUDED',
                         'REPARENTED_ANCESTRY_UNKNOWN','NO_SYSTEMD_BINDING','CLOSED_FDS_NOT_A_LIVE_RECEIPT',
                         'NO_NEGATIVE_IDENTITY_EXCLUSION','PROCFS_TRUSTS_PRIVILEGED_OBSERVER','NO_WRITER_OR_DRAIN_AUTHORITY']}
-                result = CensusSample(d._json(data))
+                result = self._sample(data, budget, state, observations)
                 for row in first:
                     require(_live(owned[row.tid]) == (row.issue != 'TASK_EXITED_NOT_REAPED'), 'CENSUS_TASK_CHANGED')
                 budget.transport.remaining()

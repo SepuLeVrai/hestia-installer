@@ -1,5 +1,8 @@
 # Recensement borné des tâches visibles
 
+Extension ultérieure : [liaison des candidats vivants](PHASE5_CENSUS_INVOCATIONS.md).
+Le contrat autonome décrit ci-dessous reste distinct.
+
 ## Base et portée
 
 Base Installer `67e6db85970bafebc1653a1e69316ad26b51fc39`, arbre

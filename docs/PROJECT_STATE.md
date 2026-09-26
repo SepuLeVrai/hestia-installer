@@ -1,5 +1,17 @@
 # État du projet
 
+## Liaison du recensement vivant aux invocations
+
+Sur4a14c8d9, la [liaison census/invocations](PHASE5_CENSUS_INVOCATIONS.md)
+conserve les PIDFD de toutes les tâches pendant les lectures du manager et les
+contrôles finaux. Plusieurs leaders dans une unité sont regroupés ; threads,
+inconnus et non-correspondances restent conservés sans exclusion ni droit de
+drain.22 nouveaux tests,275 contrôles ; un seul job Debian13 de24 scénarios
+réels prévu après gel. Résultats au checkpoint, aucune Quality globale ou
+promotion anticipée. Prochain lot : relations et sélection sur cette preuve
+fraîche, sans confondre signal de thread et identité effective de leader.
+Checkpoint puis arrêt. Les sections suivantes sont historiques.
+
 ## Recensement des tâches et candidats de revue
 
 Sur67e6db85, le [recensement procfs](PHASE5_PROCESS_CENSUS.md) énumère les leaders

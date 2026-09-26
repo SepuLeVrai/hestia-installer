@@ -117,6 +117,13 @@ jobs:
           docker exec -e HESTIA_SYSTEMD_DISCOVERY_TEST=1 hestia-system-runtime \
             python3 /opt/hestia-installer/tests/integration/process_census_systemd.py \
             --report /evidence/process-census.json 2>&1 | tee evidence/process-census.log
+      - name: Bind census-owned descriptors to actual invocations
+        if: matrix.debian == '13'
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_SYSTEMD_DISCOVERY_TEST=1 hestia-system-runtime \
+            python3 /opt/hestia-installer/tests/integration/systemd_census_invocations_systemd.py \
+            --report /evidence/census-invocations.json 2>&1 | tee evidence/census-invocations.log
       - name: Exercise exclusive service identity and actual runtime consumption
         run: |
           set -Eeuo pipefail
