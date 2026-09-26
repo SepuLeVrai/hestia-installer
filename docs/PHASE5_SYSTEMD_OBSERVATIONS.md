@@ -1,5 +1,17 @@
 # Collecte privée des unités systemd provisionnées
 
+## Résultat acquis et contrat de l'élargissement suivant
+
+Le candidat `75e987cedcdac2ad5b1795d0b0c55fdca573a894`, arbre
+`37a4afb64155a90fdbc8333a912649576dabe09a`, a passé la campagne ciblée
+`36225529757` : 73 contrôles et huit scénarios réels Debian 13, un seul job,
+première tentative, zéro erreur/échec/skip. Sources et artefact ont été vérifiés.
+Ce résultat reste ciblé ; le pont métier scellé n'a pas sa preuve système.
+
+Le [contrat hors profil](PHASE5_SYSTEMD_SCOPE.md) définit désormais le futur
+index élargi, sans changer ce collecteur ni ses permissions. Ses cas ne sont
+pas encore exécutés. Le texte ci-dessous conserve le contrat du lot livré.
+
 ## Base et périmètre
 
 Base Installer `c8af4c8d1bbb25dd55ae17651019692479dde232`, arbre

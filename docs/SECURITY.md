@@ -1,5 +1,14 @@
 # Modèle de sécurité
 
+## Pertinence des unités étrangères, sans exclusion automatique
+
+Le [nouveau contrat](PHASE5_SYSTEMD_SCOPE.md) conserve unités non chargées,
+modèles, alias, sources générées/transitoires et jobs incomplets. Noms, états
+disabled/masked, absence de chemin visible ou simple lien After ne prouvent
+pas l'absence de producteur. Une identité ou un chemin pertinent ouvre un
+examen, sans donner droit à arrêter ou adopter. Aucun transport nouveau n'est
+livré ; les limites et 28 critères de recette restent à implémenter.
+
 ## Collecte limitée sans autorisation implicite
 
 Le [collecteur systemd](PHASE5_SYSTEMD_OBSERVATIONS.md) fixe les unités depuis

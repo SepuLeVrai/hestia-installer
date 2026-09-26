@@ -1,5 +1,18 @@
 # Quality et non-régression de HESTIA Installer
 
+## Contrat systemd élargi : vérification documentaire locale
+
+[Contrat et matrice](PHASE5_SYSTEMD_SCOPE.md) sur `75e987ce` : seuls les
+documents changent. Vérifier les deux arbres complets, les empreintes/ancres
+des contrats existants et des références primaires consultées, les 28 cas
+marqués non exécutés, les liens et gardes statiques. La baseline et les 689
+core détectables restent inchangés ; aucun de ces tests n'est rejoué ici.
+Aucun workflow modifié, aucune Actions requise ou qualification runtime nouvelle.
+
+Le run `36225529757` qualifie le collecteur limité de la base, pas globalement
+ce nouvel arbre. Les campagnes différées restent obligatoires avant promotion.
+Le checkpoint conserve sources complètes, preuves locales et reprise, puis arrêt.
+
 ## Collecte systemd provisionnée : campagne minimale
 
 [Contrat](PHASE5_SYSTEMD_OBSERVATIONS.md) : 16 nouveaux tests, 689 core

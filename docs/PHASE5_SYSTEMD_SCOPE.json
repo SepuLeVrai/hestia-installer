@@ -1,0 +1,675 @@
+{
+  "schema": 1,
+  "state": "DOCUMENTARY_CONTRACT_ONLY",
+  "date": "2026-09-26",
+  "installer_base": {
+    "commit": "75e987cedcdac2ad5b1795d0b0c55fdca573a894",
+    "tree": "37a4afb64155a90fdbc8333a912649576dabe09a",
+    "files": 196,
+    "qualification": "TARGETED_ONLY",
+    "run": 36225529757
+  },
+  "web": {
+    "commit": "2a27c7a1f9fe0a00289eb53278f75d5f230900b7",
+    "tree": "783be5abdcd5e13addefe96d743eee3a97b7a6de",
+    "files": 1843
+  },
+  "scope": {
+    "manager": "system",
+    "discovery_dimensions": [
+      "loaded_units",
+      "installed_unit_files",
+      "manager_jobs"
+    ],
+    "channels": {
+      "systemd_system": "partial",
+      "systemd_user": "unknown",
+      "cron_system": "unknown",
+      "cron_users": "unknown",
+      "queued_jobs": "unknown",
+      "external_launchers": "unknown"
+    },
+    "current_scope_expanded": false,
+    "runtime_implemented": false,
+    "host_inspected": false,
+    "test_cases_executed": false,
+    "actions_requested": 0
+  },
+  "proposed_read_protocol": {
+    "manager_methods": [
+      "ListUnits",
+      "ListUnitFiles",
+      "ListJobs",
+      "GetUnit"
+    ],
+    "property_access": "org.freedesktop.DBus.Properties.Get with a closed per-interface allowlist",
+    "no_load_unit": true,
+    "no_get_all": true,
+    "no_subscription_or_event_history_claim": true,
+    "transport_implementation_selected": false,
+    "two_bounded_enumerations": true,
+    "automatic_retries": 0
+  },
+  "classification": {
+    "outcomes": [
+      "KNOWN_PROVISIONED",
+      "RELATED_UNMANAGED",
+      "UNRESOLVED"
+    ],
+    "default": "UNRESOLVED",
+    "positive_signals": [
+      "IDENTITY_MATCH",
+      "PATH_MATCH",
+      "ACTIVATION_RELATION",
+      "DECLARED_EXTERNAL_BINDING"
+    ],
+    "name_match_sufficient": false,
+    "negative_search_proves_absence": false,
+    "automatic_exclusions": []
+  },
+  "limits_proposed": {
+    "loaded_rows": 4096,
+    "file_rows": 4096,
+    "job_rows": 1024,
+    "distinct_names": 4096,
+    "relation_edges": 8192,
+    "detailed_units": 128,
+    "definition_files_per_unit": 16,
+    "name_bytes": 255,
+    "path_bytes": 2048,
+    "response_bytes": 2097152,
+    "total_response_bytes": 8388608,
+    "definition_bytes": 1048576,
+    "total_definition_bytes": 16777216,
+    "envelope_bytes": 4194304,
+    "projection_units": 128,
+    "projection_bytes": 262144,
+    "call_seconds": 5,
+    "collection_seconds": 60
+  },
+  "blocked_claims": {
+    "execution_allowed": false,
+    "drain_allowed": false,
+    "live_receipt": false,
+    "host_scheduler_inventory_complete": false,
+    "storage_inventory_complete": false,
+    "system_wiring_verified": false,
+    "complete_web_backup": false,
+    "service_activation_delivered": false,
+    "application_installed": false,
+    "writable_business_storage_ready": false,
+    "phase5_complete": false
+  },
+  "primary_references": [
+    {
+      "id": "dbus-v252",
+      "url": "https://github.com/systemd/systemd/blob/v252/man/org.freedesktop.systemd1.xml",
+      "tag": "v252",
+      "path": "man/org.freedesktop.systemd1.xml",
+      "sha256": "7607235403befebcff02223d6051ca3ad97fd32c55df7f836fd848679494a028",
+      "bytes": 478459,
+      "anchors": [
+        {
+          "token": "ListUnits(out a(ssssssouso) units);",
+          "lines": [
+            153
+          ]
+        },
+        {
+          "token": "ListJobs(out a(usssoo) jobs);",
+          "lines": [
+            161
+          ]
+        },
+        {
+          "token": "ListUnitFiles(out a(ss) unit_files);",
+          "lines": [
+            191
+          ]
+        },
+        {
+          "token": "GetUnit(in  s name,",
+          "lines": [
+            60
+          ]
+        },
+        {
+          "token": "LoadUnit(in  s name,",
+          "lines": [
+            68
+          ]
+        },
+        {
+          "token": "readonly as UnitPath",
+          "lines": [
+            395
+          ]
+        },
+        {
+          "token": "readonly as Triggers",
+          "lines": [
+            1816
+          ]
+        },
+        {
+          "token": "readonly as TriggeredBy",
+          "lines": [
+            1818
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dbus-v257",
+      "url": "https://github.com/systemd/systemd/blob/v257/man/org.freedesktop.systemd1.xml",
+      "tag": "v257",
+      "path": "man/org.freedesktop.systemd1.xml",
+      "sha256": "d4e804af76e7d50b458b0d964117a2eb8ee812ab54a7070b667acadeef625ca0",
+      "bytes": 558071,
+      "anchors": [
+        {
+          "token": "ListUnits(out a(ssssssouso) units);",
+          "lines": [
+            161
+          ]
+        },
+        {
+          "token": "ListJobs(out a(usssoo) jobs);",
+          "lines": [
+            169
+          ]
+        },
+        {
+          "token": "ListUnitFiles(out a(ss) unit_files);",
+          "lines": [
+            201
+          ]
+        },
+        {
+          "token": "GetUnit(in  s name,",
+          "lines": [
+            60
+          ]
+        },
+        {
+          "token": "LoadUnit(in  s name,",
+          "lines": [
+            72
+          ]
+        },
+        {
+          "token": "readonly as UnitPath",
+          "lines": [
+            423
+          ]
+        },
+        {
+          "token": "readonly as Triggers",
+          "lines": [
+            2003
+          ]
+        },
+        {
+          "token": "readonly as TriggeredBy",
+          "lines": [
+            2005
+          ]
+        }
+      ]
+    },
+    {
+      "id": "units-v257",
+      "url": "https://github.com/systemd/systemd/blob/v257/man/systemd.unit.xml",
+      "tag": "v257",
+      "path": "man/systemd.unit.xml",
+      "sha256": "e32c5dbdb85bf51fc36786265740cbf41787f7eaf12780c6ffbe1c9bb81de061",
+      "bytes": 153749,
+      "anchors": [
+        {
+          "token": "<member><filename>/run/systemd/transient/*</filename></member>",
+          "lines": [
+            48
+          ]
+        },
+        {
+          "token": "<member><filename>/run/systemd/generator.early/*</filename></member>",
+          "lines": [
+            49
+          ]
+        },
+        {
+          "token": "<term><varname>Upholds=</varname></term>",
+          "lines": [
+            764
+          ]
+        },
+        {
+          "token": "<term><varname>Before=</varname></term>",
+          "lines": [
+            809
+          ]
+        }
+      ]
+    },
+    {
+      "id": "systemctl-v257",
+      "url": "https://github.com/systemd/systemd/blob/v257/man/systemctl.xml",
+      "tag": "v257",
+      "path": "man/systemctl.xml",
+      "sha256": "b7167648c9b4245c74c55ea1e3a01de7358189e7a48dc5b3f88d8771578baea6",
+      "bytes": 157443,
+      "anchors": [
+        {
+          "token": "<para>systemd implicitly loads units as necessary",
+          "lines": [
+            266
+          ]
+        },
+        {
+          "token": "<command>list-unit-files</command>",
+          "lines": [
+            72,
+            856,
+            1111,
+            2045,
+            2139
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dbus-implementation-v257",
+      "url": "https://github.com/systemd/systemd/blob/v257/src/core/dbus-manager.c",
+      "tag": "v257",
+      "path": "src/core/dbus-manager.c",
+      "sha256": "f4e5d85e84d3a9efe4cdee77a91521ea66c8b988ffa9707e12839049d8b35311",
+      "bytes": 153970,
+      "anchors": [
+        {
+          "token": "item->path, unit_file_state_to_string(item->state)",
+          "lines": [
+            2235
+          ]
+        }
+      ]
+    }
+  ],
+  "existing_contract_bindings": [
+    {
+      "path": "installer/systemd_observations.py",
+      "sha256": "2a2dfd69e0ebd020c69e220e6563a917f83c5d2d87354968d74fa323a4dbddc2",
+      "anchors": [
+        {
+          "token": "class SystemdObserver:",
+          "line": 153
+        },
+        {
+          "token": "def collect(self, *, previous=None):",
+          "line": 187
+        },
+        {
+          "token": "def snapshot(self, target):",
+          "line": 127
+        },
+        {
+          "token": "MAX_OUTPUT = 16384",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "path": "installer/launcher_inventory.py",
+      "sha256": "ad08278960fe183694a05026f780cdf6daecd766688db6c63520ae4941e5dca8",
+      "anchors": [
+        {
+          "token": "CHANNELS =",
+          "line": 16
+        },
+        {
+          "token": "MAX_LAUNCHERS = 128",
+          "line": 18
+        },
+        {
+          "token": "MAX_BYTES = 256 * 1024",
+          "line": 21
+        },
+        {
+          "token": "def _target(value):",
+          "line": 155
+        }
+      ]
+    },
+    {
+      "path": "installer/storage_inventory.py",
+      "sha256": "06faa2729507a13ab402fdbaf59dfddad6d8e711840ec1938bbe9a7147fa4119",
+      "anchors": [
+        {
+          "token": "PRODUCERS = {",
+          "line": 27
+        },
+        {
+          "token": "'host_schedulers':",
+          "line": 35
+        },
+        {
+          "token": "'other_sql_writers':",
+          "line": 36
+        }
+      ]
+    },
+    {
+      "path": "installer/http_drain.py",
+      "sha256": "dad7864e720dc5de20e63728531ccff0c6a1d40bff427a75ad971c41734b4eca",
+      "anchors": [
+        {
+          "token": "def identity_census(uid, gid, allowed_units):",
+          "line": 73
+        },
+        {
+          "token": "class HttpDrain:",
+          "line": 125
+        }
+      ]
+    }
+  ],
+  "acceptance_cases": [
+    {
+      "id": "loaded_unprefixed_identity",
+      "scenario": "Service chargé sans préfixe HESTIA, UID configuré égal à la cible.",
+      "expected": "RELATED_UNMANAGED",
+      "reasons": [
+        "IDENTITY_MATCH"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "group_writer",
+      "scenario": "Service avec autre UID, mais GID ou groupe supplémentaire cible observé.",
+      "expected": "RELATED_UNMANAGED",
+      "reasons": [
+        "IDENTITY_MATCH"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "root_reads_slot",
+      "scenario": "Service root dont un argument chemin exact désigne le slot privé.",
+      "expected": "RELATED_UNMANAGED",
+      "reasons": [
+        "PATH_MATCH",
+        "ROOT_OR_OTHER_IDENTITY"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "root_wrapper_unknown",
+      "scenario": "Service root et wrapper opaque, sans correspondance positive connue.",
+      "expected": "UNRESOLVED",
+      "reasons": [
+        "EXECUTION_CONTEXT_UNKNOWN"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "misleading_name",
+      "scenario": "Nom HESTIA mais identité, configuration et destinations inconnues.",
+      "expected": "UNRESOLVED",
+      "reasons": [
+        "NAME_IS_NOT_EVIDENCE"
+      ],
+      "qualification_needed": "local",
+      "executed": false
+    },
+    {
+      "id": "path_component_boundary",
+      "scenario": "/srv/hestia-old ne recouvre pas /srv/hestia par simple préfixe.",
+      "expected": "UNRESOLVED",
+      "reasons": [
+        "NO_POSITIVE_RELATION",
+        "EXECUTION_CONTEXT_UNKNOWN"
+      ],
+      "qualification_needed": "local",
+      "executed": false
+    },
+    {
+      "id": "http_uid_proxy",
+      "scenario": "Un proxy non provisionné partage le compte Web observé.",
+      "expected": "RELATED_UNMANAGED",
+      "reasons": [
+        "IDENTITY_MATCH",
+        "NOT_ENROLLED"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "timer_target",
+      "scenario": "Timer chargé lié explicitement à un service pertinent.",
+      "expected": "RELATED_UNMANAGED",
+      "reasons": [
+        "ACTIVATION_RELATION"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "path_target",
+      "scenario": "Unité path liée explicitement à un service pertinent.",
+      "expected": "RELATED_UNMANAGED",
+      "reasons": [
+        "ACTIVATION_RELATION"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "socket_template",
+      "scenario": "Socket à instances ; modèle identifié, instances possibles non résolues.",
+      "expected": "RELATED_UNMANAGED",
+      "reasons": [
+        "ACTIVATION_RELATION",
+        "TEMPLATE_INSTANCES_UNKNOWN"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "ordering_only",
+      "scenario": "Seule relation After/Before avec le service cible.",
+      "expected": "UNRESOLVED",
+      "reasons": [
+        "ORDERING_IS_NOT_ACTIVATION"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "dependency_cycle",
+      "scenario": "Cycle de relations potentielles de lancement contenant un service pertinent.",
+      "expected": "RELATED_UNMANAGED",
+      "reasons": [
+        "ACTIVATION_RELATION",
+        "RELATION_IS_NOT_WRITER_PROOF"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "alias_same_object",
+      "scenario": "Deux noms renvoient au même objet chargé du même gestionnaire.",
+      "expected": "DISCOVERY_RECORDED",
+      "reasons": [
+        "ALIASES_PRESERVED"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "alias_conflict",
+      "scenario": "Un alias ou chemin objet change de cible entre les lectures.",
+      "expected": "COLLECTION_REJECTED",
+      "reasons": [
+        "IDENTITY_CHANGED"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "disabled_unloaded_file",
+      "scenario": "Fichier installé disabled, absent de la liste chargée.",
+      "expected": "UNRESOLVED",
+      "reasons": [
+        "UNLOADED_FILE",
+        "DISABLED_IS_NOT_ABSENT"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "masked_template",
+      "scenario": "Modèle masqué installé, sans instance chargée.",
+      "expected": "UNRESOLVED",
+      "reasons": [
+        "TEMPLATE_INSTANCES_UNKNOWN",
+        "MASKED_IS_NOT_GLOBAL_ABSENCE"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "transient_no_fragment",
+      "scenario": "Unité transitoire chargée avec fragment vide et contexte inconnu.",
+      "expected": "UNRESOLVED",
+      "reasons": [
+        "TRANSIENT_CONTEXT_UNKNOWN"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "generated_source",
+      "scenario": "Unité générée dont un chemin observé recouvre une racine métier.",
+      "expected": "RELATED_UNMANAGED",
+      "reasons": [
+        "PATH_MATCH",
+        "GENERATED_SOURCE_REVIEW"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "job_without_complete_unit",
+      "scenario": "Job système en attente dont le détail de l’unité manque.",
+      "expected": "UNRESOLVED",
+      "reasons": [
+        "SYSTEM_JOB_PRESENT",
+        "UNIT_DETAIL_UNAVAILABLE"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "manager_restart",
+      "scenario": "Changement de boot, bus owner ou namespace pendant la collecte.",
+      "expected": "COLLECTION_REJECTED",
+      "reasons": [
+        "PROVENANCE_CHANGED"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "property_unreadable",
+      "scenario": "Métadonnée nécessaire illisible pour un candidat déjà identifié.",
+      "expected": "RELATED_UNMANAGED",
+      "reasons": [
+        "UNIT_DETAIL_UNAVAILABLE",
+        "NOT_ENROLLED"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "enumeration_unreadable",
+      "scenario": "Une énumération obligatoire échoue, est tronquée ou a une signature inconnue.",
+      "expected": "COLLECTION_REJECTED",
+      "reasons": [
+        "ENUMERATION_UNAVAILABLE"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "budget_exceeded",
+      "scenario": "Dépassement du budget, du plafond de lignes ou de la projection 128/256Kio.",
+      "expected": "COLLECTION_REJECTED",
+      "reasons": [
+        "LIMIT_REACHED"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "empty_lists",
+      "scenario": "Trois listes vides cohérentes dans un intervalle valide.",
+      "expected": "DISCOVERY_RECORDED",
+      "reasons": [
+        "COVERAGE_PARTIAL",
+        "OTHER_CHANNELS_UNKNOWN"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "unchanged_endpoints",
+      "scenario": "Les listes avant/après sont identiques, sans preuve des événements intermédiaires.",
+      "expected": "DISCOVERY_RECORDED",
+      "reasons": [
+        "NOT_ATOMIC",
+        "NOT_A_LEASE"
+      ],
+      "qualification_needed": "local",
+      "executed": false
+    },
+    {
+      "id": "raw_forbidden_field",
+      "scenario": "Champ description/arguments bruts interdit dans le DTO ou contrôle dans un identifiant.",
+      "expected": "COLLECTION_REJECTED",
+      "reasons": [
+        "PRIVATE_INPUT_REJECTED"
+      ],
+      "qualification_needed": "local",
+      "executed": false
+    },
+    {
+      "id": "no_mutation_transport",
+      "scenario": "Transport tenté via LoadUnit, StartUnit, shell ou fichier de commande libre.",
+      "expected": "COLLECTION_REJECTED",
+      "reasons": [
+        "READ_ONLY_POLICY_REQUIRED"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    },
+    {
+      "id": "known_profile_drift",
+      "scenario": "Nom d’unité provisionnée identique mais preuve de plan ou fichiers divergente.",
+      "expected": "COLLECTION_REJECTED",
+      "reasons": [
+        "PROVISIONED_PROFILE_CHANGED"
+      ],
+      "qualification_needed": "local_then_system",
+      "executed": false
+    }
+  ],
+  "next_lot": {
+    "name": "pure_systemd_discovery_model",
+    "host_io": false,
+    "actions_expected": 0,
+    "description": "Modèle privé typé des trois listes et de la provenance ; aucun transport ni activation."
+  }
+}

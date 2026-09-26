@@ -1,5 +1,13 @@
 # Architecture HESTIA Installer
 
+## Découverte élargie : contrat sans transport
+
+Le [contrat hors profil](PHASE5_SYSTEMD_SCOPE.md) sépare index des unités
+chargées, fichiers installés et jobs, et conserve les inconnus hors de la
+projection limitée à 128 lignes. Trois décisions privées, aucun enrôlement.
+Le futur protocole évite LoadUnit et les lectures globales de contexte sensible.
+Son premier développement sera un modèle pur ; le collecteur actuel reste fermé.
+
 ## Observation privée des unités provisionnées
 
 `SystemdObserver` relit les contrats immuables, puis des propriétés sélectionnées

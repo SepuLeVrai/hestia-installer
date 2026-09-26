@@ -1,5 +1,19 @@
 # État du projet
 
+## Contrat de découverte des unités hors profil
+
+Le [contrat de découverte systemd](PHASE5_SYSTEMD_SCOPE.md) part de
+`75e987ce` (73 contrôles et huit scénarios système, run `36225529757`).
+Il distingue unités chargées, fichiers installés et jobs du manager, puis
+fixe pertinence, inconnus, provenance, limites et protocole sans chargement.
+Sa matrice décrit 28 futurs cas, tous non exécutés. Ce lot est documentaire :
+aucun élargissement du collecteur, code/test/workflow changé ou Actions lancé.
+
+Les indicateurs globaux restent faux. Les Quality différées restent requises
+avant promotion. Prochain lot distinct : modèle privé pur des trois listes,
+sans transport hôte, validable localement. Checkpoint et arrêt avant ce lot.
+Les sections suivantes décrivent les états historiques.
+
 ## Collecte systemd limitée en lecture seule
 
 Sur la base `c8af4c8d`, [SystemdObserver](PHASE5_SYSTEMD_OBSERVATIONS.md)
