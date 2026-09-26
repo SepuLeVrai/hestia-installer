@@ -1,5 +1,16 @@
 # Modèle de sécurité
 
+## Lecture des listes système sans admission d'exécution
+
+Le [transport fermé](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) refuse le broker
+absent avant connexion, les identités étrangères, les changements et les
+réponses hors limites. Busctl call fixe le bus local et désactive activation,
+autorisation interactive, shell/pager et environnement hérité. Les seules
+propriétés sont Version/UnitPath ; descriptions et stderr bruts non persistés.
+Le précontrôle n'est pas une lease contre une intervention root concurrente.
+Ni noms/alias, ni listes stables ou digests ne confèrent une autorisation de
+drain, une preuve de stockage exhaustif ou une attestation du Web déployé.
+
 ## Pertinence déclarative sans autorité
 
 Le [sélecteur privé](PHASE5_SYSTEMD_RELEVANCE_MODEL.md) conserve les inconnus,

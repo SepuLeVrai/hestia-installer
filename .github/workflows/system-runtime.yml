@@ -83,6 +83,12 @@ jobs:
           docker exec -e HESTIA_SYSTEMD_OBSERVATIONS_TEST=1 hestia-system-runtime \
             python3 /opt/hestia-installer/tests/integration/systemd_observations_systemd.py \
             --report /evidence/systemd-observations.json 2>&1 | tee evidence/systemd-observations.log
+      - name: Discover manager populations without loading or controlling units
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_SYSTEMD_DISCOVERY_TEST=1 hestia-system-runtime \
+            python3 /opt/hestia-installer/tests/integration/systemd_discovery_systemd.py \
+            --report /evidence/systemd-discovery.json 2>&1 | tee evidence/systemd-discovery.log
       - name: Exercise exclusive service identity and actual runtime consumption
         run: |
           set -Eeuo pipefail

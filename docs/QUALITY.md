@@ -1,5 +1,20 @@
 # Quality et non-régression de HESTIA Installer
 
+## Transport de découverte : un seul job ciblé
+
+Le [transport](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) ajoute 21 tests, soit
+787 core détectables et 782 requis. Sélection de 155 : transport21,
+relevance42, discovery35, launcher_inventory23, storage_inventory18,
+systemd_observations16. Gardes statiques sur les 210 fichiers après gel code/docs.
+
+Un seul job Debian13, première tentative attendue, doit rejouer les 155 tests
+et dix scénarios de vraies listes/provenance/refus via busctl. Image minimale,
+réseau coupé, sources root, manifeste avant/après et suppression du conteneur.
+La recette est aussi ajoutée aux futures Quality système Debian12/13, sans
+lancer ces campagnes ici. Pas de preuve Web/SQL ou de profil métier scellé ;
+qualification globale et promotions restent différées. Résultats exacts dans
+le checkpoint ; les sections suivantes conservent leurs états historiques.
+
 ## Sélection déclarative de pertinence : tests locaux
 
 Le [modèle pur](PHASE5_SYSTEMD_RELEVANCE_MODEL.md) ajoute 42 tests : inventaire

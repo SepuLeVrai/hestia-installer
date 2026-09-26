@@ -1,5 +1,13 @@
 # Modèle privé de découverte systemd
 
+## Transport réel livré séparément
+
+Le [nouvel adaptateur](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) construit la scan
+à partir du bus local, puis réutilise ce modèle pur inchangé. Les descriptions
+sont supprimées avant les digests normalisés ; Names et détails restent inconnus.
+Le reçu du transport atteste ses lectures seulement, sans lever les blocages
+conservateurs de ce modèle ni autoriser une mutation. Sections suivantes historiques.
+
 ## Consommateur de pertinence livré séparément
 
 Le [sélecteur pur](PHASE5_SYSTEMD_RELEVANCE_MODEL.md) revalide une DiscoveryScan

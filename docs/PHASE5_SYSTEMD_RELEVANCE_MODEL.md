@@ -1,5 +1,13 @@
 # Sélection privée de pertinence systemd
 
+## Transport des listes disponible, faits détaillés encore déclaratifs
+
+Le [transport de découverte](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) livre les
+trois listes réelles ; il ne collecte aucun des faits détaillés de ce sélecteur.
+Son existence ne rend pas ces déclarations authentifiées et ne livre aucune
+admission KNOWN_PROVISIONED. Ce modèle reste inchangé ; son prochain raccordement
+nécessite un lot distinct de propriétés fermées. Sections suivantes historiques.
+
 ## Périmètre livré
 
 Base `2677d0efd1462373784ac77d734b2599d604a9a8`, arbre

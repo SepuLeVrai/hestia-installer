@@ -1,5 +1,19 @@
 # État du projet
 
+## Transport réel des trois listes systemd
+
+Sur la base `ebafa119`, le [transport privé](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md)
+utilise busctl call sur le bus local avec appels fermés, activation désactivée,
+broker déjà actif contrôlé, provenance et deux tours comparés. Budgets de pipe
+et de durée appliqués, descriptions supprimées. Aucun détail de pertinence,
+profil adopté ou indicateur global fermé ; modèles purs et Web inchangés.
+
+21 nouveaux tests, sélection de 155 et gardes statiques après gel code/docs.
+Un seul job ciblé Debian13 est prévu : mêmes contrôles et dix scénarios réels,
+avec conteneur minimal jetable sans réseau. Quality globales et promotions
+restent différées ; preuves exactes dans le checkpoint. Puis arrêt avant le
+chantier distinct des détails d'unités. Sections suivantes historiques.
+
 ## Sélection conservatrice de pertinence systemd
 
 Sur la base `2677d0ef`, le [modèle privé](PHASE5_SYSTEMD_RELEVANCE_MODEL.md)

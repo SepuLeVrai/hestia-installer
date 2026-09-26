@@ -1,5 +1,15 @@
 # Architecture HESTIA Installer
 
+## Adaptateur privé des listes du manager
+
+`systemd_discovery_transport.SystemdDiscoveryTransport` effectue 24 appels
+busctl call fermés : identité du bus/broker/manager, Version/UnitPath et deux
+tours des trois listes. JSON strict, budgets pendant lecture, précontrôle du
+broker actif et provenance recontrôlée. Il retourne scan/index et reçu privé.
+Le [contrat](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) distingue observation des
+listes, cible/stockage déclarés et absence de preuve des détails d'exécution.
+Aucun raccordement aux mutations ni changement des modèles purs.
+
 ## Sélection déclarative privée de pertinence
 
 `systemd_relevance.SystemdRelevance` revalide la DiscoveryScan puis lie les

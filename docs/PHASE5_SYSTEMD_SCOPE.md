@@ -1,5 +1,14 @@
 # Contrat de découverte systemd hors du profil provisionné
 
+## Premier transport limité désormais livré
+
+Le [transport des trois listes](PHASE5_SYSTEMD_DISCOVERY_TRANSPORT.md) utilise
+le bus local avec provenance, appels fermés et budgets pendant lecture. Names,
+identités d'exécution, définitions et relations détaillées ne sont pas collectés.
+Sa recette ciblée ne clôt pas en bloc les 28 critères historiques ni l'inventaire
+hôte. Aucun élargissement du collecteur provisionné ou du drain. Sections suivantes
+historiques ; voir le checkpoint pour les preuves exactes du nouveau lot.
+
 ## Sélection déclarative partielle désormais implémentée
 
 Le [modèle de pertinence](PHASE5_SYSTEMD_RELEVANCE_MODEL.md) consomme les faits
