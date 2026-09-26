@@ -1,5 +1,15 @@
 # Quality et non-régression de HESTIA Installer
 
+## Modèle de déclarations de lanceurs : sélection locale
+
+[Contrat](PHASE5_LAUNCHER_OBSERVATIONS.md) : 23 nouveaux tests portent l'inventaire
+core à 673. Sélection requise : `test_launcher_inventory`, `test_storage_inventory`
+et `test_business_storage`, soit 46 tests locaux sans IO métier. Gardes statiques
+sur l'arbre gelé ; aucun workflow changé ou déclenché. Ces tests de modèle ne
+prouvent ni collecte hôte ni drainage. Pas de qualification globale, de recette
+système simulée présentée comme réelle ou de promotion. Les campagnes différées
+des lots précédents restent requises sur les sources exactes avant promotion.
+
 ## Contrat documentaire CLI/planificateurs : contrôles locaux
 
 Le [lot de catalogue](PHASE5_CLI_SCHEDULERS.md) n'édite que `docs/`, sur la base

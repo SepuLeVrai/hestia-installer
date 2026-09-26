@@ -1,5 +1,12 @@
 # Contrat des producteurs CLI et des lanceurs planifiés
 
+## Extension : modèle typé des déclarations
+
+Le [modèle privé](PHASE5_LAUNCHER_OBSERVATIONS.md) met en œuvre la validation
+des données et des inconnus décrits ici. Il ne collecte pas l'hôte et ne convertit
+pas le catalogue en liste d'exécution. Le reste de ce document conserve le
+contrat de source du lot précédent et ses limites.
+
 ## État et sources
 
 Ce lot livre un contrat documentaire et un [catalogue vérifiable](PHASE5_CLI_SCHEDULERS.json).

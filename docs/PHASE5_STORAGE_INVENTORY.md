@@ -1,5 +1,13 @@
 # Stockages et producteurs du Web épinglé
 
+## Consommation privée par le modèle de lanceurs
+
+Le [validateur de déclarations](PHASE5_LAUNCHER_OBSERVATIONS.md) lie l'empreinte
+de StorageRequirements à sa cible et exige des références de rôles connues.
+Il conserve les blocages et les neuf groupes non vérifiés. StorageInventory
+reste inchangé ; cette composition ne produit ni DataInventory ni autorisation
+de sauvegarde ou d'arrêt, même avec des déclarations apparemment complètes.
+
 ## Contrat détaillé des CLI et lanceurs
 
 Le [catalogue de sources](PHASE5_CLI_SCHEDULERS.md) documente les commandes,

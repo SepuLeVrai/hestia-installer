@@ -1,5 +1,14 @@
 # Architecture HESTIA Installer
 
+## Déclarations privées des lanceurs
+
+`launcher_inventory.LauncherInventory` consomme une cible et les besoins de
+stockage, puis valide des observations typées sans IO. Sa comparaison lie
+cible, provenance déclarée, définitions, chaîne et états ; son résultat est
+un manifeste de besoins avec blocages, jamais une lease. Voir
+[le contrat et ses limites](PHASE5_LAUNCHER_OBSERVATIONS.md). Le collecteur
+système et le raccordement aux mutations restent séparés.
+
 ## Composition HTTP et collecteur
 
 `HttpDrain(runtime, cleaner=collector)` ajoute le collecteur vérifié du même

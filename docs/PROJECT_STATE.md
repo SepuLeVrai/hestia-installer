@@ -1,5 +1,18 @@
 # État du projet
 
+## Modèle privé des observations de lanceurs
+
+Sur la base `d7ace453`, le [nouveau modèle](PHASE5_LAUNCHER_OBSERVATIONS.md)
+valide des déclarations typées liées à l'instance, au pin Web et aux besoins
+de stockage. Six familles restent obligatoires ; les inconnus ne deviennent
+pas des absences. Comparaison des observations, confidentialité et limites sont
+couvertes par 23 nouveaux tests, soit 46 contrôles locaux avec les voisins.
+
+Aucun collecteur hôte ou lanceur n'est ajouté. Aucun workflow modifié ou lancé ;
+Quality globale et promotions restent différées. Tous les indicateurs de
+clôture restent faux. Prochain lot distinct : collecte systemd limitée en lecture
+seule. Checkpoint puis arrêt avant de le commencer. Sections suivantes historiques.
+
 ## Contrat CLI et planificateurs : audit de source terminé
 
 Le [catalogue et contrat](PHASE5_CLI_SCHEDULERS.md) identifient douze points
