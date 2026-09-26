@@ -1,5 +1,13 @@
 # Architecture HESTIA Installer
 
+## Index privé des trois populations systemd
+
+`systemd_discovery.SystemdDiscovery` réutilise le contrat cible/stockage de
+LauncherInventory, puis valide deux tours déclarés d'unités, fichiers et jobs.
+Son enveloppe privée accepte jusqu'à 4096 noms/4Mio ; elle ne projette pas les
+objets en lanceurs et n'en déduit aucune pertinence. Source, provenance et
+horloges restent déclarées. Voir [types et limites](PHASE5_SYSTEMD_DISCOVERY_MODEL.md).
+
 ## Découverte élargie : contrat sans transport
 
 Le [contrat hors profil](PHASE5_SYSTEMD_SCOPE.md) sépare index des unités

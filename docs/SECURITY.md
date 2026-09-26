@@ -1,5 +1,14 @@
 # Modèle de sécurité
 
+## Découverte déclarative, sans certificat d'hôte
+
+Le [modèle pur](PHASE5_SYSTEMD_DISCOVERY_MODEL.md) refuse énumérations
+incomplètes, collisions, contradictions de jobs et dérive entre deux tours.
+Il ne confond pas basename de fichier et objet chargé, ni Following et alias.
+Les inconnus restent explicites ; rapport et erreurs utilisent des champs
+fermés. Le résultat privé est une déclaration non authentifiée, jamais une
+lease, un droit d'exécution/arrêt ou une preuve de couverture exhaustive.
+
 ## Pertinence des unités étrangères, sans exclusion automatique
 
 Le [nouveau contrat](PHASE5_SYSTEMD_SCOPE.md) conserve unités non chargées,

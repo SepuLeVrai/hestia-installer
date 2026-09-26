@@ -1,5 +1,19 @@
 # État du projet
 
+## Modèle pur de découverte systemd
+
+Sur la base `847cea06`, le [modèle privé](PHASE5_SYSTEMD_DISCOVERY_MODEL.md)
+conserve séparément unités chargées, fichiers installés et jobs du manager.
+Cible/stockage, provenance, alias, inconnus, limites et comparaison sont validés
+sans IO ou horloge implicite. Aucun transport, classement de pertinence ou
+raccordement aux mutations n'est ajouté. Le collecteur fermé reste inchangé.
+
+35 nouveaux tests, sélection locale de 92 contrôles et gardes statiques requis
+après gel. Zéro Actions prévu ; toutes les Quality globales restent différées.
+Les indicateurs de clôture restent faux. Checkpoint et arrêt avant le prochain
+lot de sélection conservatrice de pertinence, toujours sans transport hôte.
+Sections suivantes historiques.
+
 ## Contrat de découverte des unités hors profil
 
 Le [contrat de découverte systemd](PHASE5_SYSTEMD_SCOPE.md) part de

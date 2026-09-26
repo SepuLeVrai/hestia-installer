@@ -1,5 +1,18 @@
 # Quality et non-régression de HESTIA Installer
 
+## Modèle pur de découverte : sélection locale
+
+[Contrat](PHASE5_SYSTEMD_DISCOVERY_MODEL.md) : 35 nouveaux tests, 724 core
+détectables dont 719 requis. Sélection de 92 : systemd_discovery35,
+launcher_inventory23, storage_inventory18, systemd_observations16. Les cas
+portent sur des déclarations, sans collecte hôte ou recette système simulée
+présentée comme réelle. Limites 4096 unités/4Mio et absence d'IO vérifiées.
+
+Code/docs gelés ensemble, manifeste complet stable et gardes statiques exigés.
+Aucun workflow changé ou Actions requis ; les 28 critères du contrat global
+ne sont pas déclarés exécutés comme campagne. Preuves exactes dans le checkpoint.
+Quality globale, Debian12/13, SQL/Web, navigateur et promotions différés.
+
 ## Contrat systemd élargi : vérification documentaire locale
 
 [Contrat et matrice](PHASE5_SYSTEMD_SCOPE.md) sur `75e987ce` : seuls les

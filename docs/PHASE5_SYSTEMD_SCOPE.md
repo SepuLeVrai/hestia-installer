@@ -1,5 +1,14 @@
 # Contrat de découverte systemd hors du profil provisionné
 
+## Première implémentation partielle du contrat
+
+Le [modèle pur de découverte](PHASE5_SYSTEMD_DISCOVERY_MODEL.md) implémente
+désormais les types des trois listes, provenance, alias, inconnus, budgets
+de données et comparaison. Il ne livre pas le transport, la classification
+de pertinence ou les détails d'exécution. Les 28 cas et le JSON ci-dessous
+conservent le statut historique de contrat global non exécuté. Le modèle a
+ses propres tests locaux, qui ne valent pas recette de ces exigences système.
+
 ## État livré et but du prochain développement
 
 Ce lot est **documentaire**. Il définit le protocole et les décisions du futur
