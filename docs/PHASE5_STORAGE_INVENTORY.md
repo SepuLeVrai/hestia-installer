@@ -1,5 +1,13 @@
 # Stockages et producteurs du Web épinglé
 
+## Observation partielle des unités connues
+
+Le [collecteur systemd provisionné](PHASE5_SYSTEMD_OBSERVATIONS.md) apporte
+une lecture des unités connues, sans valider les neuf groupes de producteurs.
+Aucun chemin de stockage ni identité d'écriture effective n'est déduit d'un
+nom de service. Les besoins restent non résolus et aucune sauvegarde exhaustive
+n'est autorisée par cette observation. États historiques ci-dessous.
+
 ## Consommation privée par le modèle de lanceurs
 
 Le [validateur de déclarations](PHASE5_LAUNCHER_OBSERVATIONS.md) lie l'empreinte

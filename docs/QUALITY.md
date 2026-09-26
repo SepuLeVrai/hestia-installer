@@ -1,5 +1,19 @@
 # Quality et non-régression de HESTIA Installer
 
+## Collecte systemd provisionnée : campagne minimale
+
+[Contrat](PHASE5_SYSTEMD_OBSERVATIONS.md) : 16 nouveaux tests, 689 core
+détectables. Sélection de 73 contrôles : systemd_observations, launcher_inventory,
+http_runtime et session_cleaner. Huit scénarios réels dans
+`tests/integration/systemd_observations_systemd.py`. Le job ciblé ne rejoue que
+ces contrôles et cette recette Debian 13, avec source exacte et réseau coupé.
+
+Le pont métier n'a qu'une preuve locale avec IO simulés ; le banc isolé est
+explicitement refusé comme source de ce pont. Aucun résultat SQL/Web global,
+Debian 12, navigateur ou promotion n'est revendiqué. La recette est ajoutée
+à la future campagne système complète sans la lancer ici. Preuves finales
+dans le checkpoint sur le même arbre code/docs gelé, puis arrêt.
+
 ## Modèle de déclarations de lanceurs : sélection locale
 
 [Contrat](PHASE5_LAUNCHER_OBSERVATIONS.md) : 23 nouveaux tests portent l'inventaire

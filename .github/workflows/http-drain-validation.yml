@@ -1,8 +1,8 @@
-name: Targeted HTTP and collector validation
+name: Targeted provisioned systemd observations
 
 on:
   push:
-    branches: ['work/phase5-http-cleaner-drain-20260926']
+    branches: ['work/phase5-systemd-observations-20260926']
 
 permissions:
   contents: read
@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   drain:
-    name: HTTP and collector only / Debian 13
+    name: Read-only systemd observations / Debian 13
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -53,23 +53,14 @@ jobs:
         run: |
           set -Eeuo pipefail
           docker exec -w /opt/hestia-installer -e PYTHONPATH=tests hestia-http-drain \
-            python3 -m unittest test_http_drain test_http_cleaner_drain test_http_runtime test_system_drain test_session_cleaner -v \
+            python3 -m unittest test_systemd_observations test_launcher_inventory test_http_runtime test_session_cleaner -v \
             2>&1 | tee evidence/controllers.log
-      - name: Test HTTP multipart, descendants, foreign writers and controller death
+      - name: Test real read-only observations of provisioned units
         run: |
           set -Eeuo pipefail
-          docker exec -e HESTIA_HTTP_RUNTIME_TEST=1 hestia-http-drain \
-            python3 /opt/hestia-installer/tests/integration/http_runtime_systemd.py \
-            --report /evidence/http-runtime.json 2>&1 | tee evidence/http-runtime.log
-      - name: Keep existing cgroup and session collector contracts covered
-        run: |
-          set -Eeuo pipefail
-          docker exec -e HESTIA_SYSTEMD_DRAIN_TEST=1 hestia-http-drain \
-            python3 /opt/hestia-installer/tests/integration/system_drain_systemd.py \
-            --report /evidence/system-drain.json 2>&1 | tee evidence/system-drain.log
-          docker exec -e HESTIA_SESSION_CLEANER_TEST=1 hestia-http-drain \
-            python3 /opt/hestia-installer/tests/integration/session_cleaner_systemd.py \
-            --report /evidence/session-cleaner.json 2>&1 | tee evidence/session-cleaner.log
+          docker exec -e HESTIA_SYSTEMD_OBSERVATIONS_TEST=1 hestia-http-drain \
+            python3 /opt/hestia-installer/tests/integration/systemd_observations_systemd.py \
+            --report /evidence/systemd-observations.json 2>&1 | tee evidence/systemd-observations.log
       - name: Preserve evidence and remove disposable container
         if: always()
         run: |
@@ -79,7 +70,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
-          name: http-cleaner-targeted-debian13
+          name: systemd-observations-targeted-debian13
           path: evidence/
           if-no-files-found: error
           retention-days: 7

@@ -1,5 +1,19 @@
 # État du projet
 
+## Collecte systemd limitée en lecture seule
+
+Sur la base `c8af4c8d`, [SystemdObserver](PHASE5_SYSTEMD_OBSERVATIONS.md)
+relit deux ou quatre unités provisionnées, leurs fichiers, états et provenance.
+Aucune mutation de service ; systemd_system reste partiel et cinq familles
+restent inconnues. Le pont privé exige le profil métier scellé ; la fixture
+système isolée ne prétend pas qualifier ce pont ni l'application complète.
+
+73 contrôles locaux et huit scénarios réels sont requis pour ce lot, avec un
+seul job ciblé Debian 13 après gel. Les preuves exactes sont dans le checkpoint.
+Les Quality globales et promotions restent différées. Tous les indicateurs de
+clôture restent faux. Checkpoint et arrêt avant un autre périmètre de collecte.
+Les sections suivantes conservent les états historiques.
+
 ## Modèle privé des observations de lanceurs
 
 Sur la base `d7ace453`, le [nouveau modèle](PHASE5_LAUNCHER_OBSERVATIONS.md)

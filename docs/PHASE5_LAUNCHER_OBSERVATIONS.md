@@ -1,5 +1,13 @@
 # Modèle privé des déclarations de lanceurs
 
+## Évolution postérieure : premier adaptateur partiel
+
+La [collecte systemd provisionnée](PHASE5_SYSTEMD_OBSERVATIONS.md) fournit
+maintenant des observations réelles sur deux ou quatre unités connues et un
+pont privé pour le profil métier scellé. Ce modèle pur reste inchangé ; ses
+blocages et les inconnus sont conservés. Le texte ci-dessous décrit le lot
+historique `c8af4c8d`, pas une absence actuelle de tout adaptateur.
+
 ## Base et portée
 
 Base Installer `d7ace453152a3b5d9d8cbe7d2ec21ac4779bbc64`, arbre

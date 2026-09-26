@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Collecte limitée sans autorisation implicite
+
+Le [collecteur systemd](PHASE5_SYSTEMD_OBSERVATIONS.md) fixe les unités depuis
+les provisionneurs typés, exige la visibilité sur le gestionnaire système et
+borne la sortie pendant la lecture. Dérive, erreur ou invisibilité entraînent
+un refus, jamais une absence. Les propriétés sélectionnées ne prouvent pas
+l'environnement effectif ni l'exhaustivité. Aucun service, gate ou tâche n'est
+modifié ; les seules terminaisons concernent son enfant systemctl de lecture
+lors d'un dépassement. Le résultat privé n'est pas une lease de drainage.
+
 ## Collecteur associé et timer recontrôlé
 
 Le [profil HTTP/collecteur](PHASE5_HTTP_CLEANER_DRAIN.md) n'accepte que le

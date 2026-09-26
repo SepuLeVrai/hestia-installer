@@ -1,5 +1,13 @@
 # Architecture HESTIA Installer
 
+## Observation privée des unités provisionnées
+
+`SystemdObserver` relit les contrats immuables, puis des propriétés sélectionnées
+via systemctl show. Deux services, ou trois services et leur timer, constituent
+un périmètre partiel. `SystemdSample.snapshot(target)` relie conservativement
+le profil métier scellé au modèle pur ; aucun mutateur n'en consomme le résultat.
+Voir [provenance, temporalité et limites](PHASE5_SYSTEMD_OBSERVATIONS.md).
+
 ## Déclarations privées des lanceurs
 
 `launcher_inventory.LauncherInventory` consomme une cible et les besoins de
