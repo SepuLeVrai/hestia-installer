@@ -1,0 +1,88 @@
+name: Targeted selected process identities
+
+on:
+  push:
+    branches: ['work/phase5-process-identity-20260926']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: targeted-process-identity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discovery:
+    name: Selected process identity / Debian 13
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build exact sources with official minimal Debian dependencies
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/hestia-discovery-source" evidence
+          git archive --format=tar HEAD > "$RUNNER_TEMP/hestia-discovery-source.tar"
+          tar -xf "$RUNNER_TEMP/hestia-discovery-source.tar" -C "$RUNNER_TEMP/hestia-discovery-source"
+          git rev-parse HEAD > evidence/commit.txt
+          git rev-parse HEAD^{tree} > evidence/tree.txt
+          sha256sum "$RUNNER_TEMP/hestia-discovery-source.tar" > evidence/source-archive.txt
+          docker build --build-arg DEBIAN=13 \
+            -f "$RUNNER_TEMP/hestia-discovery-source/tests/integration/Dockerfile.discovery" \
+            -t hestia-discovery "$RUNNER_TEMP/hestia-discovery-source"
+      - name: Boot disposable systemd without network or host cgroup mount
+        run: |
+          set -Eeuo pipefail
+          docker run -d --name hestia-discovery --network none --privileged \
+            --cgroupns=private --tmpfs /run --tmpfs /run/lock --tmpfs /tmp hestia-discovery
+          ready=false
+          for attempt in $(seq 1 60); do
+            state=$(docker exec hestia-discovery systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+          docker exec hestia-discovery cat /etc/os-release > evidence/environment.txt
+          docker exec hestia-discovery busctl --version >> evidence/environment.txt
+          docker exec hestia-discovery uname -a >> evidence/environment.txt
+          docker inspect --format '{{json .NetworkSettings.Networks}}' hestia-discovery > evidence/network.json
+      - name: Verify affected controllers on the exact source
+        run: |
+          set -Eeuo pipefail
+          docker exec -w /opt/hestia-installer -e PYTHONPATH=tests hestia-discovery \
+            python3 -m unittest test_process_identity test_systemd_invocation_relations test_systemd_invocation test_systemd_discovery_transport test_systemd_relevance test_systemd_discovery \
+            test_launcher_inventory test_storage_inventory test_systemd_observations -v \
+            2>&1 | tee evidence/controllers.log
+      - name: Exercise real PIDFD bindings and no-autoload refusals
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_SYSTEMD_DISCOVERY_TEST=1 hestia-discovery \
+            python3 /opt/hestia-installer/tests/integration/systemd_invocation_systemd.py \
+            --report /evidence/systemd-invocation.json 2>&1 | tee evidence/systemd-invocation.log
+      - name: Exercise real aliases, relations and invocation races
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_SYSTEMD_DISCOVERY_TEST=1 hestia-discovery \
+            python3 /opt/hestia-installer/tests/integration/systemd_invocation_relations_systemd.py \
+            --report /evidence/systemd-invocation-relations.json 2>&1 | tee evidence/systemd-invocation-relations.log
+      - name: Observe real credentials, namespaces and process races
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_SYSTEMD_DISCOVERY_TEST=1 hestia-discovery \
+            python3 /opt/hestia-installer/tests/integration/process_identity_systemd.py \
+            --report /evidence/process-identity.json 2>&1 | tee evidence/process-identity.log
+      - name: Preserve evidence and remove disposable container
+        if: always()
+        run: |
+          docker cp hestia-discovery:/evidence/. evidence/ || true
+          docker logs --tail 100 hestia-discovery > evidence/boot.log 2>&1 || true
+          docker rm -f hestia-discovery || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: process-identity-targeted-debian13
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7

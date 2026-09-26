@@ -1,5 +1,12 @@
 # Stockages et producteurs du Web épinglé
 
+## Identités observées de quelques leaders
+
+Le [nouveau lecteur](PHASE5_PROCESS_IDENTITY.md) apporte un signal effectif de
+revue pour les leaders sélectionnés, sans observer toutes les tâches ou leurs
+écritures. Il ne transforme pas StorageRequirements en DataInventory et ne
+certifie aucun des neuf groupes. Stockages, sources Web et sauvegarde inchangés.
+
 ## Observation partielle des unités connues
 
 Le [collecteur systemd provisionné](PHASE5_SYSTEMD_OBSERVATIONS.md) apporte

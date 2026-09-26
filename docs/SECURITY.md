@@ -1,5 +1,14 @@
 # Modèle de sécurité
 
+## Credentials de leaders sélectionnés
+
+Le [contrat procfs](PHASE5_PROCESS_IDENTITY.md) vérifie contexte observateur,
+PIDFD, leader vivant, credentials et cgroup avec lectures bornées et répétées.
+Il conserve les quatre identités sans les confondre, refuse les contextes illisibles
+et ne lit pas commandes/environnement. Root est de confiance, ABA et obsolescence
+restent possibles. Un signal positif de revue ne certifie ni writer ni groupe
+complet de processus. Aucun droit d'arrêt ou d'exclusion supplémentaire.
+
 ## Noms et relations observés sans résolution récursive
 
 Le [lecteur étendu](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md) n'interroge que neuf

@@ -1,5 +1,16 @@
 # État du projet
 
+## Identité effective des leaders sélectionnés
+
+Sur e5ffaf35, le [lecteur procfs lié à l'invocation](PHASE5_PROCESS_IDENTITY.md)
+observe les quatre UID/GID, groupes, date, namespaces et cgroup des leaders
+sélectionnés, avec contrôles de stabilité et PIDFD possédés. Le signal effectif
+élargit seulement la revue ; aucun inventaire complet, writer ou droit de drain.
+26 nouveaux tests, sélection de226 ; un seul job Debian13 prévu après gel avec
+24 scénarios réels, dont huit nouveaux. Résultats exacts dans le checkpoint,
+pas de Quality globale ou promotion. Prochain lot : recensement borné des
+candidats et couverture threads/descendants. Checkpoint puis arrêt. Historique.
+
 ## Noms et relations par invocation, raccordement conservateur
 
 Sur 8a2f4ce5, le [lecteur de relations](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md)

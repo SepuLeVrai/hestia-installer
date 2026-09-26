@@ -1,5 +1,14 @@
 # Quality et non-régression de HESTIA Installer
 
+## Identité effective sélectionnée : un job ciblé
+
+Le [lot procfs](PHASE5_PROCESS_IDENTITY.md) ajoute 26 tests aux 200 contrôles
+parents : 226 requis localement et sous Debian13. Le job unique comprend 24 cas
+réels (8 PIDFD +8 relations +8 identité). La baseline ajoute les26 IDs sans retrait ;
+les gardes, sources/modes, absence de skip et artefacts exacts sont vérifiés après
+le gel commun code/docs. La recette rejoint la future campagne système Debian13.
+Aucune Quality globale ou promotion anticipée ; résultats exacts au checkpoint.
+
 ## Noms et relations d'invocation : qualification ciblée
 
 [Extension](PHASE5_SYSTEMD_INVOCATION_RELATIONS.md) : 24 nouveaux tests, sélection

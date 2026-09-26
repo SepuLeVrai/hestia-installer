@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "scope": "Kernel source review, not runtime qualification or atomicity proof",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/fs/proc/array.c",
+      "file": "array.c",
+      "bytes": 23234,
+      "sha256": "23fa35a9e22158c2bee2bf183c748b82438e4919571eac9c04a4028d24764549",
+      "anchors": [
+        "static inline void task_state",
+        "cred = get_task_cred(p);",
+        "from_kuid_munged(user_ns, cred->euid)",
+        "from_kgid_munged(user_ns, cred->egid)",
+        "timens_add_boottime_ns(task->start_boottime)",
+        "seq_put_decimal_ull(m, \" \", start_time)"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/fs/proc/base.c",
+      "file": "base.c",
+      "bytes": 98525,
+      "sha256": "3cd005fa6ce3bd17f10acf67d6e4344013da11b4814a269d239d9c1182ad0c68",
+      "anchors": [
+        "proc_pid_make_inode(dentry->d_sb, task, p->mode)",
+        "struct task_struct *task = get_proc_task(dir);"
+      ]
+    }
+  ]
+}

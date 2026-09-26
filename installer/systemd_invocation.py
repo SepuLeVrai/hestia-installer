@@ -145,6 +145,9 @@ class SystemdInvocationTransport(t.SystemdDiscoveryTransport):
     def _pass(self, hints, units, owned, owner, budget):
         return tuple(self._binding(h, units[h.object_path], fd, owner, budget) for h, fd in zip(hints, owned))
 
+    def _check_final(self, hints, owned, bindings, budget):
+        for fd in owned: _alive(fd)
+
     def _sample(self, scan, index, bindings, context, budget):
         data = {'version': 1, 'discovery': index.private_manifest(),
             'bindings': [asdict(b) for b in bindings],
@@ -177,14 +180,14 @@ class SystemdInvocationTransport(t.SystemdDiscoveryTransport):
             require(first == second, 'INVOCATION_CHANGED')
             after, after_context = self._round(budget)
             require(context == after_context, 'DISCOVERY_LOCAL_PROVENANCE_CHANGED')
-            for fd in owned: _alive(fd)
+            self._check_final(hints, owned, first, budget)
             budget.remaining(); finished = int(time.time())
             elapsed = int((time.monotonic() - budget.started)*1000)
             scan = d.DiscoveryScan(self._target, started, finished, elapsed, before, after)
             index = self._discovery.inspect(scan, now=finished)
             require(budget.calls == budget.maximum_calls, 'DISCOVERY_CALL_SET_INCOMPLETE')
             result = self._sample(scan, index, first, context, budget)
-            for fd in owned: _alive(fd)
+            self._check_final(hints, owned, first, budget)
             budget.remaining()
             return result
         except t.SystemdTransportError: raise

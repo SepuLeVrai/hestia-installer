@@ -1,5 +1,15 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
+## Reprise courante — leaders sélectionnés et identité effective
+
+Base e5ffaf35 : Names/relations ciblés qualifiés par le run36247347642. Lire
+[PHASE5_PROCESS_IDENTITY.md](PHASE5_PROCESS_IDENTITY.md) pour le nouveau lot,
+ses bornes et limites. 226 contrôles et24 scénarios Debian13 requis après gel ;
+résultats exacts et prochain commit dans le checkpoint. Prochaine frontière :
+recensement borné des candidats, threads et descendants. Ni phase5 complète,
+ni promotion, ni inventaire complet sur ce seul lot. Arrêt après checkpoint.
+Les états ci-dessous sont historiques, notamment les primitives désormais livrées.
+
 ## Suite courante — déploiement protégé et Web réel
 
 Base proxy qualifiée `4d9f396e`. Le [lot déploiement](PHASE5_WEB_DEPLOYMENT.md)

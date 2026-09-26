@@ -1,5 +1,14 @@
 # Architecture HESTIA Installer
 
+## Observation procfs liée aux invocations
+
+[SystemdProcessIdentity](PHASE5_PROCESS_IDENTITY.md) spécialise le lecteur de
+relations et son hook privé de clôture. process_identity lit seulement un leader
+lié à notre PIDFD, avec son propre budget sous le délai commun. ProcessIdentity
+est conservée dans la liaison privée, puis UID/GID effectifs et groupes alimentent
+RelevanceFacts. Le modèle pur reste conservateur et inchangé ; aucune interface
+publique, mutation, identité configurée ou résolution de chemin n'est ajoutée.
+
 ## Relations liées aux invocations
 
 `systemd_invocation_relations.SystemdInvocationRelations` étend le lecteur minimal

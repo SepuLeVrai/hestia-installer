@@ -128,3 +128,7 @@ les autres familles de lanceurs et le pont au profil provisionné restent ouvert
 Ni la matrice historique 16 cas ni les 28 critères globaux ne sont déclarés clos.
 Les neuf groupes de producteurs, sauvegarde exhaustive 5C2, upgrade 5C3,
 reprise/rollback 5C4 et orchestration/wizard 5D restent à terminer.
+
+Le lot suivant [identité de leaders sélectionnés](PHASE5_PROCESS_IDENTITY.md)
+réalise cette liaison pour les seuls PID proposés ; le recensement complet,
+les threads et les descendants restent ouverts. Le présent lecteur reste inchangé.
