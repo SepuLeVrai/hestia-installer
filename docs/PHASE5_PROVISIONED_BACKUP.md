@@ -92,20 +92,37 @@ Elle ne remplace pas les données originales et ne démarre aucun service.
 
 ## Qualification du lot
 
-65 contrôles ciblés locaux ;97 avec les32 cas de fichiers/coordinateur dans le
+66 contrôles ciblés locaux ;97 avec les32 cas de fichiers/coordinateur dans le
 conteneur Debian13. Sept nouveaux cas système/SQL/Web réels : chemin complet
 et écriture SQL concurrente, mort du worker SQL, altération de barrière après
 copie, processus étranger, racine supplémentaire, annulation, autorité SQL fausse.
 Le premier restaure GED/photo/import/session puis les relit via le vrai Web,
 avec reprise **explicitement effectuée par la fixture**.
 
-Les neuf scénarios historiques business storage sont conservés dans le même job
-ciblé. Le proxy de la nouvelle fixture utilise une identité distincte ; réutiliser
+Les neuf scénarios historiques business storage sont verts sur le candidat initial
+fe95da21/run36264655150 ; ils ne sont pas présentés comme une nouvelle exécution
+sur le correctif de staging. Le job final cible les98 contrôles et7 nouveaux cas. Le proxy de la nouvelle fixture utilise une identité distincte ; réutiliser
 l'UID Web serait justement refusé par le drain. Le getty console inutile de
 l'image jetable est masqué ; les contrôles produit ne sont pas assouplis.
 Les contrôles PHP/SQL/systemd impossibles dans Work sont exécutés dans ce seul
 job, après gel code/documentation. Résultats et sources exacts au checkpoint ;
 ce document ne préjuge pas de leur succès. Pas de Quality globale ni promotion.
+
+## Incidents conservés et correction
+
+Le premier run36264655150 passe96/97 contrôles et les9 business historiques.
+Le sous-processus d'un contrôle partait du mauvais cwd : le workflow est corrigé,
+aucune assertion retirée. Le run36264993299 passe ensuite97/97 contrôles mais
+4 des7 nouveaux cas refusent avant réservation : le writer de secrets16Kio
+recevait backup_bridge.php (33062 octets). Le refus CONFIGURATION_SIZE_REJECTED
+est reproduit localement. Les deux artefacts négatifs restent au checkpoint.
+
+Le correctif fait copier ce fichier par le source-bundle existant, renomme son
+bridge dans le stage privé protégé et écrit uniquement le petit canal et sa
+politique avec le writer de secrets. Sa limite reste inchangée. Un onzième test
+vérifie les octets/modes du grand fichier et le refus du writer16Kio.66 contrôles
+locaux/98 Debian13 désormais ; nouveau gel code/docs avant job ciblé final.
+Les compteurs prévus plus haut décrivent ce correctif, pas un vert anticipé.
 
 ## Frontières encore ouvertes
 

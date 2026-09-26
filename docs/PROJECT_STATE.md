@@ -2,6 +2,13 @@
 
 ## Priorité courante : sauvegarde intégrée provisionnée
 
+Deux essais sont conservés : run36264655150 (cwd du sous-processus de test),
+puis run36264993299 (writer de secrets utilisé à tort pour le grand bridge).
+Le source-bundle existant traite désormais ce fichier ; limite16Kio conservée,
+onzième test ajouté.66 contrôles locaux/98 Debian13 et7 cas réels pour le gel
+correctif ; les9 business acquis sur fe95da21 ne sont pas revendiqués comme
+rejoués sur ce correctif. Voir le checkpoint pour les résultats définitifs.
+
 Le parent8e063bc3/run36261287478 est vérifié :325 contrôles et20 cas réels verts,
 artefact/source/modes contrôlés. Les attentes de « troisième job » plus bas sont
 historiques. La découverte générique Exec*Ex est différée selon le recentrage
@@ -10,8 +17,8 @@ convenu ; ses protections ne sont ni retirées ni promues en autorités.
 Le [lot intégré](PHASE5_PROVISIONED_BACKUP.md) raccorde le drain HTTP/collecteur
 à la sauvegarde coordonnée et maintient un verrou SQL durant toute la copie et
 la restauration de preuve. Six racines exactes, fresh managed local, aucune
-remise en service automatique.65 contrôles locaux et un seul job ciblé prévu
-avec97 contrôles et16 scénarios réels ; résultats exacts dans le checkpoint.
+remise en service automatique.66 contrôles locaux et un seul job ciblé prévu
+avec98 contrôles et7 scénarios réels ; résultats exacts dans le checkpoint.
 Code et documentation gelés ensemble, sans qualification globale ni promotion.
 Prochaine frontière : admission opposable des autres producteurs et exhaustivité5C2,
 puis vraie bascule5C3, incidents/rollback5C4, orchestration/wizard5D et gates finaux.

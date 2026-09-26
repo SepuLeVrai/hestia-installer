@@ -357,6 +357,7 @@
       "test_provisioned_backup.ProvisionedBackupTests.test_failure_still_closes_barrier_and_never_resumes",
       "test_provisioned_backup.ProvisionedBackupTests.test_public_repr_has_no_private_configuration",
       "test_provisioned_backup.ProvisionedBackupTests.test_typed_provisioners_and_same_collector_are_required",
+      "test_provisioned_backup.SqlFenceChannelTests.test_large_shared_bridge_uses_source_bundle_and_keeps_secret_limit",
       "test_provisioned_backup.SqlFenceChannelTests.test_no_pickle_private_repr_and_bounded_requests",
       "test_provisioned_backup.SqlFenceChannelTests.test_real_pipe_handshake_ping_release_and_cleanup",
       "test_provisioned_backup.SqlFenceChannelTests.test_worker_loss_timeout_cancel_and_cross_process_lease_fail_closed",

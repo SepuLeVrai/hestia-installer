@@ -2,6 +2,13 @@
 
 ## Reprise prioritaire : parcours intégré de sauvegarde provisionnée
 
+Deux essais sont conservés : run36264655150 (cwd du sous-processus de test),
+puis run36264993299 (writer de secrets utilisé à tort pour le grand bridge).
+Le source-bundle existant traite désormais ce fichier ; limite16Kio conservée,
+onzième test ajouté.66 contrôles locaux/98 Debian13 et7 cas réels pour le gel
+correctif ; les9 business acquis sur fe95da21 ne sont pas revendiqués comme
+rejoués sur ce correctif. Voir le checkpoint pour les résultats définitifs.
+
 Lire PHASE5_PROVISIONED_BACKUP.md. Base8e063bc3 qualifiée au run36261287478
 (325 contrôles,20 cas réels),255 fichiers ; ne pas reprendre les attentes
 historiques du lecteur configuré ci-dessous. Le prochain développement générique
@@ -10,7 +17,7 @@ créés par HESTIA : drain commun, verrou SQL continu, sauvegarde/restauration.
 
 Le nouveau lot ajoute ProvisionedBackup et sql_read_fence ; le coordinateur
 existant conserve son chemin historique. Un seul job ciblé prévu après gel,
-97 contrôles et7 nouveaux+9 anciens cas réels. Se référer au checkpoint pour
+98 contrôles et7 nouveaux cas réels. Se référer au checkpoint pour
 le commit, les résultats exacts et les éventuelles preuves négatives ; aucune
 promotion ou clôture5C2 n'est anticipée. Maintenance conservée en toute sortie.
 Reprendre ensuite l'admission des producteurs/racines hors profil, puis5C3/5C4/5D.

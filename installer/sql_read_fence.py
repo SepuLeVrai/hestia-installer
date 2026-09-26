@@ -78,17 +78,24 @@ class SqlReadFence:
         for stream in (proc.stdin,proc.stdout):stream.close()
 
 
+def _stage(runtime, source, stage, ca):
+    # The shared backup source exceeds the 16 KiB secret writer limit. Reuse
+    # its existing source-bundle path, then add only the small channel bridge.
+    p._copy_bundle(source,stage,runtime.worker_gid,f.ENGINE_FILES,f.ENGINE_SHA256,'backup_bridge.php')
+    with fs._directory(stage) as fd:
+        fs._absent(fd,'backup_bridge.php')
+        os.rename('bridge.php','backup_bridge.php',src_dir_fd=fd,dst_dir_fd=fd)
+        for name,source_name in (('bridge.php','sql_read_fence.php'),('sql_accounts_policy.php','sql_accounts_policy.php')):
+            f._write(fd,name,p._read_file(Path(__file__).parent/'private'/source_name),runtime.worker_gid)
+        if ca is not None:f._write(fd,'ca.pem',ca,runtime.worker_gid)
+
+
 @contextmanager
 def acquire(runtime, source, database, ca, authority, *, cancel=None):
     """Private input already validated by finalization; no client-controlled SQL."""
     fence=None
     with tempfile.TemporaryDirectory(prefix='rf-',dir=runtime.run_root) as tmp:
-        stage=Path(tmp)
-        p._copy_bundle(source,stage,runtime.worker_gid,f.ENGINE_FILES,f.ENGINE_SHA256,'sql_read_fence.php')
-        with fs._directory(stage) as fd:
-            for name in ('backup_bridge.php','sql_accounts_policy.php'):
-                f._write(fd,name,p._read_file(Path(__file__).parent/'private'/name),runtime.worker_gid)
-            if ca is not None:f._write(fd,'ca.pem',ca,runtime.worker_gid)
+        stage=Path(tmp);_stage(runtime,source,stage,ca)
         target={k:database[k] for k in ('host','port','name','tls_required','tls_ca_file','tls_ca_sha256')}
         if ca is not None:target['tls_ca_file']=str(stage/'ca.pem')
         try:

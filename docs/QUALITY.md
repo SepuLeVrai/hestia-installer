@@ -2,10 +2,17 @@
 
 ## Lot ciblé : sauvegarde provisionnée avec verrou SQL continu
 
-Voir [le contrat intégré](PHASE5_PROVISIONED_BACKUP.md). Dix nouveaux contrôles
-s'ajoutent au baseline sans retrait ;65 contrôles concernés locaux,97 en Debian13
-avec les fichiers réels. Un seul job ciblé réunit les7 nouvelles recettes et
-les9 business historiques ; SQL/Apache/PHP8.4/NGINX réels, réseau externe coupé.
+Deux essais sont conservés : run36264655150 (cwd du sous-processus de test),
+puis run36264993299 (writer de secrets utilisé à tort pour le grand bridge).
+Le source-bundle existant traite désormais ce fichier ; limite16Kio conservée,
+onzième test ajouté.66 contrôles locaux/98 Debian13 et7 cas réels pour le gel
+correctif ; les9 business acquis sur fe95da21 ne sont pas revendiqués comme
+rejoués sur ce correctif. Voir le checkpoint pour les résultats définitifs.
+
+Voir [le contrat intégré](PHASE5_PROVISIONED_BACKUP.md). Onze nouveaux contrôles
+s'ajoutent au baseline sans retrait ;66 contrôles concernés locaux,97 en Debian13
+avec les fichiers réels. Un seul job ciblé réunit les7 nouvelles recettes ;
+les9 business historiques sont acquis sur le candidat initial ; SQL/Apache/PHP8.4/NGINX réels, réseau externe coupé.
 La sortie positive exige zéro erreur, échec ou skip, sources/modes stables et
 artefacts vérifiés. PHP/SQL/systemd sont indisponibles localement ; les doublures
 de composition et tests de pipes ne sont pas leurs preuves de remplacement.

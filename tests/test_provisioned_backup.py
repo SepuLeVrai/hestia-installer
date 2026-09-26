@@ -4,8 +4,10 @@ from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 import pickle
+import os
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -94,6 +96,29 @@ class ProvisionedBackupTests(unittest.TestCase):
 
 
 class SqlFenceChannelTests(unittest.TestCase):
+    def test_large_shared_bridge_uses_source_bundle_and_keeps_secret_limit(self):
+        shared=(Path(r.__file__).parent/'private/backup_bridge.php').read_bytes()
+        self.assertGreater(len(shared),16384)
+        def bundle(source,stage,gid,engine_files,engine_sha256,bridge):
+            self.assertEqual(bridge,'backup_bridge.php')
+            target=stage/'bridge.php';target.write_bytes(shared);target.chmod(0o640)
+        with tempfile.TemporaryDirectory(dir='/var/lib') as tmp:
+            stage=Path(tmp)/'stage';stage.mkdir(mode=0o700)
+            trusted=Path(tmp)/'trusted';(trusted/'private').mkdir(parents=True,mode=0o750)
+            for name in ('sql_read_fence.php','sql_accounts_policy.php'):
+                path=trusted/'private'/name
+                path.write_bytes((Path(r.__file__).parent/'private'/name).read_bytes());path.chmod(0o640)
+            with r.fs._directory(stage) as fd:
+                with self.assertRaisesRegex(r.fs.AccountConfigurationError,'SIZE_REJECTED'):
+                    r.f._write(fd,'oversized-secret',shared,os.getgid())
+            with patch.object(r.p,'_copy_bundle',side_effect=bundle),patch.object(r,'__file__',str(trusted/'sql_read_fence.py')):
+                r._stage(SimpleNamespace(worker_gid=os.getgid()),Path('/unused'),stage,None)
+            self.assertEqual((stage/'backup_bridge.php').read_bytes(),shared)
+            self.assertEqual((stage/'bridge.php').read_bytes(),(Path(r.__file__).parent/'private/sql_read_fence.php').read_bytes())
+            self.assertEqual({x.name for x in stage.iterdir()},{'bridge.php','backup_bridge.php','sql_accounts_policy.php'})
+            for path in stage.iterdir():
+                info=path.stat();self.assertEqual((info.st_uid,info.st_gid,info.st_mode&0o777),(0,os.getgid(),0o640))
+
     def channel(self,body):
         proc=subprocess.Popen([sys.executable,'-c',body],stdin=subprocess.PIPE,stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,start_new_session=True,bufsize=0)

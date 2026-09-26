@@ -17,7 +17,7 @@ if __name__=='__main__':
     parser.add_argument('--with-files',action='store_true');args=parser.parse_args()
     modules=MODULES+(('test_coordinated_backup','test_backup_files') if args.with_files else ())
     before=quality.snapshot(ROOT);suite=unittest.defaultTestLoader.loadTestsFromNames(modules)
-    ids=sorted(t.id() for t in quality.flatten(suite));expected=97 if args.with_files else 65
+    ids=sorted(t.id() for t in quality.flatten(suite));expected=98 if args.with_files else 66
     required=json.loads((ROOT/'tests/quality-baseline.json').read_bytes())['required_tests']['core']
     assert set(ids)<=set(required) and len(ids)==expected and len(set(ids))==expected
     result=unittest.TextTestRunner(verbosity=2).run(suite);stable=quality.snapshot(ROOT)==before
