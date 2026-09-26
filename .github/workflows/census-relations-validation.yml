@@ -2,7 +2,7 @@ name: Targeted census relation review
 
 on:
   push:
-    branches: ['work/phase5-census-relations-diagnostics-20260926']
+    branches: ['work/phase5-census-relations-headless-20260926']
 
 permissions:
   contents: read
@@ -44,6 +44,13 @@ jobs:
             sleep 1
           done
           test "$ready" = true
+          docker exec hestia-discovery systemctl show getty@tty1.service \
+            -p LoadState -p ActiveState -p MainPID -p NRestarts > evidence/headless-console.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          state = dict(line.split('=', 1) for line in Path('evidence/headless-console.txt').read_text().splitlines())
+          assert state == {'LoadState': 'masked', 'ActiveState': 'inactive', 'MainPID': '0', 'NRestarts': '0'}, state
+          PY
           docker exec hestia-discovery cat /etc/os-release > evidence/environment.txt
           docker exec hestia-discovery busctl --version >> evidence/environment.txt
           docker exec hestia-discovery uname -a >> evidence/environment.txt

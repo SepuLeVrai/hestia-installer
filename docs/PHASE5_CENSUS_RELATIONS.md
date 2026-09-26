@@ -172,3 +172,29 @@ Le job conserve aussi le journal systemd et les dernières listes après les tes
 Un second job ciblé avec instrumentation est prévu sur un nouvel arbre gelé ;
 aucune relance identique. Un vert ultérieur ne prouvera pas la résolution de
 ces premiers refus. La suite reste conditionnée aux preuves exactes du checkpoint.
+
+## Second job : conflit observé et correction du banc sans console
+
+Le commit2907fe6810a9ace1d26512f3217b64202b2a6eed, arbre
+31ba06ab04bb68a91498e799f25331eaa8afc6d4, échoue au run36255697233 :
+299 contrôles verts,22/24 cas système verts, deux erreurs et zéro échec/skip.
+Les huit nouveaux cas passent. Les deux recettes parentes sont refusées par
+`DISCOVERY_JOB_BINDING_CONFLICT`, contrôle de cohérence entre ListUnits/ListJobs.
+Le journal montre getty@tty1.service redémarrant toutes les5 à6 secondes,
+notamment à16:30:55 et16:31:00, aux fenêtres des deux refus. Les identifiants
+des jobs conflictuels ne figurent pas au diagnostic ; cette corrélation ne
+suffit pas à attribuer chaque refus à cette unité ni à expliquer rétroactivement
+les incidents64f97bf5 et12060235.
+
+L'image Dockerfile.discovery masque uniquement getty@tty1.service, console
+inutilisée dans ce banc sans terminal. Le job exige son état masked/inactive,
+MainPID=0/NRestarts=0 avant les recettes et conserve le journal après celles-ci.
+Aucune unité du système hôte ou du produit n'est modifiée. Aucun changement
+du collecteur, de ses refus, des assertions de recettes ou des délais. Les
+mutations explicites de jobs/processus/relation restent testées ; la collecte
+continue de refuser les changements de population et les jobs incohérents.
+
+Un troisième et dernier job ciblé du lot est prévu sur ce nouvel arbre gelé.
+Pas de relance identique ni campagne globale. Ses preuves exactes déterminent
+le statut du checkpoint ; aucun succès n'est anticipé ici. Les deux archives
+négatives complètes restent jointes, ainsi que l'incident parent et c2acc806.

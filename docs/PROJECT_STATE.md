@@ -1,8 +1,10 @@
 # État du projet
 
-Lot census/relations : run36255253018 refusé (299 contrôles verts,20/24 cas
-système verts). Diagnostic borné ajouté aux fixtures ; deuxième job prévu.
-Sources/preuves négatives conservées, causes non établies, aucun PASS anticipé.
+Lot census/relations : deux jobs refusés (runs36255253018 et36255697233).
+Le second conserve299 contrôles et22/24 cas réels verts ; deux conflits de jobs
+systemd. Le journal montre une boucle de getty@tty1.service dans le conteneur.
+Cette seule console est masquée dans l’image jetable ; troisième job ciblé prévu
+après gel, sans modification des contrôles produit. Preuves négatives conservées.
 
 ## Candidats vivants, relations et sélection conservatrice
 
@@ -10,7 +12,7 @@ Sur la base b1078e9d, le [raccordement census/relations](PHASE5_CENSUS_RELATIONS
 conserve les FD jusqu'à clôture, lit les propriétés une fois par unité et par
 passage, puis relie des faits candidats distincts au modèle pur. Signaux de
 threads, descendants et inconnus ne sont pas des identités effectives inventées.
-24 nouveaux tests, 299 contrôles ; un seul job Debian13 de24 scénarios réels
+24 nouveaux tests, 299 contrôles ; un job Debian13 final de24 scénarios réels
 prévu après gel. Résultats exacts au checkpoint, sans Quality globale ni promotion.
 Prochain lot : contrat d'identités configurées et de contexte d'exécution.
 Checkpoint puis arrêt. Les sections suivantes sont historiques ; l'incident

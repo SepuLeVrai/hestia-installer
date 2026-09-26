@@ -6,7 +6,10 @@ RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d \
     && apt-get update -qq \
     && apt-get install -y --no-install-recommends systemd-sysv dbus python3 passwd \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /evidence
+    && mkdir -p /evidence \
+    && ln -s /dev/null /etc/systemd/system/getty@tty1.service
+# This headless fixture has no tty1. Prevent its unrelated login restart loop;
+# explicit process/job changes remain exercised by the real negative recipes.
 COPY --chown=0:0 . /opt/hestia-installer
 STOPSIGNAL SIGRTMIN+3
 CMD ["/sbin/init"]

@@ -1,8 +1,10 @@
 # Handoff WORK - 5C2a, prochaine frontière 5C2b
 
-Lot census/relations : run36255253018 refusé (299 contrôles verts,20/24 cas
-système verts). Diagnostic borné ajouté aux fixtures ; deuxième job prévu.
-Sources/preuves négatives conservées, causes non établies, aucun PASS anticipé.
+Lot census/relations : deux jobs refusés (runs36255253018 et36255697233).
+Le second conserve299 contrôles et22/24 cas réels verts ; deux conflits de jobs
+systemd. Le journal montre une boucle de getty@tty1.service dans le conteneur.
+Cette seule console est masquée dans l’image jetable ; troisième job ciblé prévu
+après gel, sans modification des contrôles produit. Preuves négatives conservées.
 
 ## Reprise après relations des candidats vivants
 
@@ -11,7 +13,7 @@ Lire [PHASE5_CENSUS_RELATIONS.md](PHASE5_CENSUS_RELATIONS.md). Le nouveau lecteu
 compose census, liaisons, Names/huit relations et faits candidats du modèle pur.
 Il garde tous les FD jusqu'aux contrôles finaux, les inconnus et les limites.
 Pas d'enrôlement, exclusion ni drain. 299 contrôles et24 cas réels prévus dans
-un seul job ciblé après gel ; preuves exactes au checkpoint. Prochaine reprise :
+le job ciblé final après gel ; preuves exactes au checkpoint. Prochaine reprise :
 identités configurées et contexte d'exécution, sans adresse d'unité nommée.
 Ne pas présenter le refus parent12060235 ni l'intermittence DOM comme corrigés.
 Checkpoint puis arrêt ; les sections ci-dessous sont historiques.
