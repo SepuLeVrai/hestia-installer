@@ -1,24 +1,23 @@
 {
-  "schema": 1,
   "published_baseline": "2d86b36da536f118ae5dbb79ddbba663644cf18f",
   "required_tests": {
-    "tools": [
-      "test_quality_gate.QualityGateTests.test_dispatch_always_runs_full_quality",
-      "test_quality_gate.QualityGateTests.test_documentation_change_classification_is_fail_closed",
-      "test_quality_gate.QualityGateTests.test_expected_failures_are_not_accepted",
-      "test_quality_gate.QualityGateTests.test_incomplete_reports_cannot_authorize_packaging",
-      "test_quality_gate.QualityGateTests.test_missing_diff_metadata_enables_full_quality",
-      "test_quality_gate.QualityGateTests.test_missing_inventory_and_source_drift_are_failures",
-      "test_quality_gate.QualityGateTests.test_only_successful_required_jobs_pass_the_gate",
-      "test_quality_gate.QualityGateTests.test_package_preserves_exact_bytes_and_unix_permissions",
-      "test_quality_gate.QualityGateTests.test_package_refuses_last_minute_edits",
-      "test_quality_gate.QualityGateTests.test_passing_test_is_required",
-      "test_quality_gate.QualityGateTests.test_runtime_ast_guards_detect_shell_spacing_and_dynamic_calls",
-      "test_quality_gate.QualityGateTests.test_script_mode_regression_is_visible_in_snapshot",
-      "test_quality_gate.QualityGateTests.test_skip_cannot_produce_green_quality",
-      "test_quality_gate.QualityGateTests.test_source_manifest_detects_content_and_executable_mode_changes",
-      "test_quality_gate.QualityGateTests.test_source_symlinks_are_refused",
-      "test_quality_gate.QualityGateTests.test_unsafe_archive_paths_are_rejected"
+    "bridge": [
+      "browser_wizard.BrowserWizardTests.test_draft_refresh_empty_selection_and_advanced_ref",
+      "browser_wizard.BrowserWizardTests.test_expired_session_is_rejected_by_https_without_replay",
+      "browser_wizard.BrowserWizardTests.test_failure_credential_renewal_retry_and_rollback_confirmation",
+      "browser_wizard.BrowserWizardTests.test_forms_remain_accessible_across_viewports",
+      "browser_wizard.BrowserWizardTests.test_fresh_web_full_ui_report_and_refresh_no_replay",
+      "browser_wizard.BrowserWizardTests.test_full_selection_and_no_early_archive",
+      "browser_wizard.BrowserWizardTests.test_initial_network_failure_has_explicit_reconnect",
+      "browser_wizard.BrowserWizardTests.test_keyboard_navigation_and_dialog_escape",
+      "browser_wizard.BrowserWizardTests.test_partial_github_denial_blocks_next_and_shows_each_status",
+      "browser_wizard.BrowserWizardTests.test_preflight_failure_blocks_next_and_server_plan",
+      "browser_wizard.BrowserWizardTests.test_raw_error_text_is_never_injected_or_displayed",
+      "browser_wizard.BrowserWizardTests.test_refresh_while_server_busy_never_replays",
+      "browser_wizard.BrowserWizardTests.test_reset_unapproved_plan_then_new_selection",
+      "browser_wizard.BrowserWizardTests.test_responsive_plan_and_reduced_motion",
+      "browser_wizard.BrowserWizardTests.test_stale_tab_choices_are_not_overwritten_and_can_reload",
+      "browser_wizard.BrowserWizardTests.test_upgrade_web_gateway_selection"
     ],
     "core": [
       "test_backup_files.DataSnapshotTests.test_cancellation_before_capture_or_restore_does_not_create_target",
@@ -528,6 +527,17 @@
       "test_storage_inventory.StorageInventoryTests.test_shared_storage_and_short_session_retention_remain_blockers",
       "test_storage_inventory.StorageInventoryTests.test_source_pin_and_source_drift_are_rejected_and_diagnostics_are_closed",
       "test_storage_inventory.StorageInventoryTests.test_unsafe_noncanonical_paths_and_control_characters_fail_closed",
+      "test_system_bus.SystemBusTests.test_active_broker_is_preserved_and_identity_bound",
+      "test_system_bus.SystemBusTests.test_consent_is_strict_and_precedes_observation",
+      "test_system_bus.SystemBusTests.test_inactive_broker_starts_once_then_must_be_ready",
+      "test_system_bus.SystemBusTests.test_masks_overrides_jobs_reload_and_duplicate_fields_are_rejected",
+      "test_system_bus.SystemBusTests.test_observation_of_stopped_bus_never_starts_or_repairs_it",
+      "test_system_bus.SystemBusTests.test_package_profiles_request_dbus_but_never_mask_it",
+      "test_system_bus.SystemBusTests.test_profile_or_broker_replacement_refuses_success_without_restart",
+      "test_system_bus.SystemBusTests.test_start_command_has_one_fixed_target_and_no_interactive_authorization",
+      "test_system_bus.SystemBusTests.test_start_failure_is_closed_and_never_retried",
+      "test_system_bus.SystemBusTests.test_unhealthy_active_broker_is_never_restarted",
+      "test_system_bus.SystemBusTests.test_vendor_checksums_refuse_change_missing_duplicate_links_and_permissions",
       "test_system_drain.SystemDrainTests.test_admission_stops_first_and_live_report_stays_narrow_and_private",
       "test_system_drain.SystemDrainTests.test_cancellation_after_reservation_retains_attempt_without_reopening",
       "test_system_drain.SystemDrainTests.test_changed_profile_cannot_recover_existing_attempt",
@@ -1004,24 +1014,6 @@
       "test_wizard.WizardHTTPTests.test_new_routes_require_authentication",
       "test_wizard.WizardHTTPTests.test_unknown_preflight_arguments_refused"
     ],
-    "bridge": [
-      "browser_wizard.BrowserWizardTests.test_draft_refresh_empty_selection_and_advanced_ref",
-      "browser_wizard.BrowserWizardTests.test_expired_session_is_rejected_by_https_without_replay",
-      "browser_wizard.BrowserWizardTests.test_failure_credential_renewal_retry_and_rollback_confirmation",
-      "browser_wizard.BrowserWizardTests.test_forms_remain_accessible_across_viewports",
-      "browser_wizard.BrowserWizardTests.test_fresh_web_full_ui_report_and_refresh_no_replay",
-      "browser_wizard.BrowserWizardTests.test_full_selection_and_no_early_archive",
-      "browser_wizard.BrowserWizardTests.test_initial_network_failure_has_explicit_reconnect",
-      "browser_wizard.BrowserWizardTests.test_keyboard_navigation_and_dialog_escape",
-      "browser_wizard.BrowserWizardTests.test_partial_github_denial_blocks_next_and_shows_each_status",
-      "browser_wizard.BrowserWizardTests.test_preflight_failure_blocks_next_and_server_plan",
-      "browser_wizard.BrowserWizardTests.test_raw_error_text_is_never_injected_or_displayed",
-      "browser_wizard.BrowserWizardTests.test_refresh_while_server_busy_never_replays",
-      "browser_wizard.BrowserWizardTests.test_reset_unapproved_plan_then_new_selection",
-      "browser_wizard.BrowserWizardTests.test_responsive_plan_and_reduced_motion",
-      "browser_wizard.BrowserWizardTests.test_stale_tab_choices_are_not_overwritten_and_can_reload",
-      "browser_wizard.BrowserWizardTests.test_upgrade_web_gateway_selection"
-    ],
     "native": [
       "browser_native.NativeBrowserTests.test_cookie_headers_and_original_assets_are_effective",
       "browser_native.NativeBrowserTests.test_draft_refresh_empty_selection_and_advanced_ref",
@@ -1044,6 +1036,25 @@
       "browser_native.NativeBrowserTests.test_responsive_plan_and_reduced_motion",
       "browser_native.NativeBrowserTests.test_stale_tab_choices_are_not_overwritten_and_can_reload",
       "browser_native.NativeBrowserTests.test_upgrade_web_gateway_selection"
+    ],
+    "tools": [
+      "test_quality_gate.QualityGateTests.test_dispatch_always_runs_full_quality",
+      "test_quality_gate.QualityGateTests.test_documentation_change_classification_is_fail_closed",
+      "test_quality_gate.QualityGateTests.test_expected_failures_are_not_accepted",
+      "test_quality_gate.QualityGateTests.test_incomplete_reports_cannot_authorize_packaging",
+      "test_quality_gate.QualityGateTests.test_missing_diff_metadata_enables_full_quality",
+      "test_quality_gate.QualityGateTests.test_missing_inventory_and_source_drift_are_failures",
+      "test_quality_gate.QualityGateTests.test_only_successful_required_jobs_pass_the_gate",
+      "test_quality_gate.QualityGateTests.test_package_preserves_exact_bytes_and_unix_permissions",
+      "test_quality_gate.QualityGateTests.test_package_refuses_last_minute_edits",
+      "test_quality_gate.QualityGateTests.test_passing_test_is_required",
+      "test_quality_gate.QualityGateTests.test_runtime_ast_guards_detect_shell_spacing_and_dynamic_calls",
+      "test_quality_gate.QualityGateTests.test_script_mode_regression_is_visible_in_snapshot",
+      "test_quality_gate.QualityGateTests.test_skip_cannot_produce_green_quality",
+      "test_quality_gate.QualityGateTests.test_source_manifest_detects_content_and_executable_mode_changes",
+      "test_quality_gate.QualityGateTests.test_source_symlinks_are_refused",
+      "test_quality_gate.QualityGateTests.test_unsafe_archive_paths_are_rejected"
     ]
-  }
+  },
+  "schema": 1
 }

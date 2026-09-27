@@ -1,0 +1,101 @@
+name: Phase 5 system bus provisioning
+
+on:
+  push:
+    branches: ['verification/phase5-system-bus-20260927']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installer-system-bus-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  packages:
+    name: Official packages offline install / Debian ${{ matrix.debian }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        debian: ['12', '13']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build fresh disposable Debian without application dependencies
+        env:
+          DEBIAN_VERSION: ${{ matrix.debian }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/hestia-package-source" evidence
+          git archive --format=tar HEAD > "$RUNNER_TEMP/hestia-package-source.tar"
+          tar -xf "$RUNNER_TEMP/hestia-package-source.tar" -C "$RUNNER_TEMP/hestia-package-source"
+          git rev-parse HEAD > evidence/commit.txt
+          git rev-parse HEAD^{tree} > evidence/tree.txt
+          docker build --build-arg "DEBIAN=$DEBIAN_VERSION" \
+            -f "$RUNNER_TEMP/hestia-package-source/tests/integration/Dockerfile.packages" \
+            -t hestia-packages "$RUNNER_TEMP/hestia-package-source"
+      - name: Run affected controller checks
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --network none hestia-packages python3 /opt/hestia-installer/scripts/quality_system_bus.py --report /tmp/system-bus-controls.json | tee evidence/system-bus-controls.log
+      - name: Acquire authenticated official packages without installing them
+        run: |
+          set -Eeuo pipefail
+          # Disposable CI only; no credentials, published ports or host mounts.
+          docker run -d --name hestia-packages --privileged --cgroupns=private \
+            --tmpfs /run --tmpfs /run/lock --tmpfs /tmp hestia-packages
+          ready=false
+          for attempt in $(seq 1 60); do
+            state=$(docker exec hestia-packages systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+          docker exec hestia-packages cat /etc/os-release > evidence/environment.txt
+          docker exec -e HESTIA_SYSTEM_PACKAGES_TEST=1 hestia-packages \
+            python3 /opt/hestia-installer/tests/integration/system_packages_debian.py --phase acquire \
+            2>&1 | tee evidence/packages-acquire.log
+          # Keep one identical acquired plan for the receipt-failure experiment.
+          docker commit hestia-packages hestia-packages-acquired
+          docker network disconnect bridge hestia-packages
+          docker inspect --format '{{json .NetworkSettings.Networks}}' hestia-packages > evidence/network-disconnected.json
+      - name: Install frozen versions with the container disconnected
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_SYSTEM_PACKAGES_TEST=1 hestia-packages \
+            python3 /opt/hestia-installer/tests/integration/system_packages_debian.py --phase install \
+            2>&1 | tee evidence/packages-install.log
+      - name: Prove actual installed packages cannot certify a failed receipt
+        run: |
+          set -Eeuo pipefail
+          docker run -d --name hestia-packages-interrupted --network none --privileged --cgroupns=private \
+            --tmpfs /run --tmpfs /run/lock --tmpfs /tmp hestia-packages-acquired
+          ready=false
+          for attempt in $(seq 1 60); do
+            state=$(docker exec hestia-packages-interrupted systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+          docker exec -e HESTIA_SYSTEM_PACKAGES_TEST=1 hestia-packages-interrupted \
+            python3 /opt/hestia-installer/tests/integration/system_packages_debian.py --phase interrupted \
+            2>&1 | tee evidence/packages-interrupted.log
+      - name: Preserve non-secret evidence and remove disposable containers
+        if: always()
+        run: |
+          docker cp hestia-packages:/evidence/. evidence/ || true
+          docker cp hestia-packages-interrupted:/evidence/packages-interrupted.json evidence/ || true
+          docker logs --tail 100 hestia-packages > evidence/boot.log 2>&1 || true
+          docker exec hestia-packages journalctl -b -p warning --no-pager -n 100 > evidence/systemd-warnings.log 2>&1 || true
+          docker rm -f hestia-packages hestia-packages-interrupted || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: phase5-system-bus-debian-${{ matrix.debian }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7

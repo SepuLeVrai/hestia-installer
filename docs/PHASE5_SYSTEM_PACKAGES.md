@@ -1,5 +1,11 @@
 # Phase 5 — paquets officiels acquis puis installés hors réseau
 
+## Prérequis D-Bus - 27 septembre 2026
+
+Le [prérequis D-Bus](PHASE5_SYSTEM_BUS.md) est maintenant demandé par le plan
+officiel et préparé avant le reçu installé. Les services applicatifs restent
+masqués. Un bus existant est conservé ; les observations ne le démarrent pas.
+
 ## Base et périmètre privé
 
 Base qualifiée `870560b61ebc271d8979741b1f6b074a76c93251`, arbre

@@ -11,6 +11,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from installer import system_packages as s
+from installer import system_bus as b
 from installer.operations import RecoveryDecision
 from service_identity_systemd import ServiceIdentityLive
 from http_runtime_systemd import command
@@ -34,6 +35,11 @@ class Acquisition(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.packages = profile(); cls.before = cls.packages._installed()
+        if cls.packages.nginx:
+            assert 'dbus' not in cls.before and not Path('/usr/bin/dbus-daemon').exists()
+        else:
+            b.ensure(confirmed=True)
+            (EVIDENCE / 'preexisting-bus-identity.json').write_text(json.dumps(b._probe()))
         # An exact existing block policy is retained on Debian 12. Debian 13
         # exercises creation and removal of the provisioner's own policy.
         if cls.packages.nginx: s.POLICY.unlink()
@@ -123,6 +129,11 @@ class Installation(unittest.TestCase):
         self.assertEqual(report['state'], 'SYSTEM_PACKAGES_INSTALLED')
         self.assertFalse(report['application_installed']); self.assertFalse(report['system_wiring_verified'])
         self.assertTrue(report['default_services_blocked']); self.packages._verify_installed(self.value)
+        self.assertTrue(report['system_bus_ready'])
+        self.assertTrue(b.observe()['system_bus_ready'])
+        if not self.packages.nginx:
+            self.assertEqual(json.loads(json.dumps(b._probe())),
+                json.loads((EVIDENCE / 'preexisting-bus-identity.json').read_text()))
         for unit in self.packages._units(self.value['host']):
             self.assertEqual(command('systemctl', 'is-enabled', unit, check=False).stdout.strip(), b'masked')
             self.assertNotEqual(command('systemctl', 'start', unit, check=False).returncode, 0)
@@ -156,6 +167,55 @@ class Installation(unittest.TestCase):
         fixture.test_created_identity_runs_real_apache_php_and_collector_with_private_files()
         self.assertEqual(self.packages.observe_installed()['state'], 'SYSTEM_PACKAGES_INSTALLED')
 
+    def test_08_existing_bus_is_preserved_through_repeated_ensure_and_observation(self):
+        identity = b._probe()
+        self.assertFalse(b.ensure(confirmed=True)['system_bus_started'])
+        self.assertTrue(b.observe()['system_bus_ready'])
+        self.assertEqual(b._probe(), identity)
+
+    def test_09_masked_bus_is_refused_without_unmask_or_restart(self):
+        identity = b._probe(); path = Path('/etc/systemd/system/dbus.service')
+        self.assertFalse(path.exists()); path.symlink_to('/dev/null')
+        try:
+            command('systemctl', 'daemon-reload')
+            with self.assertRaises(b.SystemBusError): b.ensure(confirmed=True)
+            self.assertEqual(path.readlink(), Path('/dev/null')); self.assertEqual(b._probe(), identity)
+        finally: path.unlink(); command('systemctl', 'daemon-reload')
+
+    def test_10_custom_dropin_is_refused_without_overwrite_or_restart(self):
+        identity = b._probe(); directory = Path('/etc/systemd/system/dbus.service.d')
+        directory.mkdir(); path = directory / '90-fixture.conf'; content = '[Service]\nEnvironment=HESTIA_FIXTURE=1\n'
+        path.write_text(content)
+        try:
+            command('systemctl', 'daemon-reload')
+            with self.assertRaises(b.SystemBusError): b.ensure(confirmed=True)
+            self.assertEqual(path.read_text(), content); self.assertEqual(b._probe(), identity)
+        finally: path.unlink(); directory.rmdir(); command('systemctl', 'daemon-reload')
+
+    def test_11_changed_vendor_bytes_are_refused_and_not_repaired(self):
+        identity = b._probe(); path = b.VENDOR / 'dbus.service'; original = path.read_bytes()
+        try:
+            path.write_bytes(original + b'\n# fixture change\n')
+            with self.assertRaises(b.SystemBusError): b.ensure(confirmed=True)
+            self.assertEqual(path.read_bytes(), original + b'\n# fixture change\n')
+            self.assertEqual(b._probe(), identity)
+        finally: path.write_bytes(original); command('systemctl', 'daemon-reload')
+
+    def test_12_stopped_bus_requires_explicit_ensure_and_read_only_recovery_does_not_start(self):
+        # Only the disposable fixture stops its broker. The product has no stop
+        # command and never temporarily disables an administrator's protection.
+        directory = Path('/etc/systemd/system/dbus.service.d'); directory.mkdir()
+        path = directory / '90-fixture.conf'; path.write_text('[Unit]\nRefuseManualStop=no\n')
+        try:
+            command('systemctl', 'daemon-reload'); command('systemctl', 'stop', 'dbus.service', 'dbus.socket')
+        finally: path.unlink(); directory.rmdir(); command('systemctl', 'daemon-reload')
+        with self.assertRaises(b.SystemBusError): b.observe()
+        self.assertEqual(s.PackageInstallationOperation(self.packages, self.ready['plan_sha256']).recover(
+            None, 'apply').decision, RecoveryDecision.MANUAL)
+        self.assertEqual(b._state('dbus.service')['ActiveState'], 'inactive')
+        self.assertTrue(b.ensure(confirmed=True)['system_bus_started'])
+        self.assertTrue(self.packages.observe_installed()['system_bus_ready'])
+
 
 class InterruptedInstallation(unittest.TestCase):
     def test_real_install_with_failed_receipt_stays_manual_and_never_replays(self):
@@ -183,7 +243,7 @@ if __name__ == '__main__':
     if os.environ.get('HESTIA_SYSTEM_PACKAGES_TEST') != '1' or os.geteuid() != 0 or Path('/proc/1/comm').read_text().strip() != 'systemd':
         raise RuntimeError('Explicit disposable root systemd opt-in required')
     before = quality.snapshot(ROOT)
-    cls, expected = {'acquire': (Acquisition, 5), 'install': (Installation, 7), 'interrupted': (InterruptedInstallation, 1)}[args.phase]
+    cls, expected = {'acquire': (Acquisition, 5), 'install': (Installation, 12), 'interrupted': (InterruptedInstallation, 1)}[args.phase]
     result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(cls))
     stable = before == quality.snapshot(ROOT)
     passed = result.wasSuccessful() and result.testsRun == expected and not result.skipped and stable

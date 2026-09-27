@@ -1,5 +1,12 @@
 # Quality et non-régression de HESTIA Installer
 
+## Prérequis D-Bus - 27 septembre 2026
+
+Le [lot D-Bus](PHASE5_SYSTEM_BUS.md) exige 35 contrôles locaux et 18 scénarios
+réels par Debian 12/13, sans skip. La matrice distingue D-Bus absent et déjà
+actif ; acquisition authentifiée puis installation hors réseau. Résultats
+réels au checkpoint ; ce gel ne préjuge pas du vert et ne vaut pas Quality globale.
+
 ## Admission des planificateurs classiques — 27 septembre 2026
 
 Le [lot suivant](PHASE5_CLASSIC_SCHEDULER_ADMISSION.md) refuse les empreintes

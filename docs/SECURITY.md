@@ -1,5 +1,11 @@
 # Modèle de sécurité
 
+## Prérequis D-Bus - 27 septembre 2026
+
+Le [cycle de vie D-Bus](PHASE5_SYSTEM_BUS.md) refuse masques, substitutions,
+drop-ins, états en erreur et dérive des fichiers Debian. Il ne redémarre ni
+ne répare un bus existant. La découverte de sauvegarde reste en lecture seule.
+
 ## Admission des planificateurs classiques — 27 septembre 2026
 
 Le [lot suivant](PHASE5_CLASSIC_SCHEDULER_ADMISSION.md) refuse les empreintes

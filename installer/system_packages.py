@@ -1,7 +1,8 @@
 """Private official Debian package acquisition and fresh installation.
 
 Uses an isolated authenticated APT configuration. Never upgrades/removes an
-existing package, changes host repositories, or starts the default services.
+existing package, changes host repositories, or starts application services.
+The native system bus is explicitly made ready after dependency installation.
 The sealed archive plan must be explicitly selected before host installation.
 """
 import io
@@ -16,6 +17,7 @@ from installer.operations import Operation, Recovery, RecoveryDecision
 
 from installer import backup_runtime as br
 from installer import http_runtime as h
+from installer import system_bus
 
 fs, f, p = h.fs, h.f, h.p
 KEYRING = Path('/usr/share/keyrings/debian-archive-keyring.gpg')
@@ -166,7 +168,7 @@ class SystemPackages:
         family = 'php' + host['php']
         return ('apache2', 'mariadb-server', family + '-cli', family + '-fpm', family + '-mysql',
             family + '-mbstring', family + '-curl', family + '-xml', family + '-zip', family + '-gd',
-            'passwd', 'util-linux', 'ca-certificates') + (('nginx',) if self.nginx else ())
+            'passwd', 'util-linux', 'ca-certificates', 'dbus') + (('nginx',) if self.nginx else ())
 
     def _units(self, host):
         return ('apache2.service', 'apache-htcacheclean.service', 'php' + host['php'] + '-fpm.service',
@@ -346,6 +348,7 @@ class SystemPackages:
             self._masks(host); self._policy()
             self._apt(['--yes', '--no-download', '--no-remove', '--no-install-recommends', 'install', *exact], timeout=600)
             self._verify_installed(value); self._masks(host)
+            system_bus.ensure(confirmed=True)
             with fs._directory(self.directory) as fd:
                 _journal(fd, 'installed.json', {'version': 1, 'plan_sha256': plan_sha256,
                     'installed_sha256': f._sha(p._json(self._installed()))})
@@ -374,9 +377,10 @@ class SystemPackages:
             require(attempt['plan_sha256'] == digest and type(attempt['preexisting_policy']) is bool)
             require(self._policy() == attempt['preexisting_policy'])
             require(receipt == {'version': 1, 'plan_sha256': digest, 'installed_sha256': f._sha(p._json(self._installed()))})
+            system_bus.observe()
             return {'state': 'SYSTEM_PACKAGES_INSTALLED', 'plan_sha256': digest, 'packages': len(value['archives']),
                 'packages_installed': True, 'default_services_blocked': True, 'web_php_compatible': value['host']['debian'] == '13',
-                'application_installed': False, 'system_wiring_verified': False}
+                'system_bus_ready': True, 'application_installed': False, 'system_wiring_verified': False}
         except SystemPackagesError: raise
         except Exception: raise SystemPackagesError('SYSTEM_PACKAGES_INSTALL_INCOMPLETE') from None
 
@@ -410,7 +414,7 @@ class PackageInstallationOperation(PackageAcquisitionOperation):
         require(type(packages) is SystemPackages and type(plan_sha256) is str and re.fullmatch(r'[a-f0-9]{64}', plan_sha256))
         self.packages, self.plan_sha256 = packages, plan_sha256
         Operation.__init__(self, StepSpec(name='system.packages-install', operation='system.packages.install', module='web',
-            boundary='system.packages-install', action='Installer le plan Debian figé sans démarrer les services',
+            boundary='system.packages-install', action='Installer les dépendances et préparer le bus système',
             resources=(ResourceSpec('package_installation', 'external', 'debian-packages.' + packages.instance),),
             rollback_supported=False, warnings=('Aucune réparation ni désinstallation automatique après interruption.',)))
 

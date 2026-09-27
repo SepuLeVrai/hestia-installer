@@ -1,5 +1,13 @@
 # État du projet
 
+## Prérequis D-Bus - 27 septembre 2026
+
+Le [raccordement D-Bus](PHASE5_SYSTEM_BUS.md) ajoute installation officielle,
+démarrage explicite si inactif et conservation du bus existant. Qualification
+ciblée sur le gel décrite dans ce document ; résultats au checkpoint.
+Prochain chantier : maîtrise effective des CLI et planificateurs natifs.
+5C2 et la phase 5 restent ouvertes.
+
 ## Admission des planificateurs classiques — 27 septembre 2026
 
 Le [lot suivant](PHASE5_CLASSIC_SCHEDULER_ADMISSION.md) refuse les empreintes
