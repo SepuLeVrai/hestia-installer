@@ -19,6 +19,8 @@ from web_configuration_fixture import local_request
 
 class ProvisionedBackupTests(unittest.TestCase):
     def setUp(self):
+        observation=patch.object(b.sa,'_observe',return_value=('unit-fixture',))
+        observation.start();self.addCleanup(observation.stop)
         self.http=b.h.HttpRuntime(b.h.RuntimeSpec('a'*32,Path('/var/lib/hestia-managed'),Path('/srv/hestia-managed'),
             'hestia-managed','hestia.test',8123,'8.4',external_uploads=True,
             maintenance_directory=Path('/var/lib/hestia-config/slot/maintenance')))
@@ -70,6 +72,8 @@ class ProvisionedBackupTests(unittest.TestCase):
             try:yield barrier
             finally:events.append('close')
         def compose(*a,**kw):
+            self.assertIs(type(kw['scheduler_observation']),b.sa.SchedulerObservation)
+            kw['scheduler_observation'].assert_held()
             self.assertIs(kw['service_barrier'],barrier);self.assertIs(kw['maintenance'],maintenance)
             self.assertEqual(kw['inventory'].roots,tuple((n.replace('-','_'),self.http.spec.root/'data'/n)
                 for n in ('sessions','tmp','upload-tmp','imports','log','uploads')))
@@ -93,6 +97,13 @@ class ProvisionedBackupTests(unittest.TestCase):
 
     def test_public_repr_has_no_private_configuration(self):
         for text in ('hestia-managed','/var/lib','private-sql-fixture'):self.assertNotIn(text,repr(self.operation))
+
+    def test_scheduler_rejection_precedes_gate_and_any_backup(self):
+        with patch.object(b.sa,'_observe',side_effect=b.sa.SchedulerAdmissionError(b.sa.REJECTED)), \
+             patch.object(b.hd.HttpDrain,'acquire') as drain, \
+             patch.object(b.c.CoordinatedBackup,'create_and_verify') as backup:
+            with self.assertRaisesRegex(b.sa.SchedulerAdmissionError,b.sa.REJECTED):self.execute()
+            drain.assert_not_called();backup.assert_not_called()
 
 
 class SqlFenceChannelTests(unittest.TestCase):

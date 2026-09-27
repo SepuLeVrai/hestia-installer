@@ -4,9 +4,11 @@ No arbitrary launcher adoption, reopening, original-target restore or exhaustive
 host certification. These are explicit later gates, not inferred from this run.
 """
 from pathlib import Path
+from contextlib import ExitStack
 from installer import backup_files as files, coordinated_backup as c, database_step as d
 from installer import finalization as f, http_drain as hd, http_runtime as h
 from installer import php_transport as p, session_cleaner as sc
+from installer import scheduler_admission as sa
 from installer.web_releases import STORAGE_COMMIT
 
 
@@ -40,11 +42,14 @@ class ProvisionedBackup:
         require(self._cleaner.runtime is self._http,'PROVISIONED_BACKUP_PROFILE_REQUIRED')
         require(cancel is None or not cancel.is_set(),'PROVISIONED_BACKUP_INTERRUPTED')
         drain=hd.HttpDrain(self._http,cleaner=self._cleaner)
-        with drain.acquire(confirmed=True,cancel=cancel) as barrier:
+        with ExitStack() as stack:
+            schedulers=stack.enter_context(sa.acquire())
+            barrier=stack.enter_context(drain.acquire(confirmed=True,cancel=cancel))
             account,_,_,_=self._http._inspect_configuration()
             inventory=files.DataInventory(tuple((name.replace('-','_'),spec.root/'data'/name)
                 for name in (*h.DATA,'uploads')),account.pw_uid,account.pw_gid)
             coordinator=c.CoordinatedBackup(self._runtime,self._source,repository=p.WEB_REPOSITORY,commit=STORAGE_COMMIT)
             return coordinator.create_and_verify(payload,authority,config_root=config_root,backup_root=backup_root,
                 inventory=inventory,maintenance=barrier.maintenance_lease,confirmed=True,
-                allow_global_read_lock=True,cancel=cancel,service_barrier=barrier)
+                allow_global_read_lock=True,cancel=cancel,service_barrier=barrier,
+                scheduler_observation=schedulers)

@@ -90,6 +90,9 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         self.assertEqual(checks,[True]);self.assertEqual(result['state'],'PROVISIONED_BACKUP_RESTORE_VERIFIED',result)
         self.assertTrue(result['sql_read_fence_verified']);self.assertTrue(result['provisioned_services_drained'])
         self.assertTrue(result['installer_settings_fenced']);self.assertTrue(result['configuration_storage_admitted'])
+        self.assertTrue(result['classic_scheduler_absence_observed'])
+        self.assertIs(result['host_scheduler_inventory_complete'],False)
+        self.assertIs(result['foreign_cli_controlled'],False)
         self.assertEqual(result['registered_roots'],6);self.assertEqual(result['trigger_smoke_verified'],5)
         for key in ('complete_web_backup','storage_inventory_complete','system_wiring_verified','phase5_complete',
                     'activity_resumed','apply_allowed','rollback_verified'):
@@ -224,6 +227,55 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         finally:
             if path.exists():path.rmdir()
 
+    def scheduler_refused_before_gate(self):
+        before=self.scope.observe()
+        with self.assertRaisesRegex(b.sa.SchedulerAdmissionError,b.sa.REJECTED):self.execute()
+        self.assertEqual(self.scope.observe(),before)
+        self.assertEqual(list(self.backups.iterdir()),[])
+
+    def test_provisioned_inactive_installed_classic_timer_refused(self):
+        self.setup_backup();path=Path('/etc/systemd/system/cron-hestia-fixture.timer')
+        self.assertFalse(path.exists())
+        data=b'[Timer]\nOnCalendar=yearly\nUnit=cron-hestia-fixture.service\n'
+        path.write_bytes(data);path.chmod(0o644)
+        try:
+            # No start and no show/load call: the installed population alone
+            # must reject a disabled timer which has never had an invocation.
+            command('systemctl','daemon-reload')
+            self.scheduler_refused_before_gate();self.assertEqual(path.read_bytes(),data)
+        finally:path.unlink();command('systemctl','daemon-reload')
+
+    def test_provisioned_loaded_transient_classic_service_refused(self):
+        self.setup_backup();unit='cron-hestia-fixture.service'
+        command('systemd-run','--unit='+unit,'--property=RemainAfterExit=yes','/usr/bin/true')
+        try:
+            state=lambda:command('systemctl','show','--property=ActiveState','--value',unit).stdout.strip()
+            until(lambda:state()==b'active',timeout=5)
+            self.scheduler_refused_before_gate()
+            self.assertEqual(state(),b'active')
+        finally:command('systemctl','stop',unit)
+
+    def test_provisioned_classic_spool_refused_without_read_or_removal(self):
+        self.setup_backup();path=Path('/var/spool/cron');self.assertFalse(path.exists())
+        path.mkdir(mode=0o700);queue=path/'crontabs';queue.mkdir(mode=0o700)
+        job=queue/self.web.pw_name;data=b'PRIVATE_QUEUED_JOB\xff\n';job.write_bytes(data)
+        try:
+            self.scheduler_refused_before_gate();self.assertEqual(job.read_bytes(),data)
+        finally:job.unlink();queue.rmdir();path.rmdir()
+
+    def test_provisioned_classic_config_appearing_after_copy_invalidates_receipt(self):
+        self.setup_backup();path=Path('/etc/crontab');self.assertFalse(path.exists())
+        capture=previous.files.capture_and_verify;data=b'PRIVATE_QUEUED_JOB\xff\n'
+        def drift(*args,**kwargs):
+            saved=capture(*args,**kwargs);path.write_bytes(data);return saved
+        try:
+            with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
+            self.incomplete(result);self.assertEqual(result['code'],b.sa.REJECTED)
+            self.assertEqual(path.read_bytes(),data)
+            self.sql([f"UPDATE `{self.db}`.App_Config SET valeur=valeur WHERE cle='APP_VERSION'"])
+        finally:
+            if path.exists():path.unlink()
+
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--web',type=Path,required=True)
@@ -232,11 +284,12 @@ if __name__=='__main__':
     names=sorted(n for n in ProvisionedBackupLive.__dict__ if n.startswith('test_provisioned_'))
     result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(ProvisionedBackupLive(n) for n in names))
     stable=source==quality.snapshot(ROOT);release=get_release(STORAGE_COMMIT)
-    report={'suite':'Provisioned services SQL fence configuration admission and restored business data','tests':result.testsRun,'expected':13,
+    report={'suite':'Provisioned services configuration and classic scheduler admission','tests':result.testsRun,'expected':17,
         'failures':len(result.failures),'errors':len(result.errors),'skips':len(result.skipped),
-        'status':'PASS' if result.wasSuccessful() and result.testsRun==13 and not result.skipped and stable else 'FAIL',
+        'status':'PASS' if result.wasSuccessful() and result.testsRun==17 and not result.skipped and stable else 'FAIL',
         'source_stable':stable,'source_files':len(source),'web_commit':release.commit,'web_tree':release.tree,
         'database_profile':'fresh_managed','proxy_identity_separate':True,'service_activation_delivered':False,
+        'classic_scheduler_admission_tested':True,'host_scheduler_inventory_complete':False,'foreign_cli_controlled':False,
         'storage_inventory_complete':False,'complete_web_backup':False,'application_installed':False,'phase5_complete':False}
     args.report.parent.mkdir(parents=True,exist_ok=True)
     (args.report.parent/'PROVISIONED-BACKUP-SOURCE-MANIFEST.json').write_bytes(quality.encode(source))

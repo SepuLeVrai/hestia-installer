@@ -1,5 +1,15 @@
 # Modèle de sécurité
 
+## Admission des planificateurs classiques — 27 septembre 2026
+
+Le [lot suivant](PHASE5_CLASSIC_SCHEDULER_ADMISSION.md) refuse les empreintes
+cron/anacron/at et familles apparentées avant le gate, puis les réobserve
+pendant la sauvegarde. Les unités installées inactives et chargées/transitoires
+sont couvertes par deux listes distinctes. Aucun inventaire global ni verrou
+contre les changements administratifs n'est revendiqué. 85 contrôles locaux,
+117 Debian 13 et 17 scénarios réels attendus sur le gel ; résultats au checkpoint.
+Les CLI et planificateurs natifs non couverts, puis 5C3/5C4/5D restent ouverts.
+
 ## Correctif de diagnostic —27septembre2026
 
 Le candidat270f2526/run36302090702 conserve106 contrôles Debian13 verts et

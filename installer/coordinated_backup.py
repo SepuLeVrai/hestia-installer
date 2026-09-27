@@ -14,6 +14,7 @@ import tempfile
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
+from installer import scheduler_admission as sa
 
 from installer import backup_files as files
 from installer import backup_runtime as br
@@ -101,7 +102,8 @@ class CoordinatedBackup:
     def create_and_verify(self, payload: dict, authority: d.SqlAuthorityCredentials, *, config_root: Path,
                           backup_root: Path, inventory: files.DataInventory, maintenance: m.MaintenanceLease,
                           confirmed: bool, allow_global_read_lock: bool, cancel=None,
-                          service_barrier: hd.HttpDrainLease | None = None) -> CoordinatedVerification:
+                          service_barrier: hd.HttpDrainLease | None = None,
+                          scheduler_observation: sa.SchedulerObservation | None = None) -> CoordinatedVerification:
         started = False
         fence = None
         configuration = None
@@ -111,6 +113,11 @@ class CoordinatedBackup:
                 require(type(service_barrier) is hd.HttpDrainLease and service_barrier._lease is maintenance,
                         'COORDINATED_SERVICE_BARRIER_REQUIRED')
                 service_barrier.assert_held()
+                require(type(scheduler_observation) is sa.SchedulerObservation,
+                        'COORDINATED_SCHEDULER_OBSERVATION_REQUIRED')
+                scheduler_observation.assert_held()
+            else:
+                require(scheduler_observation is None, 'COORDINATED_SCHEDULER_OBSERVATION_REQUIRED')
             if fence is not None: fence.assert_held()
             if configuration is not None: configuration.assert_held()
         try:
@@ -225,7 +232,10 @@ class CoordinatedBackup:
                             'storage_inventory_complete': False, 'system_wiring_verified': False}
                 if barrier_profile is not None:
                     manifest['service_barrier'] = {'profile_sha256': barrier_profile,
-                        'policy': 'PROVISIONED_HTTP_CLEANER_SQL_AND_CONFIGURATION_V2'}
+                        'policy': 'PROVISIONED_HTTP_CLEANER_SQL_CONFIGURATION_CLASSIC_SCHEDULERS_V3'}
+                    manifest['scheduler_admission'] = {'policy': 'CLASSIC_SCHEDULER_ABSENCE_V1',
+                        'reobserved_during_backup': True, 'observation_is_point_in_time': True,
+                        'host_scheduler_inventory_complete': False, 'foreign_cli_controlled': False}
                 sql._new_file(slot / 'coordinated.json', p._json(manifest))
                 held()
                 require(cancel is None or not cancel.is_set(), 'COORDINATED_INTERRUPTED')
@@ -241,6 +251,8 @@ class CoordinatedBackup:
                     result.update(state='PROVISIONED_BACKUP_RESTORE_VERIFIED',
                         provisioned_services_drained=True, sql_read_fence_verified=True,
                         installer_settings_fenced=True, configuration_storage_admitted=True,
+                        classic_scheduler_absence_observed=True, host_scheduler_inventory_complete=False,
+                        foreign_cli_controlled=False,
                         service_profile_sha256=barrier_profile, phase5_complete=False)
                 held()
                 with fs._directory(slot) as fd:
@@ -252,6 +264,8 @@ class CoordinatedBackup:
                 return CoordinatedVerification(p._json(result))
         except Exception as error:
             code = str(error) if isinstance(error, CoordinatedBackupError) else 'COORDINATED_OPERATION_UNAVAILABLE'
+            if isinstance(error, sa.SchedulerAdmissionError) and str(error) in (sa.REJECTED, sa.UNAVAILABLE):
+                code = str(error)
             if isinstance(error, (rf.SqlReadFenceError, admission.AdmissionError)) and str(error) in (
                     *rf.PROFILE_REJECTIONS, 'PROVISIONED_SETTINGS_BUSY', 'PROVISIONED_CONFIGURATION_CHANGED',
                     'PROVISIONED_EXTERNAL_STORAGE_REJECTED'):
