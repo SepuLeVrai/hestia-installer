@@ -1,5 +1,15 @@
 # État du projet
 
+## Protection du slot de configuration - 27 septembre 2026
+
+Base qualifiée `23b54743c605dd37cf9a2f7e45b21e710265d760`, run `36331417069`.
+Le [lot configuration](PHASE5_CONFIGURATION_FENCE.md) protège les fichiers du
+slot par immutable Ext4 avant copie. La maintenance reste disponible pour ses
+journaux. La levée est explicite, persistante et récupérable. Qualification
+attendue : 106 locaux, 163 Debian et 29 scénarios, résultats au checkpoint.
+Code Web, pointeurs et configurations externes restent une frontière distincte ;
+5C2 et les Quality globales ne sont pas déclarées terminées.
+
 ## Protection des inodes de données - 27 septembre 2026
 
 Le [lot Ext4](PHASE5_INODE_FENCE.md) ajoute une protection persistante de chaque

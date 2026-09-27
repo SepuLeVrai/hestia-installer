@@ -17,6 +17,7 @@ from pathlib import Path
 from installer import scheduler_admission as sa
 from installer import data_access as da
 from installer import inode_fence as inf
+from installer import configuration_fence as cf
 
 from installer import backup_files as files
 from installer import backup_runtime as br
@@ -111,6 +112,7 @@ class CoordinatedBackup:
         started = False
         fence = None
         configuration = None
+        configuration_fence = None
         def held():
             _held(maintenance)
             if service_barrier is not None:
@@ -132,6 +134,7 @@ class CoordinatedBackup:
                 require(inode_fence is None, 'COORDINATED_INODE_FENCE_REQUIRED')
             if fence is not None: fence.assert_held()
             if configuration is not None: configuration.assert_held()
+            if configuration_fence is not None: configuration_fence.assert_held()
         try:
             require(confirmed is True and allow_global_read_lock is True, 'COORDINATED_CONSENT_REQUIRED')
             held()
@@ -189,6 +192,7 @@ class CoordinatedBackup:
                 require(cancel is None or not cancel.is_set(), 'COORDINATED_INTERRUPTED')
                 if service_barrier is not None:
                     configuration = stack.enter_context(admission.acquire(conf, web, gid))
+                    configuration_fence = stack.enter_context(cf.acquire(maintenance, configuration, confirmed=True))
                     fence = stack.enter_context(rf.acquire(self.runtime, self.source, database, ca, authority, cancel=cancel))
                     held()
                 backup_id = os.urandom(16).hex()
@@ -244,7 +248,8 @@ class CoordinatedBackup:
                             'storage_inventory_complete': False, 'system_wiring_verified': False}
                 if barrier_profile is not None:
                     manifest['service_barrier'] = {'profile_sha256': barrier_profile,
-                        'policy': 'PROVISIONED_HTTP_CLEANER_SQL_CONFIGURATION_SCHEDULERS_DATA_INODES_V5'}
+                        'policy': 'PROVISIONED_HTTP_CLEANER_SQL_CONFIGURATION_SCHEDULERS_DATA_INODES_V6'}
+                    manifest['configuration_fence'] = configuration_fence.report()
                     manifest['data_access_fence'] = data_fence.report()
                     manifest['inode_fence'] = inode_fence.report()
                     manifest['scheduler_admission'] = {'policy': 'CLASSIC_SCHEDULER_ABSENCE_V1',
@@ -265,6 +270,8 @@ class CoordinatedBackup:
                     result.update(state='PROVISIONED_BACKUP_RESTORE_VERIFIED',
                         provisioned_services_drained=True, sql_read_fence_verified=True,
                         installer_settings_fenced=True, configuration_storage_admitted=True,
+                        configuration_slot_inodes_fenced=True, ordinary_root_settings_writes_fenced=True,
+                        configuration_fence_sha256=configuration_fence.report()['fence_sha256'],
                         canonical_data_paths_fenced=True, data_access_fence_sha256=data_fence.report()['fence_sha256'],
                         data_inode_writes_fenced=True, same_inode_alias_writes_fenced=True,
                         ordinary_root_data_writes_fenced=True, inode_fence_sha256=inode_fence.report()['fence_sha256'],

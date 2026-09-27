@@ -12,6 +12,7 @@ import fcntl
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import threading
@@ -25,6 +26,7 @@ import business_storage_systemd as previous
 from installer import provisioned_backup as b, http_drain as hd, sql_read_fence as rf
 from installer import data_access as da
 from installer import inode_fence as inf
+from installer import configuration_fence as cf
 import test_inode_fence_files as inode_fixture
 from installer.web_releases import STORAGE_COMMIT, get_release
 from http_runtime_systemd import command, until
@@ -44,11 +46,23 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
     def setUp(self):
         super().setUp()
         self.http_root=inode_fixture.VOLUME/os.urandom(16).hex()
+        self.output=inode_fixture.VOLUME/os.urandom(16).hex();self.output.mkdir(mode=0o755)
+        self.directory=self.output/self.directory.name
 
     def stop_services(self):
         if hasattr(self,'http_root') and self.http_root.is_relative_to(inode_fixture.VOLUME):
             inode_fixture.fixture_clear(self.http_root/'data')
+        if hasattr(self,'output') and self.output.is_relative_to(inode_fixture.VOLUME):
+            inode_fixture.fixture_clear(self.output)
         super().stop_services()
+        if hasattr(self,'output') and self.output.is_relative_to(inode_fixture.VOLUME):
+            shutil.rmtree(self.output,ignore_errors=True)
+
+    def unseal_configuration(self,lease):
+        self.assertTrue((self.scope.directory/cf.MARKER).is_file())
+        with cf.fs._directory(self.directory) as conf:
+            with b.c.admission.acquire(conf,self.webroot,self.web.pw_gid) as configuration:
+                with cf.recover(lease,configuration,confirmed=True) as protected:protected.unseal(confirmed=True)
 
     def setup_backup(self):
         self.ready();self.backups=self.root/'integrated-backups';self.backups.mkdir(mode=0o700)
@@ -103,6 +117,7 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         self.assertEqual(checks,[True]);self.assertEqual(result['state'],'PROVISIONED_BACKUP_RESTORE_VERIFIED',result)
         self.assertTrue(result['sql_read_fence_verified']);self.assertTrue(result['provisioned_services_drained'])
         self.assertTrue(result['installer_settings_fenced']);self.assertTrue(result['configuration_storage_admitted'])
+        self.assertTrue(result['configuration_slot_inodes_fenced']);self.assertTrue(result['ordinary_root_settings_writes_fenced'])
         self.assertTrue(result['classic_scheduler_absence_observed'])
         self.assertTrue(result['canonical_data_paths_fenced'])
         self.assertTrue(result['data_inode_writes_fenced'])
@@ -129,6 +144,7 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         # Explicit fixture-only restore under the recovered exact attempt.
         with hd.HttpDrain(self.http_runtime,cleaner=self.collector).recover(manifest['lease_id'],confirmed=True) as barrier:
             lease=barrier.maintenance_lease
+            self.unseal_configuration(lease)
             snapshot=previous.files.FileSnapshot(slot/'data'/data['snapshot_id'],data['manifest_sha256'],
                 self.scope.instance,lease.lease_id,self.web.pw_gid)
             restore_fixture=self.http_root/'restore-fixture';restore_fixture.mkdir(mode=0o700)
@@ -463,6 +479,63 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
             lease.resume(confirmed=True)
         self.restart_fixture_services();self.assertEqual(self.request('/index.php')[0],200)
 
+    def test_provisioned_root_settings_writes_alias_and_preopened_fd_are_blocked(self):
+        self.setup_backup();capture=previous.files.capture_and_verify;checks=[]
+        alias=self.root/'configuration-alias';alias.mkdir()
+        command('mount','--bind',str(self.directory),str(alias))
+        try:
+            with (self.directory/'assistant.json').open('r+b',buffering=0) as opened:
+                def late_writer(*args,**kwargs):
+                    saved=capture(*args,**kwargs)
+                    for action in (lambda:opened.write(b'bad'),lambda:os.ftruncate(opened.fileno(),0),
+                                   lambda:(alias/'assistant.json').write_bytes(b'bad'),lambda:(alias/'new-setting').write_bytes(b'bad')):
+                        with self.assertRaises(PermissionError):action()
+                    body='import os,pathlib,sys\nassert os.geteuid()==0\nroot=pathlib.Path(sys.argv[1]);count=0\nfor path in root.iterdir():\n if not path.is_file():continue\n try:path.write_bytes(b"bad")\n except PermissionError:count+=1\n else:raise SystemExit(9)\nassert count>=6\nprint("settings-denied")'
+                    child=command('/usr/bin/python3','-c',body,str(self.directory))
+                    self.assertEqual(child.stdout,b'settings-denied\n');checks.append(True);return saved
+                with patch.object(previous.files,'capture_and_verify',side_effect=late_writer):result=self.execute()
+            self.assertEqual(result['state'],'PROVISIONED_BACKUP_RESTORE_VERIFIED',result)
+            self.assertTrue(result['ordinary_root_settings_writes_fenced']);self.assertEqual(checks,[True]);self.closed()
+        finally:command('umount',str(alias))
+
+    def test_provisioned_death_during_configuration_closure_is_recoverable(self):
+        self.setup_backup();flags=cf._flags;pid=os.fork()
+        if pid==0:
+            count=0
+            def die(fd,value=None):
+                nonlocal count
+                result=flags(fd,value)
+                if value is not None:
+                    count+=1
+                    if count==3:os._exit(75)
+                return result
+            try:
+                with patch.object(cf,'_flags',side_effect=die):self.execute()
+            except BaseException:os._exit(74)
+            os._exit(73)
+        _,status=os.waitpid(pid,0)
+        self.assertTrue(os.WIFEXITED(status));self.assertEqual(os.WEXITSTATUS(status),75)
+        self.assertTrue((self.scope.directory/cf.MARKER).exists());self.assertEqual(list(self.backups.iterdir()),[]);self.closed()
+        with self.assertRaises(PermissionError):(self.directory/'new-setting').write_bytes(b'bad')
+        lease_id=self.scope.observe()['lease_id']
+        with hd.HttpDrain(self.http_runtime,cleaner=self.collector).recover(lease_id,confirmed=True) as barrier:
+            lease=barrier.maintenance_lease;self.unseal_configuration(lease)
+            with da.recover(self.http_runtime,lease,confirmed=True) as data_fence:
+                with inf.recover(data_fence,confirmed=True) as protected:protected.unseal(confirmed=True)
+                data_fence.reopen(confirmed=True)
+            lease.resume(confirmed=True)
+        self.restart_fixture_services();self.assertEqual(self.request('/index.php')[0],200)
+
+    def test_provisioned_removed_configuration_flag_after_copy_prevents_receipt(self):
+        self.setup_backup();capture=previous.files.capture_and_verify;path=self.directory/'database.json'
+        def drift(*args,**kwargs):
+            saved=capture(*args,**kwargs);fd=os.open(path,inf.files.REGULAR)
+            try:cf._flags(fd,cf._flags(fd)&~inf.IMMUTABLE)
+            finally:os.close(fd)
+            return saved
+        with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
+        self.incomplete(result);self.assertTrue((self.scope.directory/cf.MARKER).exists())
+
     def test_provisioned_removed_inode_flag_after_copy_prevents_receipt(self):
         self.setup_backup();capture=previous.files.capture_and_verify
         path=self.http_root/'data/tmp/flag-drift';path.write_bytes(b'original');path.chmod(0o600)
@@ -483,14 +556,15 @@ if __name__=='__main__':
     names=sorted(n for n in ProvisionedBackupLive.__dict__ if n.startswith('test_provisioned_'))
     result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(ProvisionedBackupLive(n) for n in names))
     stable=source==quality.snapshot(ROOT);release=get_release(STORAGE_COMMIT)
-    report={'suite':'Provisioned services and durable Ext4 inode fence','tests':result.testsRun,'expected':26,
+    report={'suite':'Provisioned services and durable Ext4 data/configuration fences','tests':result.testsRun,'expected':29,
         'failures':len(result.failures),'errors':len(result.errors),'skips':len(result.skipped),
-        'status':'PASS' if result.wasSuccessful() and result.testsRun==26 and not result.skipped and stable else 'FAIL',
+        'status':'PASS' if result.wasSuccessful() and result.testsRun==29 and not result.skipped and stable else 'FAIL',
         'source_stable':stable,'source_files':len(source),'web_commit':release.commit,'web_tree':release.tree,
         'database_profile':'fresh_managed','proxy_identity_separate':True,'service_activation_delivered':False,
         'classic_scheduler_admission_tested':True,'host_scheduler_inventory_complete':False,'foreign_cli_controlled':False,
         'canonical_data_path_fence_tested':True,
         'ordinary_root_and_bind_alias_writes_tested':True,'durable_ext4_inode_fence_tested':True,
+        'durable_configuration_slot_fence_tested':True,'ordinary_root_settings_writes_tested':True,
         'storage_inventory_complete':False,'complete_web_backup':False,'application_installed':False,'phase5_complete':False}
     args.report.parent.mkdir(parents=True,exist_ok=True)
     (args.report.parent/'PROVISIONED-BACKUP-SOURCE-MANIFEST.json').write_bytes(quality.encode(source))

@@ -1,5 +1,14 @@
 # Modèle de sécurité
 
+## Protection du slot de configuration - 27 septembre 2026
+
+La [barrière de configuration](PHASE5_CONFIGURATION_FENCE.md) interdit aussi les
+écritures ordinaires sur les inodes du slot provisionné, y compris root, alias
+bind et descripteurs préexistants. La maintenance reste accessible pour ses
+journaux. La protection est persistante et sa levée explicitement journalisée.
+Code/pointeurs Web, chemins externes et pouvoirs administratifs restent hors
+garantie. Aucun indicateur de maîtrise globale des producteurs n'est activé.
+
 ## Barrière Ext4 contre les écritures ordinaires - 27 septembre 2026
 
 La [barrière d'inodes](PHASE5_INODE_FENCE.md) protège les six racines admises,

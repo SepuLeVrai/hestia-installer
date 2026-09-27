@@ -173,7 +173,8 @@ class MaintenanceLease:
     def resume(self, *, confirmed: bool) -> None:
         """Explicit activity boundary. Rollback callers must refuse after this receipt."""
         require(confirmed is True,'MAINTENANCE_CONSENT_REQUIRED');self.assert_held()
-        for marker in ('data-access.attempt','inode-fence.attempt','inode-fence.release'):
+        for marker in ('data-access.attempt','inode-fence.attempt','inode-fence.release',
+                       'configuration-inodes.attempt','configuration-inodes.release'):
             try: os.stat(marker,dir_fd=self._directory,follow_symlinks=False)
             except FileNotFoundError: pass
             else: raise MaintenanceError('MAINTENANCE_DATA_ACCESS_CLOSED')

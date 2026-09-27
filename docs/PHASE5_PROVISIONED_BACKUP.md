@@ -1,5 +1,13 @@
 # Sauvegarde intégrée des services provisionnés
 
+## Protection du slot de configuration - 27 septembre 2026
+
+Le [lot configuration](PHASE5_CONFIGURATION_FENCE.md) protège les fichiers du
+slot par immutable Ext4, après les verrous coopératifs et avant toute copie.
+Le manifeste V6 lie son journal. Sa levée explicite précède la réouverture des
+données et la reprise. Pointeurs Web, chemins externes et journaux de maintenance
+restent hors de cette protection. Flags globaux faux ; résultats au checkpoint.
+
 ## Protection des inodes - 27 septembre 2026
 
 La [protection Ext4 persistante](PHASE5_INODE_FENCE.md) est maintenant obligatoire

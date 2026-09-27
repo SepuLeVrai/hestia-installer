@@ -1,5 +1,13 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot configuration Ext4 - 27 septembre 2026
+
+La [barrière du slot](PHASE5_CONFIGURATION_FENCE.md) ajoute six contrats et huit
+essais Ext4 obligatoires au core, sans skip ni mock de la protection noyau.
+La campagne ciblée attend 106 contrôles locaux, 163 Debian 13 et 29 scénarios
+réels. La configuration de fixture est aussi placée sur Ext4. Les résultats
+mesurés figurent au checkpoint ; les Quality globales restent un gate distinct.
+
 ## Lot protection Ext4 des inodes - 27 septembre 2026
 
 La [protection des inodes](PHASE5_INODE_FENCE.md) ajoute dix contrats locaux et
