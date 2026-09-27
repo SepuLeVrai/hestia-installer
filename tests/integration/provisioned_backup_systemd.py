@@ -23,6 +23,7 @@ sys.path[:0]=[str(ROOT),str(ROOT/'tests'),str(ROOT/'scripts'),str(Path(__file__)
 import quality
 import business_storage_systemd as previous
 from installer import provisioned_backup as b, http_drain as hd, sql_read_fence as rf
+from installer import data_access as da
 from installer.web_releases import STORAGE_COMMIT, get_release
 from http_runtime_systemd import command, until
 
@@ -91,6 +92,8 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         self.assertTrue(result['sql_read_fence_verified']);self.assertTrue(result['provisioned_services_drained'])
         self.assertTrue(result['installer_settings_fenced']);self.assertTrue(result['configuration_storage_admitted'])
         self.assertTrue(result['classic_scheduler_absence_observed'])
+        self.assertTrue(result['canonical_data_paths_fenced'])
+        self.assertEqual((self.http_root/'data').stat().st_mode&0o777,0o700)
         self.assertIs(result['host_scheduler_inventory_complete'],False)
         self.assertIs(result['foreign_cli_controlled'],False)
         self.assertEqual(result['registered_roots'],6);self.assertEqual(result['trigger_smoke_verified'],5)
@@ -121,7 +124,10 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
             self.assertEqual(photo.read_bytes(),photo_bytes);self.assertEqual(document.read_bytes(),doc_data)
             self.assertEqual(imported.read_bytes(),import_data);self.assertEqual(current.read_bytes(),session_bytes)
             self.assertEqual(legacy.read_bytes(),b'Legacy GED inside the admitted root')
-            barrier.assert_held();lease.resume(confirmed=True)
+            barrier.assert_held()
+            with self.assertRaisesRegex(b.h.m.MaintenanceError,'DATA_ACCESS_CLOSED'):lease.resume(confirmed=True)
+            with da.recover(self.http_runtime,lease,confirmed=True) as data_fence:data_fence.reopen(confirmed=True)
+            lease.resume(confirmed=True)
         self.restart_fixture_services()
         self.assertEqual(self.binary('/'+relative)[:2],(200,photo_bytes))
         self.assertEqual(self.binary('/index.php?page=ged_download&id='+str(doc['id_document']))[:2],(200,doc_data))
@@ -276,6 +282,103 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         finally:
             if path.exists():path.unlink()
 
+    def test_provisioned_new_php_cli_after_copy_cannot_write_canonical_roots(self):
+        self.setup_backup();capture=previous.files.capture_and_verify;checks=[]
+        def late_cli(*args,**kwargs):
+            saved=capture(*args,**kwargs)
+            script="foreach(['sessions','tmp','upload-tmp','imports','log','uploads'] as $n){if(@file_put_contents($argv[1].'/'.$n.'/late-cli','changed')!==false)exit(9);}echo 'six-denied';"
+            child=command('setpriv','--reuid='+str(self.web.pw_uid),'--regid='+str(self.web.pw_gid),
+                '--clear-groups','/usr/bin/php8.4','-n','-r',script,str(self.http_root/'data'))
+            self.assertEqual(child.stdout,b'six-denied');checks.append(True)
+            return saved
+        with patch.object(previous.files,'capture_and_verify',side_effect=late_cli):result=self.execute()
+        self.assertEqual(result['state'],'PROVISIONED_BACKUP_RESTORE_VERIFIED',result)
+        self.assertTrue(result['canonical_data_paths_fenced']);self.assertEqual(checks,[True]);self.closed()
+        for name in (*b.h.DATA,'uploads'):self.assertFalse((self.http_root/'data'/name/'late-cli').exists())
+
+    def test_provisioned_native_timer_started_after_copy_cannot_write_data(self):
+        self.setup_backup();capture=previous.files.capture_and_verify;checks=[]
+        name='hestia-late-'+os.urandom(8).hex();unit=name+'.service';timer=name+'.timer'
+        worker=Path('/var/lib')/(name+'.py')
+        worker.write_text("import pathlib,sys\nroot=pathlib.Path(sys.argv[1])\nfor name in ('sessions','tmp','upload-tmp','imports','log','uploads'):\n try:(root/name/'late-timer').write_bytes(b'changed')\n except PermissionError:pass\n else:raise SystemExit(9)\n")
+        worker.chmod(0o644)
+        service=Path('/etc/systemd/system')/unit;trigger=service.with_name(timer)
+        service.write_text('[Unit]\nDescription=Disposable late data writer\n[Service]\nType=oneshot\n'
+            +f'User={self.web.pw_uid}\nGroup={self.web.pw_gid}\nExecStart=/usr/bin/python3 {worker} {self.http_root}/data\n'
+            +'RemainAfterExit=yes\n')
+        trigger.write_text('[Unit]\nDescription=Disposable late timer\n[Timer]\nOnActiveSec=100ms\nAccuracySec=1ms\nUnit='+unit+'\n')
+        try:
+            command('systemctl','daemon-reload')
+            def late_timer(*args,**kwargs):
+                saved=capture(*args,**kwargs);command('systemctl','start',timer)
+                until(lambda:command('systemctl','show','--property=ActiveState','--value',unit).stdout.strip()==b'active',timeout=5)
+                self.assertEqual(command('systemctl','show','--property=ExecMainStatus','--value',unit).stdout.strip(),b'0')
+                checks.append(True);return saved
+            with patch.object(previous.files,'capture_and_verify',side_effect=late_timer):result=self.execute()
+            self.assertEqual(result['state'],'PROVISIONED_BACKUP_RESTORE_VERIFIED',result)
+            self.assertEqual(checks,[True]);self.assertTrue(result['canonical_data_paths_fenced']);self.closed()
+            for name in (*b.h.DATA,'uploads'):self.assertFalse((self.http_root/'data'/name/'late-timer').exists())
+        finally:
+            command('systemctl','stop',timer,unit,check=False)
+            trigger.unlink();service.unlink();worker.unlink();command('systemctl','daemon-reload')
+
+    def test_provisioned_writer_opened_in_closure_window_is_refused_and_not_killed(self):
+        self.setup_backup();write=da.f._write;proc=[]
+        path=self.http_root/'data/tmp'/'preopened';path.write_bytes(b'original')
+        os.chown(path,self.web.pw_uid,self.web.pw_gid);path.chmod(0o600)
+        def concurrent(fd,name,*args,**kwargs):
+            result=write(fd,name,*args,**kwargs)
+            if name==da.MARKER:
+                child=subprocess.Popen(['/usr/bin/python3','-c',
+                    'import sys;f=open(sys.argv[1],"r+b");print("ready",flush=True);sys.stdin.readline()',str(path)],
+                    user=self.web.pw_uid,group=self.web.pw_gid,extra_groups=[],cwd='/',
+                    stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
+                proc.append(child);self.assertEqual(child.stdout.readline(),b'ready\n')
+            return result
+        try:
+            with patch.object(da.f,'_write',side_effect=concurrent):
+                with self.assertRaisesRegex(da.DataAccessError,'DATA_ACCESS_UNAVAILABLE'):self.execute()
+            self.assertEqual(len(proc),1);self.assertIsNone(proc[0].poll())
+            self.assertEqual((self.http_root/'data').stat().st_mode&0o777,0o700)
+            self.assertTrue((self.scope.directory/da.MARKER).exists())
+            self.assertEqual(list(self.backups.iterdir()),[]);self.closed()
+        finally:
+            for child in proc:child.stdin.close();child.wait(timeout=5);child.stdout.close()
+
+    def test_provisioned_controller_death_keeps_data_closed_and_exact_recovery_required(self):
+        self.setup_backup();chmod=da.os.fchmod
+        pid=os.fork()
+        if pid==0:
+            def die(fd,mode):
+                chmod(fd,mode)
+                if mode==0o700:os._exit(75)
+            try:
+                with patch.object(da.os,'fchmod',side_effect=die):self.execute()
+            except BaseException:os._exit(74)
+            os._exit(73)
+        _,status=os.waitpid(pid,0)
+        self.assertTrue(os.WIFEXITED(status));self.assertEqual(os.WEXITSTATUS(status),75)
+        self.assertEqual((self.http_root/'data').stat().st_mode&0o777,0o700)
+        self.assertEqual(list(self.backups.iterdir()),[]);self.closed()
+        lease_id=self.scope.observe()['lease_id']
+        with hd.HttpDrain(self.http_runtime,cleaner=self.collector).recover(lease_id,confirmed=True) as barrier:
+            lease=barrier.maintenance_lease
+            with da.recover(self.http_runtime,lease,confirmed=True) as data_fence:
+                data_fence.assert_held()
+                with self.assertRaisesRegex(b.h.m.MaintenanceError,'DATA_ACCESS_CLOSED'):lease.resume(confirmed=True)
+                data_fence.reopen(confirmed=True)
+            lease.resume(confirmed=True)
+        self.restart_fixture_services();self.assertEqual(self.request('/index.php')[0],200)
+
+    def test_provisioned_data_access_drift_after_copy_prevents_certification(self):
+        self.setup_backup();capture=previous.files.capture_and_verify;parent=self.http_root/'data'
+        def drift(*args,**kwargs):
+            saved=capture(*args,**kwargs);parent.chmod(0o750);return saved
+        try:
+            with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
+            self.incomplete(result);self.assertTrue((self.scope.directory/da.MARKER).exists())
+        finally:parent.chmod(0o700)
+
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--web',type=Path,required=True)
@@ -284,12 +387,13 @@ if __name__=='__main__':
     names=sorted(n for n in ProvisionedBackupLive.__dict__ if n.startswith('test_provisioned_'))
     result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(ProvisionedBackupLive(n) for n in names))
     stable=source==quality.snapshot(ROOT);release=get_release(STORAGE_COMMIT)
-    report={'suite':'Provisioned services configuration and classic scheduler admission','tests':result.testsRun,'expected':17,
+    report={'suite':'Provisioned services and durable canonical data access fence','tests':result.testsRun,'expected':22,
         'failures':len(result.failures),'errors':len(result.errors),'skips':len(result.skipped),
-        'status':'PASS' if result.wasSuccessful() and result.testsRun==17 and not result.skipped and stable else 'FAIL',
+        'status':'PASS' if result.wasSuccessful() and result.testsRun==22 and not result.skipped and stable else 'FAIL',
         'source_stable':stable,'source_files':len(source),'web_commit':release.commit,'web_tree':release.tree,
         'database_profile':'fresh_managed','proxy_identity_separate':True,'service_activation_delivered':False,
         'classic_scheduler_admission_tested':True,'host_scheduler_inventory_complete':False,'foreign_cli_controlled':False,
+        'canonical_data_path_fence_tested':True,
         'storage_inventory_complete':False,'complete_web_backup':False,'application_installed':False,'phase5_complete':False}
     args.report.parent.mkdir(parents=True,exist_ok=True)
     (args.report.parent/'PROVISIONED-BACKUP-SOURCE-MANIFEST.json').write_bytes(quality.encode(source))

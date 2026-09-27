@@ -15,6 +15,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 from installer import scheduler_admission as sa
+from installer import data_access as da
 
 from installer import backup_files as files
 from installer import backup_runtime as br
@@ -103,7 +104,8 @@ class CoordinatedBackup:
                           backup_root: Path, inventory: files.DataInventory, maintenance: m.MaintenanceLease,
                           confirmed: bool, allow_global_read_lock: bool, cancel=None,
                           service_barrier: hd.HttpDrainLease | None = None,
-                          scheduler_observation: sa.SchedulerObservation | None = None) -> CoordinatedVerification:
+                          scheduler_observation: sa.SchedulerObservation | None = None,
+                          data_fence: da.DataAccessFence | None = None) -> CoordinatedVerification:
         started = False
         fence = None
         configuration = None
@@ -116,8 +118,12 @@ class CoordinatedBackup:
                 require(type(scheduler_observation) is sa.SchedulerObservation,
                         'COORDINATED_SCHEDULER_OBSERVATION_REQUIRED')
                 scheduler_observation.assert_held()
+                require(type(data_fence) is da.DataAccessFence and data_fence._lease is maintenance
+                    and data_fence._runtime is service_barrier._drain.runtime, 'COORDINATED_DATA_FENCE_REQUIRED')
+                data_fence.assert_held()
             else:
                 require(scheduler_observation is None, 'COORDINATED_SCHEDULER_OBSERVATION_REQUIRED')
+                require(data_fence is None, 'COORDINATED_DATA_FENCE_REQUIRED')
             if fence is not None: fence.assert_held()
             if configuration is not None: configuration.assert_held()
         try:
@@ -166,7 +172,7 @@ class CoordinatedBackup:
                     expected = tuple((name.replace('-', '_'), spec.root / 'data' / name)
                                      for name in (*hd.h.DATA, 'uploads'))
                     require(inventory.roots == expected, 'COORDINATED_PROVISIONED_ROOTS_REQUIRED')
-                    with fs._directory(spec.root / 'data', readable_by=gid) as datafd:
+                    with fs._directory(spec.root / 'data') as datafd:
                         require(set(os.listdir(datafd)) == set((*hd.h.DATA, 'uploads')),
                                 'COORDINATED_PROVISIONED_ROOTS_REQUIRED')
                     barrier_profile = f._sha(service_barrier._profile)
@@ -232,7 +238,8 @@ class CoordinatedBackup:
                             'storage_inventory_complete': False, 'system_wiring_verified': False}
                 if barrier_profile is not None:
                     manifest['service_barrier'] = {'profile_sha256': barrier_profile,
-                        'policy': 'PROVISIONED_HTTP_CLEANER_SQL_CONFIGURATION_CLASSIC_SCHEDULERS_V3'}
+                        'policy': 'PROVISIONED_HTTP_CLEANER_SQL_CONFIGURATION_SCHEDULERS_DATA_PATHS_V4'}
+                    manifest['data_access_fence'] = data_fence.report()
                     manifest['scheduler_admission'] = {'policy': 'CLASSIC_SCHEDULER_ABSENCE_V1',
                         'reobserved_during_backup': True, 'observation_is_point_in_time': True,
                         'host_scheduler_inventory_complete': False, 'foreign_cli_controlled': False}
@@ -251,6 +258,7 @@ class CoordinatedBackup:
                     result.update(state='PROVISIONED_BACKUP_RESTORE_VERIFIED',
                         provisioned_services_drained=True, sql_read_fence_verified=True,
                         installer_settings_fenced=True, configuration_storage_admitted=True,
+                        canonical_data_paths_fenced=True, data_access_fence_sha256=data_fence.report()['fence_sha256'],
                         classic_scheduler_absence_observed=True, host_scheduler_inventory_complete=False,
                         foreign_cli_controlled=False,
                         service_profile_sha256=barrier_profile, phase5_complete=False)

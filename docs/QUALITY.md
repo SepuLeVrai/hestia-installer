@@ -1,5 +1,13 @@
 # Quality et non-régression de HESTIA Installer
 
+## Barrière des chemins de données - 27 septembre 2026
+
+Le [lot de fermeture des données](PHASE5_DATA_ACCESS_FENCE.md) exige 90
+contrôles locaux, 129 sur Debian 13 et 22 scénarios intégrés sur le gel.
+Les tests supplémentaires comprennent des UID distincts, un PHP CLI et un timer
+tardifs, la course de descripteur, la mort du contrôleur et la reprise explicite.
+Les comptes sont attendus avant exécution ; résultats réels au checkpoint.
+
 ## Prérequis D-Bus - 27 septembre 2026
 
 Le [lot D-Bus](PHASE5_SYSTEM_BUS.md) exige 35 contrôles locaux et 18 scénarios

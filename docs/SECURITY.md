@@ -1,5 +1,12 @@
 # Modèle de sécurité
 
+## Barrière des chemins de données - 27 septembre 2026
+
+La [barrière des chemins de données](PHASE5_DATA_ACCESS_FENCE.md) reste fermée
+après succès, erreur ou mort du contrôleur. Le journal root lie le parent et
+la lease ; la reprise de maintenance refuse sa présence. Elle ne prétend pas
+contrôler root/CAP_DAC_OVERRIDE, les alias de montage ou toutes les identités.
+
 ## Prérequis D-Bus - 27 septembre 2026
 
 Le [cycle de vie D-Bus](PHASE5_SYSTEM_BUS.md) refuse masques, substitutions,

@@ -1,5 +1,12 @@
 # Sauvegarde intégrée des services provisionnés
 
+## Barrière des chemins de données - 27 septembre 2026
+
+La [fermeture persistante des chemins](PHASE5_DATA_ACCESS_FENCE.md) précède
+désormais la copie. Le coordinateur exige cette barrière typée et la revérifie.
+Le reçu lie son empreinte et déclare seulement les chemins canoniques fermés.
+Une réouverture explicite précède la reprise ; les flags globaux restent faux.
+
 ## Admission des planificateurs classiques — 27 septembre 2026
 
 Le [lot suivant](PHASE5_CLASSIC_SCHEDULER_ADMISSION.md) refuse les empreintes

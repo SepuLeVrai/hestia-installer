@@ -32,6 +32,11 @@ class ProvisionedBackupTests(unittest.TestCase):
         self.payload['assistant']['action']='preserve';self.payload['secrets'].update(admin_password='',openai_api_key='')
         self.payload['web'].update(webroot=str(self.http.spec.webroot),service_user=self.http.spec.service_user)
         self.authority=b.d.SqlAuthorityCredentials('authority','private-sql-fixture')
+        self.data_fence=object()
+        @contextmanager
+        def data_acquire(*args,**kwargs):yield self.data_fence
+        data=patch.object(b.da,'acquire',side_effect=data_acquire)
+        data.start();self.addCleanup(data.stop)
 
     def execute(self,**extra):
         args=dict(config_root=Path('/var/lib/hestia-config'),backup_root=Path('/var/lib/backups'),
@@ -75,6 +80,7 @@ class ProvisionedBackupTests(unittest.TestCase):
             self.assertIs(type(kw['scheduler_observation']),b.sa.SchedulerObservation)
             kw['scheduler_observation'].assert_held()
             self.assertIs(kw['service_barrier'],barrier);self.assertIs(kw['maintenance'],maintenance)
+            self.assertIs(kw['data_fence'],self.data_fence)
             self.assertEqual(kw['inventory'].roots,tuple((n.replace('-','_'),self.http.spec.root/'data'/n)
                 for n in ('sessions','tmp','upload-tmp','imports','log','uploads')))
             self.assertEqual((kw['inventory'].web_uid,kw['inventory'].web_gid),(991,991))

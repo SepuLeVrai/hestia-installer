@@ -452,6 +452,9 @@ Delegate=no
                     and saved['plan_sha256'] == f._sha(plan) and saved['state'] == 'HTTP_RUNTIME_STAGED',
                     'HTTP_RUNTIME_DRIFT')
         for path, expected in self._directories(account).items():
+            if self.spec.external_uploads and path == self.spec.root / 'data':
+                from installer import data_access
+                expected = (0, account.pw_gid, data_access.expected_mode(self, account))
             with fs._directory(path.parent) as parent:
                 handle = os.open(path.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
                 try:

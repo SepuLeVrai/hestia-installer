@@ -1,5 +1,13 @@
 # État du projet
 
+## Barrière des chemins de données - 27 septembre 2026
+
+La [barrière persistante des données](PHASE5_DATA_ACCESS_FENCE.md) ferme les
+chemins canoniques avant copie et refuse une reprise implicite. Le contrôle
+couvre les nouveaux CLI/timers non privilégiés utilisant ces chemins ; les
+producteurs privilégiés et chemins alternatifs restent non certifiés.
+5C2 et la phase 5 restent ouvertes. Résultats exacts au checkpoint.
+
 ## Prérequis D-Bus - 27 septembre 2026
 
 Le [raccordement D-Bus](PHASE5_SYSTEM_BUS.md) ajoute installation officielle,
