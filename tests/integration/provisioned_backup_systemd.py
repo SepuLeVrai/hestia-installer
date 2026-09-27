@@ -43,7 +43,7 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
 
     def setUp(self):
         super().setUp()
-        self.http_root=inode_fixture.VOLUME/self.http_root.name
+        self.http_root=inode_fixture.VOLUME/os.urandom(16).hex()
 
     def stop_services(self):
         if hasattr(self,'http_root') and self.http_root.is_relative_to(inode_fixture.VOLUME):

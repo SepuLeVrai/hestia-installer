@@ -90,6 +90,14 @@ puis reprendre la maintenance et les services par l'opération dédiée.
 
 ## Qualification du gel
 
+Le candidat `a26504393280a3de277934b9e5a43638b0511a45`, campagne
+`36329926011`, a passé les 149 contrôles Debian, dont les dix essais Ext4.
+Les 26 scénarios intégrés ont tous été refusés avant démarrage HTTP : le chemin
+de fixture sous le volume dépassait la limite de 75 caractères du runtime.
+Le correctif raccourcit uniquement le nom de la fixture ; la limite produit
+et toutes les assertions sont conservées. Cette preuve négative est archivée.
+La qualification intégrée du correctif est requise avant livraison qualifiée.
+
 100 contrôles locaux attendus ; 149 avec fichiers sur Debian 13, dont dix essais
 réels Ext4. Ils couvrent 48 refus de mutation root, descripteur préouvert, mmap,
 alias bind, montage imbriqué, tmpfs, liens, limites et interruptions/reprises.

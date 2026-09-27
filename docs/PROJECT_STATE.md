@@ -10,6 +10,10 @@ Qualification ciblée prévue : 100 contrôles locaux, 149 Debian et 26 scénari
 Résultats exacts au checkpoint. 5C2 reste ouverte pour la couverture globale
 configuration/producteurs ; 5C3/5C4/5D et Quality globales restent à terminer.
 
+Le premier banc `36329926011` passe 149 contrôles mais refuse les 26 scénarios
+au démarrage : chemin de fixture trop long. Le nom est raccourci, sans changer
+la limite HTTP produit. Le nouveau gel doit être qualifié ; preuve initiale conservée.
+
 ## Barrière des chemins de données - 27 septembre 2026
 
 La [barrière persistante des données](PHASE5_DATA_ACCESS_FENCE.md) ferme les
