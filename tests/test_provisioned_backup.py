@@ -96,6 +96,22 @@ class ProvisionedBackupTests(unittest.TestCase):
 
 
 class SqlFenceChannelTests(unittest.TestCase):
+    def test_consumer_error_keeps_identity_and_sql_worker_is_reaped(self):
+        from installer.provisioned_admission import AdmissionError
+        error=AdmissionError('PROVISIONED_EXTERNAL_STORAGE_REJECTED')
+        body='import sys,json\nv=json.loads(sys.stdin.readline());print(json.dumps({"request_id":v["request_id"],"sequence":0,"state":"LOCK_HELD"}),flush=True)\nfor line in sys.stdin:pass'
+        database=dict(host='127.0.0.1',port=3306,name='fixture',tls_required=False,tls_ca_file=None,tls_ca_sha256=None)
+        with tempfile.TemporaryDirectory() as root,patch.object(r,'_stage'), \
+             patch.object(r.p,'_command',return_value=[sys.executable,'-c',body]):
+            with self.assertRaises(AdmissionError) as caught:
+                with r.acquire(SimpleNamespace(run_root=Path(root)),Path('/unused'),database,None,
+                        SimpleNamespace(_user='fixture',_password='private-fixture')) as fence:
+                    raise error
+            self.assertIs(caught.exception,error)
+            self.assertIsNotNone(fence._process.poll())
+            self.assertTrue(fence._process.stdin.closed and fence._process.stdout.closed)
+            self.assertEqual(list(Path(root).iterdir()),[])
+
     def test_only_closed_profile_rejections_with_valid_binding_are_reported(self):
         for state in (*sorted(r.PROFILE_REJECTIONS),'private-server-detail'):
             fence=self.channel('import sys,json\nv=json.loads(sys.stdin.readline());print(json.dumps({"request_id":v["request_id"],"sequence":v["sequence"],"state":'+repr(state)+'}),flush=True)')

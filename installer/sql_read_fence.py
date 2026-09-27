@@ -104,16 +104,21 @@ def acquire(runtime, source, database, ca, authority, *, cancel=None):
         target={k:database[k] for k in ('host','port','name','tls_required','tls_ca_file','tls_ca_sha256')}
         if ca is not None:target['tls_ca_file']=str(stage/'ca.pem')
         try:
-            proc=subprocess.Popen(p._command(runtime,stage),cwd=stage,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,bufsize=0,start_new_session=True,close_fds=True,
-                env={'PATH':'/usr/sbin:/usr/bin','LANG':'C','PHP_INI_SCAN_DIR':''})
-            fence=SqlReadFence(proc,os.urandom(16).hex(),cancel)
-            os.set_blocking(proc.stdin.fileno(),False);os.set_blocking(proc.stdout.fileno(),False)
-            fence._round({'version':1,'operation':'acquire','request_id':fence._id,'target':target,
-                'authority':{'user':authority._user,'password':authority._password}},'LOCK_HELD')
+            try:
+                proc=subprocess.Popen(p._command(runtime,stage),cwd=stage,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,bufsize=0,start_new_session=True,close_fds=True,
+                    env={'PATH':'/usr/sbin:/usr/bin','LANG':'C','PHP_INI_SCAN_DIR':''})
+                fence=SqlReadFence(proc,os.urandom(16).hex(),cancel)
+                os.set_blocking(proc.stdin.fileno(),False);os.set_blocking(proc.stdout.fileno(),False)
+                fence._round({'version':1,'operation':'acquire','request_id':fence._id,'target':target,
+                    'authority':{'user':authority._user,'password':authority._password}},'LOCK_HELD')
+            except SqlReadFenceError:raise
+            except Exception:raise SqlReadFenceError('SQL_FENCE_UNAVAILABLE') from None
+            # Consumer errors belong to the coordinator's closed error policy.
+            # Do not disguise admission failures as SQL transport failures.
             yield fence
-            fence.assert_held();fence.release()
-        except SqlReadFenceError:raise
-        except Exception:raise SqlReadFenceError('SQL_FENCE_UNAVAILABLE') from None
+            try:fence.assert_held();fence.release()
+            except SqlReadFenceError:raise
+            except Exception:raise SqlReadFenceError('SQL_FENCE_UNAVAILABLE') from None
         finally:
             if fence is not None:fence.close()

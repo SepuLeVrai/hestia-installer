@@ -1,5 +1,27 @@
 # Sauvegarde intégrée des services provisionnés
 
+## Correctif de diagnostic —27septembre2026
+
+Le candidat270f2526/run36302090702 conserve106 contrôles Debian13 verts et
+12/13 scénarios réels verts ; zéro erreur ou skip, un échec sur le code public
+attendu après apparition d’un stockage IA hors profil. La sauvegarde est bien
+incomplète, sans reçu vérifié et avec maintenance conservée. Le chemin positif
+complet passe. Ces résultats ne valent pas qualification du correctif ci-dessous.
+
+Cause reproduite localement : le context manager SQL interceptait l’exception
+émise par le coordinateur pendant yield et la remplaçait par une erreur de
+transport SQL. Le correctif limite cette conversion à l’acquisition/libération ;
+l’erreur de l’appelant conserve son type pour la politique fermée du coordinateur.
+Le nettoyage du worker, du groupe et des pipes reste inconditionnel. Un contrôle
+supplémentaire vérifie l’identité de l’exception et la fin effective du worker.
+Aucune assertion du scénario réel n’est retirée ni assouplie.
+
+Nouveau gel :75 contrôles locaux,107 prévus sous Debian13 et les mêmes13 scénarios
+réels. Aucun second job lancé à ce point d’arrêt ; validation réelle du correctif
+requise avant de le déclarer qualifié. Preuve négative et source270f2526 conservées
+au checkpoint. Toutes les frontières globales de phase5 restent inchangées.
+
+
 ## Admission de configuration — lot du27septembre2026
 
 Le parent c8a32e619067f44976f876a2231d4893afba2f84 est acquis : run36265588722,
