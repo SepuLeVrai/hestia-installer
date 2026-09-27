@@ -1,5 +1,15 @@
 # État du projet
 
+## Protection des inodes de données - 27 septembre 2026
+
+Le [lot Ext4](PHASE5_INODE_FENCE.md) ajoute une protection persistante de chaque
+inode, opposable aux écritures ordinaires de root et aux bind alias. Le retrait
+est explicitement journalisé ; les interruptions ne rouvrent rien. Le profil
+refuse les systèmes de fichiers non qualifiés et les montages imbriqués.
+Qualification ciblée prévue : 100 contrôles locaux, 149 Debian et 26 scénarios.
+Résultats exacts au checkpoint. 5C2 reste ouverte pour la couverture globale
+configuration/producteurs ; 5C3/5C4/5D et Quality globales restent à terminer.
+
 ## Barrière des chemins de données - 27 septembre 2026
 
 La [barrière persistante des données](PHASE5_DATA_ACCESS_FENCE.md) ferme les

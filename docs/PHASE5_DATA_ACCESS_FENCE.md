@@ -1,5 +1,14 @@
 # Fermeture persistante des chemins de données provisionnés
 
+## Complément obligatoire de la sauvegarde provisionnée
+
+Le [lot Ext4 suivant](PHASE5_INODE_FENCE.md) protège maintenant les inodes après
+cette barrière de chemins. Il bloque les écritures ordinaires de root et les
+alias vers les mêmes inodes. Cette primitive 0700 reste distincte : elle refuse
+sa réouverture tant qu'un journal d'inodes existe. Sa récupération ne refait pas
+un chmod inutile sur un parent déjà 0700, afin de récupérer aussi l'état immutable.
+Les limites décrites ci-dessous restent celles de la primitive de chemins seule.
+
 ## Changement fonctionnel
 
 Base qualifiée : `9a8cb414eb8d60f3fef2730f186d912d0561c073`. Après le drain

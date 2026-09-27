@@ -1,5 +1,14 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot protection Ext4 des inodes - 27 septembre 2026
+
+La [protection des inodes](PHASE5_INODE_FENCE.md) ajoute dix contrats locaux et
+dix tests réels Ext4 obligatoires, sans skip ni remplacement par un mock. Le banc
+provisionné passe à 26 scénarios avec écritures root, bind alias, timer root,
+mort au milieu du scellement et retrait de flag. Le workflow global prépare
+un volume Ext4 jetable dans ses conteneurs Debian dédiés et le démonte en sortie.
+Ce gel ne revendique pas une Quality globale déjà exécutée ; preuves au checkpoint.
+
 ## Barrière des chemins de données - 27 septembre 2026
 
 Le [lot de fermeture des données](PHASE5_DATA_ACCESS_FENCE.md) exige 90

@@ -1,5 +1,16 @@
 # Modèle de sécurité
 
+## Barrière Ext4 contre les écritures ordinaires - 27 septembre 2026
+
+La [barrière d'inodes](PHASE5_INODE_FENCE.md) protège les six racines admises,
+y compris les écritures ordinaires root et les mêmes inodes vus via bind mount.
+Le journal précède le premier ioctl ; la fermeture partielle n'est pas un succès.
+Les flags préexistants étrangers et systèmes de fichiers non qualifiés sont refusés.
+Le retrait exige une intention explicite durable et laisse la maintenance active.
+Retrait administratif des flags, modification des montages, accès au périphérique
+brut et altération du noyau restent hors garantie. Aucun inventaire global de
+producteurs/alias ni autorisation d'upgrade n'est déduit de ce mécanisme.
+
 ## Barrière des chemins de données - 27 septembre 2026
 
 La [barrière des chemins de données](PHASE5_DATA_ACCESS_FENCE.md) reste fermée

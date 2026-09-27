@@ -10,6 +10,7 @@ from installer import finalization as f, http_drain as hd, http_runtime as h
 from installer import php_transport as p, session_cleaner as sc
 from installer import scheduler_admission as sa
 from installer import data_access as da
+from installer import inode_fence as inf
 from installer.web_releases import STORAGE_COMMIT
 
 
@@ -48,10 +49,11 @@ class ProvisionedBackup:
             barrier=stack.enter_context(drain.acquire(confirmed=True,cancel=cancel))
             account,_,_,_=self._http._inspect_configuration()
             data_fence=stack.enter_context(da.acquire(barrier,confirmed=True))
+            inode_fence=stack.enter_context(inf.acquire(data_fence,confirmed=True))
             inventory=files.DataInventory(tuple((name.replace('-','_'),spec.root/'data'/name)
                 for name in (*h.DATA,'uploads')),account.pw_uid,account.pw_gid)
             coordinator=c.CoordinatedBackup(self._runtime,self._source,repository=p.WEB_REPOSITORY,commit=STORAGE_COMMIT)
             return coordinator.create_and_verify(payload,authority,config_root=config_root,backup_root=backup_root,
                 inventory=inventory,maintenance=barrier.maintenance_lease,confirmed=True,
                 allow_global_read_lock=True,cancel=cancel,service_barrier=barrier,
-                scheduler_observation=schedulers,data_fence=data_fence)
+                scheduler_observation=schedulers,data_fence=data_fence,inode_fence=inode_fence)

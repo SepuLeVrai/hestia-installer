@@ -24,6 +24,8 @@ import quality
 import business_storage_systemd as previous
 from installer import provisioned_backup as b, http_drain as hd, sql_read_fence as rf
 from installer import data_access as da
+from installer import inode_fence as inf
+import test_inode_fence_files as inode_fixture
 from installer.web_releases import STORAGE_COMMIT, get_release
 from http_runtime_systemd import command, until
 
@@ -34,9 +36,19 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
 
     @classmethod
     def setUpClass(cls):
-        if os.environ.get('HESTIA_PROVISIONED_BACKUP_TEST')!='1':
+        if os.environ.get('HESTIA_PROVISIONED_BACKUP_TEST')!='1' or os.environ.get('HESTIA_INODE_FENCE_TEST')!='1':
             raise RuntimeError('Explicit provisioned backup opt-in required')
+        if not inode_fixture.VOLUME.is_dir():raise RuntimeError('Disposable Ext4 volume required')
         super().setUpClass()
+
+    def setUp(self):
+        super().setUp()
+        self.http_root=inode_fixture.VOLUME/self.http_root.name
+
+    def stop_services(self):
+        if hasattr(self,'http_root') and self.http_root.is_relative_to(inode_fixture.VOLUME):
+            inode_fixture.fixture_clear(self.http_root/'data')
+        super().stop_services()
 
     def setup_backup(self):
         self.ready();self.backups=self.root/'integrated-backups';self.backups.mkdir(mode=0o700)
@@ -93,6 +105,9 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         self.assertTrue(result['installer_settings_fenced']);self.assertTrue(result['configuration_storage_admitted'])
         self.assertTrue(result['classic_scheduler_absence_observed'])
         self.assertTrue(result['canonical_data_paths_fenced'])
+        self.assertTrue(result['data_inode_writes_fenced'])
+        self.assertTrue(result['ordinary_root_data_writes_fenced'])
+        self.assertTrue(result['same_inode_alias_writes_fenced'])
         self.assertEqual((self.http_root/'data').stat().st_mode&0o777,0o700)
         self.assertIs(result['host_scheduler_inventory_complete'],False)
         self.assertIs(result['foreign_cli_controlled'],False)
@@ -117,6 +132,8 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
             snapshot=previous.files.FileSnapshot(slot/'data'/data['snapshot_id'],data['manifest_sha256'],
                 self.scope.instance,lease.lease_id,self.web.pw_gid)
             restored=self.backups/'restored';snapshot.restore_new(restored,lease)
+            with da.recover(self.http_runtime,lease,confirmed=True) as data_fence:
+                with inf.recover(data_fence,confirmed=True) as inode_fence:inode_fence.unseal(confirmed=True)
             for name in (*b.h.DATA,'uploads'):
                 destination=self.http_root/'data'/name
                 os.rename(destination,self.root/('retained-'+name))
@@ -297,6 +314,12 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         for name in (*b.h.DATA,'uploads'):self.assertFalse((self.http_root/'data'/name/'late-cli').exists())
 
     def test_provisioned_native_timer_started_after_copy_cannot_write_data(self):
+        self.native_timer_attempt(root=False)
+
+    def test_provisioned_root_timer_started_after_copy_cannot_write_data(self):
+        self.native_timer_attempt(root=True)
+
+    def native_timer_attempt(self,*,root):
         self.setup_backup();capture=previous.files.capture_and_verify;checks=[]
         name='hestia-late-'+os.urandom(8).hex();unit=name+'.service';timer=name+'.timer'
         worker=Path('/var/lib')/(name+'.py')
@@ -304,7 +327,7 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         worker.chmod(0o644)
         service=Path('/etc/systemd/system')/unit;trigger=service.with_name(timer)
         service.write_text('[Unit]\nDescription=Disposable late data writer\n[Service]\nType=oneshot\n'
-            +f'User={self.web.pw_uid}\nGroup={self.web.pw_gid}\nExecStart=/usr/bin/python3 {worker} {self.http_root}/data\n'
+            +f'User={0 if root else self.web.pw_uid}\nGroup={0 if root else self.web.pw_gid}\nExecStart=/usr/bin/python3 {worker} {self.http_root}/data\n'
             +'RemainAfterExit=yes\n')
         trigger.write_text('[Unit]\nDescription=Disposable late timer\n[Timer]\nOnActiveSec=100ms\nAccuracySec=1ms\nUnit='+unit+'\n')
         try:
@@ -317,6 +340,7 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
             with patch.object(previous.files,'capture_and_verify',side_effect=late_timer):result=self.execute()
             self.assertEqual(result['state'],'PROVISIONED_BACKUP_RESTORE_VERIFIED',result)
             self.assertEqual(checks,[True]);self.assertTrue(result['canonical_data_paths_fenced']);self.closed()
+            self.assertTrue(result['ordinary_root_data_writes_fenced'])
             for name in (*b.h.DATA,'uploads'):self.assertFalse((self.http_root/'data'/name/'late-timer').exists())
         finally:
             command('systemctl','stop',timer,unit,check=False)
@@ -373,11 +397,81 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
     def test_provisioned_data_access_drift_after_copy_prevents_certification(self):
         self.setup_backup();capture=previous.files.capture_and_verify;parent=self.http_root/'data'
         def drift(*args,**kwargs):
-            saved=capture(*args,**kwargs);parent.chmod(0o750);return saved
+            saved=capture(*args,**kwargs)
+            # This simulates explicit privileged flag removal before chmod;
+            # ordinary chmod is itself blocked by the newly acquired barrier.
+            fd=os.open(parent,inf.files.DIRECTORY)
+            try:inf._flags(fd,inf._flags(fd)&~inf.IMMUTABLE)
+            finally:os.close(fd)
+            parent.chmod(0o750);return saved
         try:
             with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
             self.incomplete(result);self.assertTrue((self.scope.directory/da.MARKER).exists())
         finally:parent.chmod(0o700)
+
+    def test_provisioned_root_cli_bind_alias_and_existing_fd_cannot_write_after_copy(self):
+        self.setup_backup();capture=previous.files.capture_and_verify;checks=[]
+        path=self.http_root/'data/tmp/preopened-root';path.write_bytes(b'original');path.chmod(0o600)
+        os.chown(path,self.web.pw_uid,self.web.pw_gid)
+        alias=self.root/'data-alias';alias.mkdir(mode=0o700)
+        command('/usr/bin/mount','--bind',str(self.http_root/'data/uploads'),str(alias))
+        try:
+            with path.open('r+b',buffering=0) as stream:
+                def root_attempts(*args,**kwargs):
+                    saved=capture(*args,**kwargs)
+                    with self.assertRaises(PermissionError):stream.write(b'bad')
+                    with self.assertRaises(PermissionError):(alias/'late-root-alias').write_bytes(b'bad')
+                    script="foreach(['sessions','tmp','upload-tmp','imports','log','uploads'] as $n){if(@file_put_contents($argv[1].'/'.$n.'/late-root-cli','changed')!==false)exit(9);}echo 'root-six-denied';"
+                    child=command('/usr/bin/php8.4','-n','-r',script,str(self.http_root/'data'))
+                    self.assertEqual(child.stdout,b'root-six-denied');checks.append(True);return saved
+                with patch.object(previous.files,'capture_and_verify',side_effect=root_attempts):result=self.execute()
+            self.assertEqual(result['state'],'PROVISIONED_BACKUP_RESTORE_VERIFIED',result)
+            self.assertEqual(checks,[True]);self.assertTrue(result['same_inode_alias_writes_fenced'])
+            self.assertEqual(path.read_bytes(),b'original');self.closed()
+        finally:command('/usr/bin/umount',str(alias))
+
+    def test_provisioned_death_during_inode_closure_is_durable_and_recoverable(self):
+        self.setup_backup();flags=inf._flags
+        pid=os.fork()
+        if pid==0:
+            writes=[]
+            def die(fd,value=None):
+                result=flags(fd,value)
+                if value is not None and value&inf.IMMUTABLE:
+                    writes.append(True)
+                    if len(writes)==2:os._exit(75)
+                return result
+            try:
+                with patch.object(inf,'_flags',side_effect=die):self.execute()
+            except BaseException:os._exit(74)
+            os._exit(73)
+        _,status=os.waitpid(pid,0)
+        self.assertTrue(os.WIFEXITED(status));self.assertEqual(os.WEXITSTATUS(status),75)
+        self.assertTrue((self.scope.directory/inf.MARKER).is_file())
+        self.assertEqual(list(self.backups.iterdir()),[]);self.closed()
+        lease_id=self.scope.observe()['lease_id']
+        with hd.HttpDrain(self.http_runtime,cleaner=self.collector).recover(lease_id,confirmed=True) as barrier:
+            lease=barrier.maintenance_lease
+            with da.recover(self.http_runtime,lease,confirmed=True) as data_fence:
+                with inf.recover(data_fence,confirmed=True) as inode_fence:
+                    self.assertTrue(inode_fence.report()['ordinary_root_data_writes_fenced'])
+                    with self.assertRaisesRegex(da.DataAccessError,'INODES_CLOSED'):data_fence.reopen(confirmed=True)
+                    inode_fence.unseal(confirmed=True)
+                data_fence.reopen(confirmed=True)
+            lease.resume(confirmed=True)
+        self.restart_fixture_services();self.assertEqual(self.request('/index.php')[0],200)
+
+    def test_provisioned_removed_inode_flag_after_copy_prevents_receipt(self):
+        self.setup_backup();capture=previous.files.capture_and_verify
+        path=self.http_root/'data/tmp/flag-drift';path.write_bytes(b'original');path.chmod(0o600)
+        os.chown(path,self.web.pw_uid,self.web.pw_gid)
+        def drift(*args,**kwargs):
+            saved=capture(*args,**kwargs);fd=os.open(path,inf.files.REGULAR)
+            try:inf._flags(fd,inf._flags(fd)&~inf.IMMUTABLE)
+            finally:os.close(fd)
+            return saved
+        with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
+        self.incomplete(result);self.assertTrue((self.scope.directory/inf.MARKER).exists())
 
 
 if __name__=='__main__':
@@ -387,13 +481,14 @@ if __name__=='__main__':
     names=sorted(n for n in ProvisionedBackupLive.__dict__ if n.startswith('test_provisioned_'))
     result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(ProvisionedBackupLive(n) for n in names))
     stable=source==quality.snapshot(ROOT);release=get_release(STORAGE_COMMIT)
-    report={'suite':'Provisioned services and durable canonical data access fence','tests':result.testsRun,'expected':22,
+    report={'suite':'Provisioned services and durable Ext4 inode fence','tests':result.testsRun,'expected':26,
         'failures':len(result.failures),'errors':len(result.errors),'skips':len(result.skipped),
-        'status':'PASS' if result.wasSuccessful() and result.testsRun==22 and not result.skipped and stable else 'FAIL',
+        'status':'PASS' if result.wasSuccessful() and result.testsRun==26 and not result.skipped and stable else 'FAIL',
         'source_stable':stable,'source_files':len(source),'web_commit':release.commit,'web_tree':release.tree,
         'database_profile':'fresh_managed','proxy_identity_separate':True,'service_activation_delivered':False,
         'classic_scheduler_admission_tested':True,'host_scheduler_inventory_complete':False,'foreign_cli_controlled':False,
         'canonical_data_path_fence_tested':True,
+        'ordinary_root_and_bind_alias_writes_tested':True,'durable_ext4_inode_fence_tested':True,
         'storage_inventory_complete':False,'complete_web_backup':False,'application_installed':False,'phase5_complete':False}
     args.report.parent.mkdir(parents=True,exist_ok=True)
     (args.report.parent/'PROVISIONED-BACKUP-SOURCE-MANIFEST.json').write_bytes(quality.encode(source))

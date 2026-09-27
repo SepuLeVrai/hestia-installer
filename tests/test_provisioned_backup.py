@@ -37,6 +37,11 @@ class ProvisionedBackupTests(unittest.TestCase):
         def data_acquire(*args,**kwargs):yield self.data_fence
         data=patch.object(b.da,'acquire',side_effect=data_acquire)
         data.start();self.addCleanup(data.stop)
+        self.inode_fence=object()
+        @contextmanager
+        def inode_acquire(*args,**kwargs):yield self.inode_fence
+        inode=patch.object(b.inf,'acquire',side_effect=inode_acquire)
+        inode.start();self.addCleanup(inode.stop)
 
     def execute(self,**extra):
         args=dict(config_root=Path('/var/lib/hestia-config'),backup_root=Path('/var/lib/backups'),
@@ -81,6 +86,7 @@ class ProvisionedBackupTests(unittest.TestCase):
             kw['scheduler_observation'].assert_held()
             self.assertIs(kw['service_barrier'],barrier);self.assertIs(kw['maintenance'],maintenance)
             self.assertIs(kw['data_fence'],self.data_fence)
+            self.assertIs(kw['inode_fence'],self.inode_fence)
             self.assertEqual(kw['inventory'].roots,tuple((n.replace('-','_'),self.http.spec.root/'data'/n)
                 for n in ('sessions','tmp','upload-tmp','imports','log','uploads')))
             self.assertEqual((kw['inventory'].web_uid,kw['inventory'].web_gid),(991,991))

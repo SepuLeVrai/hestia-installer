@@ -98,6 +98,10 @@ class DataAccessFence:
 
     def reopen(self, *, confirmed):
         require(confirmed is True, 'DATA_ACCESS_CONSENT_REQUIRED'); self.assert_held()
+        for name in ('inode-fence.attempt', 'inode-fence.release'):
+            try: os.stat(name, dir_fd=self._lease._directory, follow_symlinks=False)
+            except FileNotFoundError: pass
+            else: raise DataAccessError('DATA_ACCESS_INODES_CLOSED')
         self._runtime._inspect_configuration()
         hd.identity_census(self._account.pw_uid, self._account.pw_gid, ())
         os.fchmod(self._data, 0o750); os.fsync(self._data)
@@ -136,7 +140,9 @@ def _acquire(runtime, lease, *, confirmed, recover):
             f._write(gate, MARKER, raw, account.pw_gid)
         # Durable intent precedes closure. Close before the second census so a
         # process which opened a directory in the intervening window is refused.
-        os.fchmod(data, 0o700); os.fsync(data)
+        if stat.S_IMODE(os.fstat(data).st_mode) != 0o700:
+            os.fchmod(data, 0o700)
+        os.fsync(data)
         hd.identity_census(account.pw_uid, account.pw_gid, ())
         result = DataAccessFence(runtime, lease, account, manager, data, raw)
         result.assert_held(); runtime._inspect_configuration()

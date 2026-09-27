@@ -1,5 +1,14 @@
 # Sauvegarde intégrée des services provisionnés
 
+## Protection des inodes - 27 septembre 2026
+
+La [protection Ext4 persistante](PHASE5_INODE_FENCE.md) est maintenant obligatoire
+après la fermeture des chemins et avant copie. Le manifeste V5 lie son empreinte.
+Les nouveaux champs certifient les écritures ordinaires sur les inodes admis,
+y compris root et bind alias ; les flags d'exhaustivité globale restent faux.
+La restauration de fixture retire explicitement la protection avant toute
+substitution de données. Le produit ne restaure pas lui-même les cibles originales.
+
 ## Barrière des chemins de données - 27 septembre 2026
 
 La [fermeture persistante des chemins](PHASE5_DATA_ACCESS_FENCE.md) précède

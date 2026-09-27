@@ -16,7 +16,7 @@ from installer import data_access as a
 
 class DataAccessTests(unittest.TestCase):
     def setUp(self):
-        self.root=Path(tempfile.mkdtemp(prefix='hestia-fence-',dir='/var/lib'));self.root.chmod(0o755)
+        self.root=Path(tempfile.mkdtemp(prefix='hestia-fence-',dir=getattr(self,'fixture_root','/var/lib')));self.root.chmod(0o755)
         self.addCleanup(lambda:shutil.rmtree(self.root))
         self.account=SimpleNamespace(pw_uid=19001,pw_gid=19001,pw_name='hestia-fence-test')
         self.http=self.root/'http';self.http.mkdir(mode=0o750);os.chown(self.http,0,19001)

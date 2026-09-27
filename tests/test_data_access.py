@@ -79,7 +79,8 @@ class DataAccessContractTests(unittest.TestCase):
             for value in (False,1,'yes',None):
                 with self.assertRaisesRegex(a.DataAccessError,'CONSENT_REQUIRED'):fence.reopen(confirmed=value)
             self.assertEqual([e for e in events if isinstance(e,tuple)],[('mode',0o700)])
-            fence.reopen(confirmed=True)
+            with patch.object(a.os,'stat',side_effect=FileNotFoundError):
+                fence.reopen(confirmed=True)
             self.assertEqual([e for e in events if isinstance(e,tuple)],[('mode',0o700),('mode',0o750)])
             unlink.assert_called_once_with(a.MARKER,dir_fd=88)
 

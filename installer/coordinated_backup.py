@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from installer import scheduler_admission as sa
 from installer import data_access as da
+from installer import inode_fence as inf
 
 from installer import backup_files as files
 from installer import backup_runtime as br
@@ -105,7 +106,8 @@ class CoordinatedBackup:
                           confirmed: bool, allow_global_read_lock: bool, cancel=None,
                           service_barrier: hd.HttpDrainLease | None = None,
                           scheduler_observation: sa.SchedulerObservation | None = None,
-                          data_fence: da.DataAccessFence | None = None) -> CoordinatedVerification:
+                          data_fence: da.DataAccessFence | None = None,
+                          inode_fence: inf.InodeFence | None = None) -> CoordinatedVerification:
         started = False
         fence = None
         configuration = None
@@ -121,9 +123,13 @@ class CoordinatedBackup:
                 require(type(data_fence) is da.DataAccessFence and data_fence._lease is maintenance
                     and data_fence._runtime is service_barrier._drain.runtime, 'COORDINATED_DATA_FENCE_REQUIRED')
                 data_fence.assert_held()
+                require(type(inode_fence) is inf.InodeFence and inode_fence._data is data_fence,
+                        'COORDINATED_INODE_FENCE_REQUIRED')
+                inode_fence.assert_held()
             else:
                 require(scheduler_observation is None, 'COORDINATED_SCHEDULER_OBSERVATION_REQUIRED')
                 require(data_fence is None, 'COORDINATED_DATA_FENCE_REQUIRED')
+                require(inode_fence is None, 'COORDINATED_INODE_FENCE_REQUIRED')
             if fence is not None: fence.assert_held()
             if configuration is not None: configuration.assert_held()
         try:
@@ -238,8 +244,9 @@ class CoordinatedBackup:
                             'storage_inventory_complete': False, 'system_wiring_verified': False}
                 if barrier_profile is not None:
                     manifest['service_barrier'] = {'profile_sha256': barrier_profile,
-                        'policy': 'PROVISIONED_HTTP_CLEANER_SQL_CONFIGURATION_SCHEDULERS_DATA_PATHS_V4'}
+                        'policy': 'PROVISIONED_HTTP_CLEANER_SQL_CONFIGURATION_SCHEDULERS_DATA_INODES_V5'}
                     manifest['data_access_fence'] = data_fence.report()
+                    manifest['inode_fence'] = inode_fence.report()
                     manifest['scheduler_admission'] = {'policy': 'CLASSIC_SCHEDULER_ABSENCE_V1',
                         'reobserved_during_backup': True, 'observation_is_point_in_time': True,
                         'host_scheduler_inventory_complete': False, 'foreign_cli_controlled': False}
@@ -259,6 +266,8 @@ class CoordinatedBackup:
                         provisioned_services_drained=True, sql_read_fence_verified=True,
                         installer_settings_fenced=True, configuration_storage_admitted=True,
                         canonical_data_paths_fenced=True, data_access_fence_sha256=data_fence.report()['fence_sha256'],
+                        data_inode_writes_fenced=True, same_inode_alias_writes_fenced=True,
+                        ordinary_root_data_writes_fenced=True, inode_fence_sha256=inode_fence.report()['fence_sha256'],
                         classic_scheduler_absence_observed=True, host_scheduler_inventory_complete=False,
                         foreign_cli_controlled=False,
                         service_profile_sha256=barrier_profile, phase5_complete=False)
