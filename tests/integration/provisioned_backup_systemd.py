@@ -131,12 +131,14 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
             lease=barrier.maintenance_lease
             snapshot=previous.files.FileSnapshot(slot/'data'/data['snapshot_id'],data['manifest_sha256'],
                 self.scope.instance,lease.lease_id,self.web.pw_gid)
-            restored=self.backups/'restored';snapshot.restore_new(restored,lease)
+            restore_fixture=self.http_root/'restore-fixture';restore_fixture.mkdir(mode=0o700)
+            restored=restore_fixture/'restored';snapshot.restore_new(restored,lease)
             with da.recover(self.http_runtime,lease,confirmed=True) as data_fence:
                 with inf.recover(data_fence,confirmed=True) as inode_fence:inode_fence.unseal(confirmed=True)
             for name in (*b.h.DATA,'uploads'):
                 destination=self.http_root/'data'/name
-                os.rename(destination,self.root/('retained-'+name))
+                self.assertEqual(destination.stat().st_dev,restore_fixture.stat().st_dev)
+                os.rename(destination,restore_fixture/('retained-'+name))
                 os.rename(restored/name.replace('-','_'),destination)
             self.assertEqual(photo.read_bytes(),photo_bytes);self.assertEqual(document.read_bytes(),doc_data)
             self.assertEqual(imported.read_bytes(),import_data);self.assertEqual(current.read_bytes(),session_bytes)

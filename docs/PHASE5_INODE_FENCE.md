@@ -96,7 +96,14 @@ Les 26 scénarios intégrés ont tous été refusés avant démarrage HTTP : le 
 de fixture sous le volume dépassait la limite de 75 caractères du runtime.
 Le correctif raccourcit uniquement le nom de la fixture ; la limite produit
 et toutes les assertions sont conservées. Cette preuve négative est archivée.
-La qualification intégrée du correctif est requise avant livraison qualifiée.
+Le candidat `c2c2a97caee9ac5465be0e2b69fd1bdc2bc6c793`, campagne
+`36330364031`, passe 149 contrôles et 25 des 26 scénarios intégrés. La restauration
+de fixture échoue sur un renommage entre Ext4 et le système de fichiers du
+conteneur (`EXDEV`). Le correctif place la restauration et les anciens répertoires
+dans un parent privé root:root 0700 sur le même volume Ext4, hors des données
+scellées. Une assertion vérifie le device avant le renommage. Aucune opération
+produit ni assertion de résultat n'est assouplie ; les deux preuves sont conservées.
+La qualification intégrée de ce nouveau gel est requise avant livraison qualifiée.
 
 100 contrôles locaux attendus ; 149 avec fichiers sur Debian 13, dont dix essais
 réels Ext4. Ils couvrent 48 refus de mutation root, descripteur préouvert, mmap,

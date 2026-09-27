@@ -12,7 +12,10 @@ configuration/producteurs ; 5C3/5C4/5D et Quality globales restent à terminer.
 
 Le premier banc `36329926011` passe 149 contrôles mais refuse les 26 scénarios
 au démarrage : chemin de fixture trop long. Le nom est raccourci, sans changer
-la limite HTTP produit. Le nouveau gel doit être qualifié ; preuve initiale conservée.
+la limite HTTP produit. Le deuxième banc `36330364031` passe 149 contrôles et
+25/26 scénarios ; la restauration de fixture tente un renommage entre volumes.
+Son parent privé est déplacé sur Ext4, hors des données scellées, avec assertion
+de device identique. Le nouveau gel doit être qualifié ; les deux preuves sont conservées.
 
 ## Barrière des chemins de données - 27 septembre 2026
 
