@@ -343,6 +343,8 @@
       clearPasswords();
       void run(async () => {
         try {
+          await saveChain;
+          if (draftConflict) throw failed("BUSY");
           application = (await api("/api/web/setup", payload)).application; applicationDirty = false;
           show(3, false); message("Configuration enregistrée. Les chemins et services seront visibles dans le plan avant confirmation.");
         } finally { for (const name of Object.keys(credentials)) credentials[name] = ""; }

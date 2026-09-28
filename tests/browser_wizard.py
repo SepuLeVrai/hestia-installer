@@ -171,7 +171,7 @@ class BrowserWizardTests(unittest.TestCase):
         self.page.locator("#run-preflight").click(); expect(self.page.locator("#next-button")).to_be_enabled()
         self.page.locator("#next-button").click(); self.step(3)
 
-    def web_application_choices(self):
+    def web_application_choices(self, after_submit=None):
         from test_application_plan import setup_payload
         value = setup_payload(); choices = value['configuration']
         self.page.locator('#prepare-web-application').check()
@@ -180,9 +180,28 @@ class BrowserWizardTests(unittest.TestCase):
             'last-name': choices['administrator']['last_name'], 'email': choices['administrator']['email'],
             **value['credentials']}.items(): self.page.locator('#application-' + name).fill(text)
         self.page.locator('#save-web-application').click()
+        if after_submit is not None: after_submit()
         expect(self.page.locator('#wizard-message')).to_contain_text('Configuration enregistrée')
         expect(self.page.locator('#next-button')).to_be_enabled()
         return value
+
+    def test_application_save_waits_for_its_pending_module_draft(self):
+        self.modules(); entered = threading.Event(); release = threading.Event()
+        original = self.service.wizard.save
+        def held(value):
+            entered.set()
+            if not release.wait(8): raise RuntimeError('Draft fixture release timeout')
+            return original(value)
+        def submitted():
+            self.assertTrue(entered.wait(2))
+            self.page.wait_for_timeout(150)
+            self.assertFalse(any(path.endswith('/api/web/setup') for path in self.paths))
+            release.set()
+        try:
+            with patch.object(self.service.wizard, 'save', side_effect=held):
+                self.web_application_choices(after_submit=submitted)
+        finally: release.set()
+        self.assertIsNotNone(self.service.application.read())
 
     def test_application_choices_plan_and_refresh_keep_identity_without_secrets(self):
         self.modules(); value = self.web_application_choices()
