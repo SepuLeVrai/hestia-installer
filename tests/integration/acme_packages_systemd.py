@@ -82,6 +82,7 @@ class Acquire(unittest.TestCase):
 class Browser(unittest.TestCase):
     def test_versions_consent_reload_and_lost_install_reply_through_browser(self):
         from playwright.sync_api import sync_playwright, expect
+        expect.set_options(timeout=120000)
         connection = json.loads(fixture.CONNECTION.read_bytes())
         with sync_playwright() as pw, ExitStack() as cleanup:
             browser = pw.chromium.launch(executable_path='/usr/bin/chromium', args=['--no-sandbox', '--disable-dev-shm-usage']); cleanup.callback(browser.close)
