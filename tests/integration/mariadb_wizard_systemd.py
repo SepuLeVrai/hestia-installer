@@ -14,6 +14,7 @@ import re
 import signal
 import sys
 import threading
+import traceback
 import unittest
 from unittest.mock import patch
 
@@ -52,6 +53,18 @@ def service():
 
 
 def serve():
+    # Diagnostic wrapper belongs only to this disposable recipe. Native errors
+    # are closed codes; no locals, wire payloads or captured SQL output is logged.
+    def diagnostic(original):
+        def invoke(instance, *args):
+            try: return original(instance, *args)
+            except Exception:
+                with (EVIDENCE / 'sql-operation-traceback.txt').open('a') as stream: traceback.print_exc(file=stream)
+                raise
+        return invoke
+    for operation in (sql.Initialization, sql.Start, sql.Authority):
+        for method in ('prepare', 'apply', 'validate', 'commit'):
+            setattr(operation, method, diagnostic(getattr(operation, method)))
     stop = threading.Event(); signal.signal(signal.SIGTERM, lambda *_: stop.set())
     with prepare_bootstrap(web_root=ROOT / 'installer/web', runtime_root=Path('/run/hestia-mariadb-bootstrap'),
             bind_address='127.0.0.1', interactive=False, transaction_service=service()) as prepared:
@@ -73,6 +86,13 @@ class Browser(unittest.TestCase):
             cleanup.callback(page.screenshot, path=str(EVIDENCE / 'mariadb-fresh-wizard.png'), full_page=True)
             errors = []; page.on('pageerror', lambda error: errors.append(str(error)))
             base = 'https://127.0.0.1:' + str(connection['port'])
+            def capture_state():
+                response = context.request.get(base + '/api/wizard/state')
+                if response.ok: (EVIDENCE / 'browser-final-state.json').write_bytes(quality.encode(response.json()))
+            cleanup.callback(capture_state)
+            def done(selector, timeout=240000):
+                expect(page.locator(selector)).to_have_attribute('data-state', re.compile('^(DONE|FAILED|MANUAL_ACTION_REQUIRED)$'), timeout=timeout)
+                expect(page.locator(selector)).to_have_attribute('data-state', 'DONE', timeout=1000)
             page.goto(base); page.locator('#bootstrap-code').fill(connection['code']); page.locator('#bootstrap-form button[type=submit]').click()
             expect(page.locator('body')).to_have_attribute('data-wizard-step', re.compile('^[01]$'))
             if page.locator('body').get_attribute('data-wizard-step') == '0': page.locator('#next-button').click()
@@ -85,7 +105,7 @@ class Browser(unittest.TestCase):
             page.locator('#apply-mariadb').click(); page.keyboard.press('Escape')
             expect(page.locator('#mariadb-state')).to_have_attribute('data-state', 'PLANNED')
             page.locator('#apply-mariadb').click(); page.locator('#operation-dialog button[value=confirm]').click()
-            expect(page.locator('#mariadb-state')).to_have_attribute('data-state', 'DONE', timeout=240000)
+            done('#mariadb-state')
             page.reload(); expect(page.locator('#mariadb-state')).to_have_attribute('data-state', 'DONE')
             state = context.request.get(base + '/api/wizard/state').json()
             self.assertEqual(state['mariadb']['missing_credentials'], []); self.assertIsNone(state['installation'])
@@ -106,10 +126,10 @@ class Browser(unittest.TestCase):
             self.assertEqual(len(before['plan']['steps']), 10)
             page.reload(); expect(page.locator('#confirm-plan')).not_to_be_checked()
             page.locator('#confirm-plan').check(); page.locator('#next-button').click()
-            expect(page.locator('#execution-state')).to_have_attribute('data-state', 'DONE', timeout=240000)
+            done('#execution-state')
             page.locator('#plan-activation').click(); expect(page.locator('#activation-state')).to_have_attribute('data-state', 'PLANNED')
             page.locator('#apply-activation').click(); page.locator('#operation-dialog button[value=confirm]').click()
-            expect(page.locator('#activation-state')).to_have_attribute('data-state', 'DONE', timeout=120000)
+            done('#activation-state', timeout=120000)
             page.reload(); expect(page.locator('#activation-state')).to_have_attribute('data-state', 'DONE')
             state = context.request.get(base + '/api/wizard/state').json()
             self.assertEqual(errors, []); self.assertNotIn(PASSWORD, json.dumps(state)); self.assertNotIn(PASSWORD, page.content())
