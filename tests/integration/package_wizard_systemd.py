@@ -67,7 +67,9 @@ class Browser(unittest.TestCase):
             errors = []; page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto('https://127.0.0.1:' + str(connection['port']))
             page.locator('#bootstrap-code').fill(connection['code']); page.locator('#bootstrap-form button[type=submit]').click()
-            expect(page.locator('#next-button')).to_be_enabled()
+            # At restored GitHub step, Next correctly remains disabled without
+            # a token; Cancel is enabled as soon as initialization completes.
+            expect(page.locator('#cancel-button')).to_be_enabled()
             if page.locator('body').get_attribute('data-wizard-step') == '0': page.locator('#next-button').click()
             expect(page.locator('#package-preparation')).to_be_visible()
             if PHASE == 'acquire':
