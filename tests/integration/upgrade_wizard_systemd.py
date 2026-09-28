@@ -51,7 +51,8 @@ class UpgradeWizardLive(journal.JournalMixin, journal.previous.RecoveryLive):
         self.ready(); self.service = self.build_service(); spec = self.http_runtime.spec
         descriptor = {'version': 1, 'http': {k: str(getattr(spec, k)) if isinstance(getattr(spec, k), Path) else getattr(spec, k) for k in up.HTTP_FIELDS},
             'worker': {'user': pwd.getpwuid(self.runtime.worker_uid).pw_name, 'run_root': str(self.runtime.run_root), 'state_root': str(self.runtime.state_root)}}
-        path = self.root / 'managed-profile.json'; path.write_bytes(up.canonical_bytes(descriptor)); path.chmod(0o600)
+        private = self.root / 'private-descriptor'; private.mkdir(mode=0o700)
+        path = private / 'managed-profile.json'; path.write_bytes(up.canonical_bytes(descriptor)); path.chmod(0o600)
         self.saved = self.service.upgrade.register(path); self.descriptor_path = path
         self.backups.rmdir(); self.backups = up.ManagedProfile(descriptor).backups
         self.addCleanup(lambda: shutil.rmtree(self.backups.parent, ignore_errors=True))
