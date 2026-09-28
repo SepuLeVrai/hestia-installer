@@ -5,6 +5,7 @@ The target never receives Chromium/test libraries. Only the official package
 controller installs Apache, FPM, MariaDB and nginx. No user host is permitted.
 """
 import argparse
+from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
@@ -56,17 +57,17 @@ class Browser(unittest.TestCase):
     def test_real_browser_two_confirmations_refresh_and_official_packages(self):
         from playwright.sync_api import sync_playwright, expect
         connection = json.loads(CONNECTION.read_bytes())
-        with sync_playwright() as pw:
+        with sync_playwright() as pw, ExitStack() as cleanup:
             browser = pw.chromium.launch(executable_path='/usr/bin/chromium', headless=True,
                 args=['--no-sandbox', '--disable-dev-shm-usage'])
-            self.addCleanup(browser.close)
+            cleanup.callback(browser.close)
             context = browser.new_context(ignore_https_errors=True, viewport={'width': 1366, 'height': 900})
-            self.addCleanup(context.close)
+            cleanup.callback(context.close)
             page = context.new_page(); page.set_default_timeout(120000)
             errors = []; page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto('https://127.0.0.1:' + str(connection['port']))
             page.locator('#bootstrap-code').fill(connection['code']); page.locator('#bootstrap-form button[type=submit]').click()
-            expect(page.locator('#next-button')).to_be_visible()
+            expect(page.locator('#next-button')).to_be_enabled()
             if page.locator('body').get_attribute('data-wizard-step') == '0': page.locator('#next-button').click()
             expect(page.locator('#package-preparation')).to_be_visible()
             if PHASE == 'acquire':
