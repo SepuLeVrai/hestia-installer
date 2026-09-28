@@ -20,7 +20,7 @@ class BusinessStorageTests(unittest.TestCase):
 
     def test_profile_requires_explicit_shared_gate_outside_code_and_data(self):
         for changes in ({'external_uploads': 1}, {'maintenance_directory': None},
-            {'external_uploads': False}, {'php_family': '8.2'},
+            {'php_family': '8.2'},
             {'maintenance_directory': Path('/etc/slot/maintenance')},
             {'maintenance_directory': self.spec.root / 'maintenance'},
             {'maintenance_directory': self.spec.webroot / 'maintenance'},
@@ -38,6 +38,13 @@ class BusinessStorageTests(unittest.TestCase):
         legacy = h.HttpRuntime(replace(self.spec, external_uploads=False, maintenance_directory=None))
         self.assertNotIn('maintenance', [x.name for x in h.HttpRuntimeOperation(legacy).spec.resources])
         self.assertNotIn(self.spec.root / 'data/uploads', legacy._directories(self.account))
+        # The admitted historical source can now share its sealed slot gate,
+        # while retaining the historical upload layout until actual cutover.
+        sealed_legacy = h.HttpRuntime(replace(self.spec, external_uploads=False))
+        self.assertEqual(sealed_legacy._scope(self.account).directory, self.spec.maintenance_directory)
+        self.assertEqual([x.target for x in h.HttpRuntimeOperation(sealed_legacy).spec.resources
+                          if x.name == 'maintenance'], [str(self.spec.maintenance_directory)])
+        self.assertNotIn(self.spec.root / 'data/uploads', sealed_legacy._directories(self.account))
 
     def test_source_receipt_of_other_release_is_never_accepted(self):
         receipt = {'version': 1, 'state': 'WEB_FRESH_FINALIZED', 'source_commit': r.LEGACY_COMMIT,
