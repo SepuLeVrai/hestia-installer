@@ -238,7 +238,8 @@ class FinalizationOperation(_BoundOperation):
             requires_secrets=inputs.secret_names(),
             source=SourceSpec(db.p.WEB_REPOSITORY, controller.release.commit, controller.release.commit),
             warnings=('Configuration SHA-256 : ' + inputs.sha256,
-                      'Le sceau ne prouve pas le démarrage des services ni l’accès Web final.'),
+                      'Le sceau ne prouve pas le démarrage des services ni l’accès Web final.') + (
+                          ('Instance planifiée : ' + controller.instance,) if controller.instance is not None else ()),
             manual_actions=('Une activation sans reçu complet exige un examen manuel.',))
         super().__init__(spec, inputs, controller.runtime.state_root)
 

@@ -168,6 +168,61 @@ class BrowserWizardTests(unittest.TestCase):
         self.page.locator("#run-preflight").click(); expect(self.page.locator("#next-button")).to_be_enabled()
         self.page.locator("#next-button").click(); self.step(3)
 
+    def web_application_choices(self):
+        from test_application_plan import setup_payload
+        value = setup_payload(); choices = value['configuration']
+        self.page.locator('#prepare-web-application').check()
+        for name, text in {'hostname': choices['hostname'], 'database-name': choices['database']['name'],
+            'database-user': choices['database']['user'], 'first-name': choices['administrator']['first_name'],
+            'last-name': choices['administrator']['last_name'], 'email': choices['administrator']['email'],
+            **value['credentials']}.items(): self.page.locator('#application-' + name).fill(text)
+        self.page.locator('#save-web-application').click()
+        expect(self.page.locator('#wizard-message')).to_contain_text('Configuration enregistrée')
+        expect(self.page.locator('#next-button')).to_be_enabled()
+        return value
+
+    def test_application_choices_plan_and_refresh_keep_identity_without_secrets(self):
+        self.modules(); value = self.web_application_choices()
+        for name in value['credentials']: expect(self.page.locator('#application-' + name)).to_have_value('')
+        with patch('installer.application_plan.HostPrerequisites.check'):
+            self.page.locator('#next-button').click(); self.step(4)
+        document = self.service.engine.report()
+        self.assertEqual(len(document['plan']['steps']), 10)
+        expect(self.page.locator('#next-button')).to_be_disabled()
+        expect(self.page.locator('#confirm-plan').locator('..')).to_contain_text('création des comptes')
+        self.assertEqual(self.fake.archive_requests, [])
+        self.refresh(); self.step(4)
+        self.assertEqual(self.service.engine.report(), document)
+        for secret in value['credentials'].values(): self.assertNotIn(secret, self.page.content())
+        self.assertFalse(self.service.application.state()['application_installed'])
+
+    def test_application_edit_requires_save_and_source_selection_stays_explicit(self):
+        self.modules(); self.web_application_choices()
+        expect(self.page.locator('#module-gateway')).to_be_disabled()
+        self.page.locator('#application-hostname').fill('changed.example.test')
+        expect(self.page.locator('#next-button')).to_be_disabled()
+        self.page.locator('#prepare-web-application').uncheck()
+        expect(self.page.locator('#module-gateway')).to_be_enabled()
+        self.page.locator('#next-button').click(); self.step(4)
+        self.assertEqual(len(self.service.engine.report()['plan']['steps']), 1)
+        expect(self.page.locator('#confirm-plan').locator('..')).to_contain_text("uniquement l'acquisition")
+
+    def test_application_credentials_renewal_does_not_approve_or_replay(self):
+        self.modules(); self.web_application_choices()
+        with patch('installer.application_plan.HostPrerequisites.check'):
+            self.page.locator('#next-button').click(); self.step(4)
+        before = self.service.engine.report(); self.service.application.clear()
+        self.refresh(); self.step(4)
+        self.page.locator('.progress-dot[data-step="5"]').click(); self.step(5)
+        self.page.get_by_text('Ressaisir les identifiants applicatifs', exact=True).click()
+        secret = 'browser-renewed-private-fixture'
+        self.page.locator('#renew-database_password').fill(secret)
+        self.page.locator('#renew-web-credentials').click()
+        expect(self.page.locator('#wizard-message')).to_contain_text('Identifiants mis à jour')
+        self.assertEqual(self.service.engine.report(), before)
+        self.assertEqual(self.service.engine.secrets.require('web.database_password'), secret)
+        self.assertNotIn(secret, self.page.content()); self.assertEqual(self.fake.archive_requests, [])
+
     def plan(self, modules=("web",), mode="fresh"):
         self.modules()
         for module in ("web", "gateway", "apk"):

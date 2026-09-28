@@ -247,11 +247,12 @@ class AcquireOperation(Operation):
 class GitHubAcquisition:
     """Server-side allowlist, no executable callback or path supplied by the UI."""
 
-    def __init__(self, engine, access: GitHubAccess | None = None) -> None:
+    def __init__(self, engine, access: GitHubAccess | None = None, *, restore: bool = True) -> None:
         self.engine = engine
         self.access = access if access is not None else GitHubAccess(engine.secrets)
         require(self.access.vault is engine.secrets)
-        self.restore_registry()
+        if restore:
+            self.restore_registry()
 
     def restore_registry(self) -> None:
         document = self.engine.report()

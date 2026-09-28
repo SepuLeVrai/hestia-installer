@@ -105,6 +105,11 @@ de livraison ; ce document ne revendique pas de PASS avant leur exécution.
 
 ## Suite 5D
 
+Le lot 5D2 décrit dans [PHASE5D_WIZARD_COMPOSITION.md](PHASE5D_WIZARD_COMPOSITION.md)
+compose maintenant le fresh storage depuis le wizard jusqu'aux services préparés
+sous maintenance. Le paragraphe suivant reste l'objectif global de la phase ;
+l'activation produit et le wizard upgrade ne sont pas clos par ce nouveau lot.
+
 Composer les opérations depuis des choix opérateur fermés, persister le brouillon
 non secret, raccorder configuration et credentials au wizard, puis ajouter
 l'activation/vérification effective des services et du Web. Qualifier ces nouveaux

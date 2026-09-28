@@ -11,6 +11,7 @@ from installer.bootstrap import prepare_bootstrap
 from installer.constants import DEFAULT_STATE_ROOT
 from installer.engine import TransactionEngine
 from installer.github_sources import GitHubAcquisition
+from installer.application_plan import ApplicationPlan
 from installer.model import ErrorCode, InstallerError, plan_digest
 from installer.operations import default_registry
 from installer.service import TransactionService
@@ -78,11 +79,14 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         engine = TransactionEngine(StateJournal(args.state_dir / "state.json"), default_registry())
-        github = GitHubAcquisition(engine)
+        github = GitHubAcquisition(engine, restore=False)
+        if not ApplicationPlan(engine, github).restore():
+            github.restore_registry()
         if args.dry_run:
             existing = engine.report()
             plan = existing["plan"] if existing is not None else engine.dry_run()
-            title = "PLAN D'ACQUISITION DES SOURCES" if any("source" in s for s in plan["steps"]) else "PLAN D'INSTALLATION - CORE CHECK UNIQUEMENT"
+            title = ("PLAN DE PRÉPARATION WEB SOUS MAINTENANCE" if ApplicationPlan.owns(existing) else
+                     "PLAN D'ACQUISITION DES SOURCES" if any("source" in s for s in plan["steps"]) else "PLAN D'INSTALLATION - CORE CHECK UNIQUEMENT")
             print(json.dumps({"title": title, "plan": plan,
                               "plan_sha256": plan_digest(plan)}, ensure_ascii=False, indent=2))
             return 0

@@ -8,7 +8,7 @@
   const checks = {UNCHECKED: "À vérifier", ACCESSIBLE: "Accessible", DENIED: "Refusé", UNAVAILABLE: "Indisponible"};
   const errors = {
     BUSY: "Une autre action ou un autre onglet utilise le chantier. Actualisez son état avant de réessayer.",
-    SECRET_REQUIRED: "Le jeton GitHub doit être saisi à nouveau avant un nouvel accès aux sources.",
+    SECRET_REQUIRED: "Un identifiant temporaire doit être saisi à nouveau. Consultez les champs requis dans le suivi du chantier.",
     SECRET_REJECTED: "Une valeur sensible ou invalide a été refusée. Vérifiez les champs.",
     GITHUB_ACCESS_DENIED: "Accès refusé. Vérifiez les trois dépôts et les permissions Metadata et Contents en lecture.",
     GITHUB_RATE_LIMITED: "La limite de requêtes GitHub est atteinte. Réessayez après sa réinitialisation.",
@@ -50,7 +50,16 @@
   let draft = {revision: 0, step: 0, modules: ["web"], refs: {}, mode: "fresh"};
   let saveChain = Promise.resolve(), draftConflict = false, polling = false, confirmed = false;
   let pendingAction = null, lastRevision = "", pollCount = 0;
+  let application = {draft: null, missing_credentials: []}, useApplication = false, applicationDirty = false;
+  const credentialLabels = {
+    database_password: "Mot de passe du compte SQL applicatif", admin_password: "Mot de passe du premier administrateur",
+    migration_user: "Compte SQL de préparation", migration_password: "Mot de passe SQL de préparation",
+    authority_user: "Compte SQL d'autorité", authority_password: "Mot de passe SQL d'autorité",
+    openai_api_key: "Clé API OpenAI (facultative)"
+  };
   const content = $("wizard-form");
+  function isApplication() { return installation?.plan.steps.some((s) => s.operation === "web.host-profile.check") === true; }
+  function clearPasswords() { for (const input of content.querySelectorAll('input[type="password"]')) input.value = ""; }
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -90,6 +99,7 @@
     try { response = await fetch(path, options); } catch (_) { throw failed("NETWORK"); }
     if (response.status === 401) {
       csrf = "";
+      clearPasswords();
       $("github-credential")?.setAttribute("disabled", "");
       if ($("github-credential")) $("github-credential").value = "";
       window.location.replace("/bootstrap");
@@ -115,10 +125,12 @@
     let nextAllowed = current === 0 || current === 5;
     if (current === 1) nextAllowed = github.ready === true || installation?.state === "DONE";
     if (current === 2) nextAllowed = preflight?.ok === true && github.ready === true;
-    if (current === 3) nextAllowed = draft.modules.length > 0 && github.ready === true && preflight?.ok === true;
+    if (current === 3) nextAllowed = draft.modules.length > 0 && github.ready === true && preflight?.ok === true &&
+      (!useApplication || (application.draft !== null && !applicationDirty));
     if (current === 4) nextAllowed = Boolean(installation) && (installation.approved_plan_sha256 !== null || confirmed);
     $("next-button").disabled = disabled || !nextAllowed;
     $("next-button-label").textContent = current === 1 && installation ? "Retour au chantier" : current === 3 ? "Préparer le plan" : current === 4 ? (installation?.approved_plan_sha256 ? "Voir le suivi" : "Acquérir les sources") : current === 5 ? "Actualiser" : "Suivant";
+    if (current === 4 && isApplication() && !installation.approved_plan_sha256) $("next-button-label").textContent = "Préparer HESTIA Web";
     $("previous-button").textContent = current === 4 && installation?.approved_plan_sha256 === null ? "Modifier le plan" : "Précédent";
     for (const dot of document.querySelectorAll(".progress-dot")) {
       const i = Number(dot.dataset.step);
@@ -158,7 +170,7 @@
     try { await work(); }
     catch (error) {
       message(errorMessage(error));
-      if (error.code === "SECRET_REQUIRED") github.ready = false;
+      if (error.code === "SECRET_REQUIRED" && !isApplication()) github.ready = false;
     } finally {
       busy = false;
       if (current === 5) show(5, false);
@@ -241,6 +253,7 @@
       input.checked = draft.modules.includes(module);
       const label = element("label", null, "wizard-choice"); label.append(input, element("span", names[module]));
       input.addEventListener("change", () => {
+        useApplication = false;
         draft.modules = Object.keys(names).filter((m) => $("module-" + m).checked);
         for (const m of Object.keys(names)) {
           if (!draft.modules.includes(m)) delete draft.refs[m];
@@ -254,7 +267,7 @@
     for (const [value, text] of [["fresh", "Nouvelle installation"], ["upgrade", "Préparation d'une mise à niveau"]]) {
       const option = element("option", text); option.value = value; mode.append(option);
     }
-    mode.value = draft.mode; mode.addEventListener("change", () => { draft.mode = mode.value; void saveDraft().catch(() => {}); });
+    mode.value = draft.mode; mode.addEventListener("change", () => { useApplication = false; draft.mode = mode.value; show(3, false); void saveDraft().catch(() => {}); });
     content.append(field("Mode", mode), hint("À ce stade, le mode concerne le plan et l'acquisition. Aucune base, aucun service ni APK n'est installé ou modifié."));
     const advanced = element("details"); advanced.append(element("summary", "Références GitHub avancées"));
     for (const module of Object.keys(names)) {
@@ -268,6 +281,99 @@
       }); advanced.append(label);
     }
     advanced.append(hint("Une branche, un tag ou un SHA. Les références choisies seront figées en commits dans le plan.")); content.append(advanced);
+    applicationForm();
+    if (useApplication) {
+      mode.disabled = true;
+      for (const module of Object.keys(names)) { $("module-" + module).disabled = true; $("ref-" + module).disabled = true; }
+    }
+  }
+  function applicationForm() {
+    const group = element("fieldset"); group.append(element("legend", "Préparation applicative Web"));
+    const enable = element("input"); enable.type = "checkbox"; enable.id = "prepare-web-application"; enable.checked = useApplication;
+    const choice = element("label", null, "wizard-choice"); choice.append(enable, element("span", "Préparer une nouvelle instance HESTIA Web"));
+    group.append(choice, hint("Debian 13 avec Apache, PHP 8.4 et MariaDB déjà disponibles. Base et administrateur initial, stockages externes et services préparés sous maintenance. Le démarrage des services reste une étape ultérieure."));
+    enable.addEventListener("change", () => {
+      useApplication = enable.checked;
+      if (useApplication) { draft.modules = ["web"]; draft.mode = "fresh"; draft.refs = {}; }
+      show(3, false); void saveDraft().catch(() => {});
+    });
+    content.append(group);
+    if (!useApplication) return;
+    const saved = application.draft?.configuration;
+    const form = element("form"); form.id = "application-form"; form.autocomplete = "off";
+    const inputs = {};
+    function input(name, label, value, type = "text", required = true, maximum = 100) {
+      const node = element("input"); node.id = "application-" + name; node.type = type;
+      node.value = value || ""; node.required = required; node.maxLength = maximum; node.autocomplete = "off";
+      if (type === "password") { node.spellcheck = false; node.setAttribute("autocapitalize", "none"); }
+      node.addEventListener("input", () => { applicationDirty = true; controls(); });
+      inputs[name] = node; form.append(field(label, node)); return node;
+    }
+    input("hostname", "Nom DNS du Web", saved?.web.hostname || "", "text", true, 253);
+    const mode = element("select"); mode.id = "application-database-mode";
+    for (const [value, text] of [["managed", "Créer une base et ses comptes SQL"], ["existing_local", "Utiliser une base locale vide et ses comptes existants"]]) {
+      const option = element("option", text); option.value = value; mode.append(option);
+    }
+    mode.value = saved?.database.mode || "managed";
+    mode.addEventListener("change", () => { applicationDirty = true; controls(); }); form.append(field("Base MariaDB locale (127.0.0.1:3306)", mode));
+    input("database-name", "Nom de la base", saved?.database.name || "hestia", "text", true, 64);
+    input("database-user", "Compte SQL applicatif", saved?.database.user || "hestia_app", "text", true, 32);
+    input("first-name", "Prénom de l'administrateur", saved?.administrator.first_name);
+    input("last-name", "Nom de l'administrateur", saved?.administrator.last_name);
+    input("email", "E-mail de l'administrateur", saved?.administrator.email, "email", true, 254);
+    const assistant = element("select"); assistant.id = "application-assistant";
+    for (const [value, text] of [["disabled", "Assistant désactivé"], ["configure", "Configurer l'Assistant avec une clé API"]]) {
+      const option = element("option", text); option.value = value; assistant.append(option);
+    }
+    assistant.value = saved?.assistant.action || "disabled";
+    assistant.addEventListener("change", () => { applicationDirty = true; controls(); }); form.append(field("Assistant", assistant));
+    for (const [name, label] of Object.entries(credentialLabels)) {
+      input(name, label, "", "password", !["openai_api_key", "authority_user", "authority_password"].includes(name), name.endsWith("_user") ? 32 : name === "admin_password" ? 72 : name === "openai_api_key" ? 500 : 1024);
+    }
+    form.append(hint("Le compte de préparation est distinct du compte applicatif. Pour une base gérée, renseignez aussi l'autorité SQL. Les secrets restent en mémoire jusqu'à la fin du chantier ou la fermeture de session."));
+    const submit = button("Enregistrer la configuration Web", () => {}, "save-web-application", true); submit.type = "submit"; form.append(submit);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault(); if (busy || serverBusy || !form.reportValidity()) return;
+      const credentials = {};
+      for (const name of Object.keys(credentialLabels)) if (inputs[name].value) credentials[name] = inputs[name].value;
+      const payload = {revision: application.draft?.revision || 0, configuration: {
+        hostname: inputs.hostname.value, database: {mode: mode.value, name: inputs["database-name"].value, user: inputs["database-user"].value},
+        administrator: {first_name: inputs["first-name"].value, last_name: inputs["last-name"].value, email: inputs.email.value},
+        assistant: {action: assistant.value}}, credentials};
+      clearPasswords();
+      void run(async () => {
+        try {
+          application = (await api("/api/web/setup", payload)).application; applicationDirty = false;
+          show(3, false); message("Configuration enregistrée. Les chemins et services seront visibles dans le plan avant confirmation.");
+        } finally { for (const name of Object.keys(credentials)) credentials[name] = ""; }
+      }, "Validation de la configuration Web...");
+    });
+    group.append(form);
+    if (saved) group.append(hint(applicationDirty ? "Modifications à enregistrer." : "Configuration enregistrée. Vous pouvez préparer le plan sans ressaisir les champs."));
+  }
+  function renewApplicationCredentials() {
+    const details = element("details"); details.append(element("summary", "Ressaisir les identifiants applicatifs"));
+    details.append(hint("Champs manquants : " + (application.missing_credentials?.map((name) => credentialLabels[name]).join(", ") || "aucun signalé") + ". Les étapes validées ne seront pas rejouées."));
+    const form = element("form"); form.autocomplete = "off"; const inputs = {};
+    const allowed = new Set(installation.plan.steps.flatMap((s) => s.requires_secrets));
+    for (const [name, label] of Object.entries(credentialLabels)) {
+      if (!allowed.has("web." + name)) continue;
+      const node = element("input"); node.id = "renew-" + name; node.type = "password"; node.autocomplete = "off";
+      node.maxLength = 1024; node.spellcheck = false; inputs[name] = node; form.append(field(label, node));
+    }
+    const submit = button("Mettre à jour les identifiants", () => {}, "renew-web-credentials", true); submit.type = "submit"; form.append(submit);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault(); if (busy || serverBusy) return;
+      const credentials = {}; for (const [name, node] of Object.entries(inputs)) if (node.value) credentials[name] = node.value;
+      clearPasswords();
+      void run(async () => {
+        try {
+          application = (await api("/api/web/credentials", {confirmation: installation.plan_sha256, credentials})).application;
+          message("Identifiants mis à jour. Choisissez explicitement l'étape à reprendre.");
+        } finally { for (const name of Object.keys(credentials)) credentials[name] = ""; }
+      });
+    });
+    details.append(form); content.append(details);
   }
   function planForm() {
     if (!installation) { content.append(hint("Aucun plan disponible.")); return; }
@@ -289,7 +395,7 @@
     if (installation.approved_plan_sha256 === null) {
       const input = element("input"); input.type = "checkbox"; input.id = "confirm-plan"; input.checked = confirmed;
       const label = element("label", null, "wizard-choice");
-      label.append(input, element("span", "J'ai vérifié ce plan et j'autorise uniquement l'acquisition des sources indiquées."));
+      label.append(input, element("span", isApplication() ? "J'ai vérifié ce plan et j'autorise la création des comptes, du Web, de la base et de l'administrateur indiqués, puis la préparation des services sous maintenance." : "J'ai vérifié ce plan et j'autorise uniquement l'acquisition des sources indiquées."));
       input.addEventListener("change", () => { confirmed = input.checked; controls(); }); content.append(label);
     } else content.append(hint("Ce plan a déjà été approuvé. Sa consultation ne rejoue aucune étape."));
   }
@@ -298,16 +404,17 @@
     const completed = installation.steps.filter((s) => s.state === "DONE").length;
     const bar = element("progress"); bar.max = installation.steps.length || 1; bar.value = completed;
     bar.setAttribute("aria-label", "Étapes validées"); content.append(bar);
-    const title = installation.state === "DONE" ? (installation.mode === "check" ? "Contrôles core terminés" : "Sources prêtes") : states[installation.state] || "État inconnu";
+    const title = installation.state === "DONE" ? (isApplication() ? "Web préparé sous maintenance" : installation.mode === "check" ? "Contrôles core terminés" : "Sources prêtes") : states[installation.state] || "État inconnu";
     const summary = element("p", title + " - " + completed + " / " + installation.steps.length); summary.id = "execution-state";
     summary.dataset.state = installation.state; content.append(summary);
-    if (installation.state === "DONE") content.append(hint("HESTIA n'est pas encore déployé. L'installation Web, Gateway et APK appartient aux phases suivantes."));
+    if (installation.state === "DONE") content.append(hint(isApplication() ? "La base, l'administrateur et la configuration sont préparés. Les services restent arrêtés et l'accès fermé. La disponibilité de l'application n'est pas encore validée." : "HESTIA n'est pas encore déployé. L'installation Web, Gateway et APK appartient aux phases suivantes."));
+    if (isApplication() && installation.state !== "DONE") renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
     for (const record of installation.steps) {
       const spec = installation.plan.steps.find((s) => s.name === record.name);
       const card = element("article", null, "wizard-card");
-      card.append(element("h3", names[spec.module] || spec.name), badge(states[record.state] || record.state, record.state));
+      card.append(element("h3", isApplication() ? spec.action : names[spec.module] || spec.name), badge(states[record.state] || record.state, record.state));
       card.append(hint("Phase : " + record.phase + " - Tentatives : " + record.attempts));
       if (record.last_error_redacted) card.append(hint(errorMessage({code: record.last_error_redacted})));
       const row = element("div", null, "wizard-controls");
@@ -331,15 +438,19 @@
     const data = await api("/api/installation/report");
     const blob = new Blob([JSON.stringify(data, null, 2) + "\n"], {type: "application/json"});
     const url = URL.createObjectURL(blob); const a = element("a");
-    a.href = url; a.download = "HESTIA-ACQUISITION-REPORT.json"; a.click();
+    a.href = url; a.download = isApplication() ? "HESTIA-WEB-PREPARATION-REPORT.json" : "HESTIA-ACQUISITION-REPORT.json"; a.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function show(index, focus = true) {
     if (!allowed(index)) return;
-    if ($("github-credential")) $("github-credential").value = "";
+    clearPasswords();
     current = index; document.body.dataset.wizardStep = String(index);
     const step = steps[index];
     $("wizard-eyebrow").textContent = step[1]; $("wizard-title").textContent = step[2]; $("wizard-lead").textContent = step[3];
+    if (index === 5 && isApplication()) {
+      $("wizard-title").textContent = "Préparation applicative\nHESTIA Web";
+      $("wizard-lead").textContent = "Le plan confirmé prépare le Web et ses services sous maintenance. Les étapes validées restent acquises après une interruption.";
+    }
     $("step-label").textContent = index === 0 ? "Préambule" : `Étape ${index} sur 5`;
     $("step-name").textContent = step[0]; $("welcome-features").hidden = index !== 0;
     content.replaceChildren();
@@ -375,6 +486,7 @@
     if (navigate) await saveChain.catch(() => {});
     const result = await api("/api/wizard/state");
     installation = result.installation; serverBusy = result.busy; preflight = result.preflight;
+    application = result.application || {draft: null, missing_credentials: []};
     if (navigate) { draft = result.draft; draftConflict = false; }
     if (!serverBusy) {
       try { github = (await api("/api/github/status")).github; } catch (error) { if (error.code !== "BUSY") throw error; }
@@ -392,16 +504,16 @@
     if (current === 3) {
       await saveDraft();
       if (draftConflict) return;
-      installation = (await api("/api/wizard/plan", selection())).installation;
+      installation = (await api("/api/wizard/plan", {...selection(), ...(useApplication ? {application_revision: application.draft.revision} : {})})).installation;
       confirmed = false; show(4); message("Plan enregistré. Aucune source n'a encore été téléchargée."); return;
     }
     if (current === 4) {
       if (installation.approved_plan_sha256 !== null) { show(5); return; }
       if (!confirmed) return;
-      show(5); message("Acquisition en cours. Le serveur conserve son avancement.");
+      show(5); message(isApplication() ? "Préparation Web en cours. Le serveur conserve son avancement." : "Acquisition en cours. Le serveur conserve son avancement.");
       installation = (await api("/api/installation/apply", confirmation())).installation;
       github.ready = false;
-      show(5); message(installation.last_error_redacted ? errorMessage({code: installation.last_error_redacted}) : "Acquisition terminée et validée."); return;
+      show(5); message(installation.last_error_redacted ? errorMessage({code: installation.last_error_redacted}) : isApplication() ? "Préparation terminée sous maintenance. Les services restent arrêtés." : "Acquisition terminée et validée."); return;
     }
     const target = current + 1;
     if (!allowed(target)) return;
@@ -423,7 +535,7 @@
     if ($("cancel-dialog").returnValue !== "quit") return;
     void run(async () => { await saveChain.catch(() => {}); await api("/api/logout", {}); csrf = ""; window.location.replace("/bootstrap"); });
   });
-  window.addEventListener("pagehide", () => { if ($("github-credential")) $("github-credential").value = ""; });
+  window.addEventListener("pagehide", clearPasswords);
   window.addEventListener("pageshow", (event) => { if (event.persisted) window.location.reload(); });
 
   async function poll() {
@@ -433,6 +545,7 @@
       if (installation || serverBusy) {
         const result = await api("/api/wizard/state");
         serverBusy = result.busy;
+        application = result.application || application;
         const stamp = result.installation ? result.installation.installation_id + ":" + result.installation.revision + ":" + serverBusy : "";
         if (stamp !== lastRevision) {
           lastRevision = stamp;

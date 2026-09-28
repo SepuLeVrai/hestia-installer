@@ -58,6 +58,25 @@ class FinalizationTests(ProtectedConfigurationFixture, unittest.TestCase):
     def finalize(self,**kwargs):
         return self.client.finalize(self.payload,config_root=self.output,confirmed=kwargs.pop('confirmed',True),**kwargs)
 
+    def test_planned_instance_is_used_in_seal_lock_and_private_attempt(self):
+        self.client=f.FinalizationStep(self.runtime,self.webroot,repository=p.WEB_REPOSITORY,commit=f.WEB_COMMIT,instance='7'*32)
+        self.assertEqual(self.finalize()['state'],'WEB_FRESH_FINALIZED')
+        for path in (self.directory/'seal.json',self.directory/'finalization.attempt',self.webroot/'install.lock'):
+            self.assertEqual(json.loads(path.read_bytes())['instance'],'7'*32)
+        self.assertEqual(self.client.observe(self.existing(),config_root=self.output)['state'],'WEB_FRESH_FINALIZED')
+
+    def test_planned_observer_refuses_other_valid_instance_without_mutation(self):
+        self.finalize();before=(self.directory/'seal.json').read_bytes()
+        other=f.FinalizationStep(self.runtime,self.webroot,repository=p.WEB_REPOSITORY,commit=f.WEB_COMMIT,instance='8'*32)
+        self.assertEqual(other.observe(self.existing(),config_root=self.output)['state'],'MANUAL_ACTION')
+        self.assertEqual((self.directory/'seal.json').read_bytes(),before)
+
+    def test_invalid_planned_instance_is_rejected_before_native_mutation(self):
+        for instance in ('', 'A'*32, 'a'*31, '../'+('a'*32), True, 42):
+            with self.subTest(instance=instance),self.assertRaisesRegex(f.FinalizationError,'FINALIZATION_INSTANCE_REJECTED'):
+                f.FinalizationStep(self.runtime,self.webroot,repository=p.WEB_REPOSITORY,commit=f.WEB_COMMIT,instance=instance)
+        self.assertFalse((self.directory/'finalization.attempt').exists())
+
     def existing(self,action='preserve',key=''):
         v=copy.deepcopy(self.payload);v.update(mode='upgrade',administrator=None)
         v['secrets'].update(admin_password='',openai_api_key=key);v['assistant']['action']=action

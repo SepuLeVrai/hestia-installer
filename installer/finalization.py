@@ -326,11 +326,14 @@ def _result(observed: dict) -> dict:
 
 class FinalizationStep:
     """Private trusted-host API. Nothing is registered in the HTTP/plan router."""
-    def __init__(self, runtime: p.PhpRuntime, source: Path, *, repository: str, commit: str):
+    def __init__(self, runtime: p.PhpRuntime, source: Path, *, repository: str, commit: str, instance: str | None = None):
         require(repository == p.WEB_REPOSITORY, 'SOURCE_PIN_MISMATCH')
+        require(instance is None or (type(instance) is str and re.fullmatch(r'[a-f0-9]{32}', instance) is not None),
+                'FINALIZATION_INSTANCE_REJECTED')
         try: self.release = get_release(commit)
         except ValueError: raise FinalizationError('SOURCE_PIN_MISMATCH') from None
         self.runtime, self.source = runtime, Path(source)
+        self.instance = instance
 
     def _sources(self, web: Path) -> None:
         require(_runtime_digest(self.source) == self.release.runtime_sha256 and _runtime_digest(web) == self.release.runtime_sha256, 'SOURCE_PIN_MISMATCH')
@@ -352,7 +355,7 @@ class FinalizationStep:
                 initial = _sql(self.runtime, self.source, database, payload, config, ca, desired=False, mutate=False, cancel=cancel)
                 require(initial['assistant_enabled'] is False, 'DATABASE_NOT_PREPARED')
                 require(cancel is None or not cancel.is_set(), 'INTERRUPTED')
-                nonce = os.urandom(16).hex()
+                nonce = self.instance if self.instance is not None else os.urandom(16).hex()
                 seal, lock, pointer = _documents(web, directory, gid, database, loader, nonce)
                 # Any creation attempt, even a failing fsync, prohibits replay.
                 started = True
@@ -399,6 +402,8 @@ class FinalizationStep:
                 self._sources(web)
                 _prepared(config, payload, directory, conf, gid)
                 _completed(conf, webfd, inc, gid, commit=self.release.commit)
+                if self.instance is not None:
+                    require(_json_read(conf, 'seal.json', gid)['instance'] == self.instance, 'FINALIZATION_INSTANCE_MISMATCH')
                 self._pending_edits(conf)
                 return _result(_probe(self.runtime, config, directory, gid, active=True, cancel=cancel))
             except Exception:

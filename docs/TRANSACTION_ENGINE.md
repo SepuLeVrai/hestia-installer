@@ -279,3 +279,10 @@ Un journal core de Phase 2 n'est jamais remplacé silencieusement par un plan
 GitHub : PLAN_EXISTS. Pour un chantier indépendant, utiliser un autre state-dir
 privé ; ne pas supprimer un journal actif pour contourner ce contrôle.
 Voir [GITHUB_ACQUISITION.md](GITHUB_ACQUISITION.md) pour les contrats de requêtes.
+# Composition applicative 5D2
+
+Voir [PHASE5D_WIZARD_COMPOSITION.md](PHASE5D_WIZARD_COMPOSITION.md) pour le parcours
+fresh depuis le wizard, l'identité fixée avant approbation, la configuration
+privée sans secret et la reconstruction exacte du registre après redémarrage.
+Le contrat du journal historique reste inchangé ; les services ne démarrent pas
+dans ce parcours de préparation sous maintenance.

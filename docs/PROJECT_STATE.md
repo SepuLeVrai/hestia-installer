@@ -813,3 +813,13 @@ l'activation des services et la recette opérateur complète restent à livrer.
 La phase 5 et les issues #1/#3/#13/Web #135 restent ouvertes ; aucun succès global
 d'installation n'est déduit de ce raccordement transactionnel privé. Les preuves
 de qualification de ce lot sont celles de son checkpoint, pas les anciens PASS.
+
+## 5D2 - Wizard fresh et composition immuable
+
+Le fresh storage est raccordé au wizard sur hôte Debian 13 préparé, jusqu’au SQL,
+au sceau et aux services sous maintenance. Les choix sont persistants et non
+secrets ; l’identité du sceau est fixée avant le plan. La réouverture reconstruit
+le même registre, et la ressaisie des secrets ne rejoue aucune étape.
+Voir `docs/PHASE5D_WIZARD_COMPOSITION.md` pour les limites et la qualification.
+Phase 5 reste ouverte : activation produit, wizard upgrade et préparation
+automatique des dépendances/MariaDB restent à livrer. Les acquis 5C4/5D1 demeurent.

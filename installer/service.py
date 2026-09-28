@@ -9,8 +9,11 @@ from installer.wizard import WizardDraft, preflight_snapshot
 from installer.web_config import validate_web_configuration
 from installer.operations import default_registry
 from installer.model import ErrorCode, InstallerError, exact_keys, require
+from installer.application_plan import ApplicationPlan
 
 POST_ROUTES = {
+    "/api/web/setup": "web.setup",
+    "/api/web/credentials": "web.credentials",
     "/api/web/config/validate": "web.config.validate",
     "/api/wizard/draft": "wizard.draft",
     "/api/wizard/plan": "wizard.plan",
@@ -33,6 +36,8 @@ class TransactionService:
         self.engine = engine
         self.github = github
         self.wizard = WizardDraft(engine)
+        self.application = ApplicationPlan(engine, github)
+        self.application.restore()
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
@@ -64,7 +69,8 @@ class TransactionService:
             # Readers never wait for a long acquisition. A stale RUNNING snapshot
             # does not authorize a replay; mutations retain the engine's lock.
             return {"installation": self.engine.report(), "draft": self.wizard.read(),
-                    "busy": self._mutation_lock.locked(), "preflight": self._preflight}
+                    "busy": self._mutation_lock.locked(), "preflight": self._preflight,
+                    "application": self.application.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -75,6 +81,7 @@ class TransactionService:
         with self._activity(), self._mutation():
             if self.github is not None:
                 self.github.access.clear()
+            self.application.clear()
 
     def report(self) -> dict:
         with self._activity():
@@ -82,6 +89,11 @@ class TransactionService:
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action == "web.setup":
+                self.application.save(payload)
+                return {"application": self.application.state()}
+            if action == "web.credentials":
+                return {"application": self.application.renew(payload)}
             if action == "web.config.validate":
                 preview = validate_web_configuration(payload)
                 self.engine.secrets.reject_in(preview)
@@ -94,9 +106,13 @@ class TransactionService:
                 return {"preflight": self._preflight}
             if action == "wizard.plan":
                 require(self.github is not None, ErrorCode.UNSUPPORTED_MODULE)
-                exact_keys(payload, {"modules", "refs", "mode"})
+                application = "application_revision" in payload
+                exact_keys(payload, {"modules", "refs", "mode"} | ({"application_revision"} if application else set()))
                 self._preflight = preflight_snapshot()
                 require(self._preflight["ok"], ErrorCode.VALIDATION_FAILED)
+                if application:
+                    require(payload["modules"] == ["web"] and payload["mode"] == "fresh" and payload["refs"] == {})
+                    return {"installation": self.application.plan(payload["application_revision"])}
                 return {"installation": self.github.plan(payload)}
             if action == "wizard.reset-plan":
                 exact_keys(payload, {"confirm", "confirmation"})
@@ -130,6 +146,7 @@ class TransactionService:
                 exact_keys(payload, keys)
                 require(payload["confirm"] is True, ErrorCode.CONFIRMATION_REQUIRED)
                 confirmation = payload["confirmation"]
+                self.application.restore()
                 if self.github is not None and action in {"apply", "resume", "retry"}:
                     self.github.verify_completed()
                 if action == "apply":
@@ -144,6 +161,8 @@ class TransactionService:
                 # Keep credentials only while a selection can still require downloads.
                 if document["state"] in {"DONE", "FAILED", "MANUAL_ACTION_REQUIRED", "ROLLED_BACK"}:
                     self.github.access.clear()
+            if action in {"apply", "resume", "retry", "rollback"} and document["state"] == "DONE":
+                self.application.clear()
             return {"installation": document}
 
     def close(self) -> None:
