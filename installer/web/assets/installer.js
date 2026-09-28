@@ -51,6 +51,7 @@
   let saveChain = Promise.resolve(), draftConflict = false, polling = false, confirmed = false;
   let pendingAction = null, lastRevision = "", pollCount = 0;
   let application = {draft: null, missing_credentials: []}, useApplication = false, applicationDirty = false;
+  let upgrade = {profile: null, missing_credentials: []}, useUpgrade = false;
   let activation = {installation: null, availability: null};
   const credentialLabels = {
     database_password: "Mot de passe du compte SQL applicatif", admin_password: "Mot de passe du premier administrateur",
@@ -59,7 +60,8 @@
     openai_api_key: "Clé API OpenAI (facultative)"
   };
   const content = $("wizard-form");
-  function isApplication() { return installation?.plan.steps.some((s) => s.operation === "web.host-profile.check") === true; }
+  function isUpgrade() { return installation?.plan.steps.some((s) => s.operation === "web.upgrade-workspace.create") === true; }
+  function isApplication() { return isUpgrade() || installation?.plan.steps.some((s) => s.operation === "web.host-profile.check") === true; }
   function clearPasswords() { for (const input of content.querySelectorAll('input[type="password"]')) input.value = ""; }
 
   function element(tag, text, className) {
@@ -127,11 +129,11 @@
     if (current === 1) nextAllowed = github.ready === true || installation?.state === "DONE";
     if (current === 2) nextAllowed = preflight?.ok === true && github.ready === true;
     if (current === 3) nextAllowed = draft.modules.length > 0 && github.ready === true && preflight?.ok === true &&
-      (!useApplication || (application.draft !== null && !applicationDirty));
+      (!useApplication || (application.draft !== null && !applicationDirty)) && (!useUpgrade || upgrade.missing_credentials.length === 0);
     if (current === 4) nextAllowed = Boolean(installation) && (installation.approved_plan_sha256 !== null || confirmed);
     $("next-button").disabled = disabled || !nextAllowed;
     $("next-button-label").textContent = current === 1 && installation ? "Retour au chantier" : current === 3 ? "Préparer le plan" : current === 4 ? (installation?.approved_plan_sha256 ? "Voir le suivi" : "Acquérir les sources") : current === 5 ? "Actualiser" : "Suivant";
-    if (current === 4 && isApplication() && !installation.approved_plan_sha256) $("next-button-label").textContent = "Préparer HESTIA Web";
+    if (current === 4 && isApplication() && !installation.approved_plan_sha256) $("next-button-label").textContent = isUpgrade() ? "Migrer HESTIA Web" : "Préparer HESTIA Web";
     $("previous-button").textContent = current === 4 && installation?.approved_plan_sha256 === null ? "Modifier le plan" : "Précédent";
     for (const dot of document.querySelectorAll(".progress-dot")) {
       const i = Number(dot.dataset.step);
@@ -282,11 +284,52 @@
       }); advanced.append(label);
     }
     advanced.append(hint("Une branche, un tag ou un SHA. Les références choisies seront figées en commits dans le plan.")); content.append(advanced);
-    applicationForm();
-    if (useApplication) {
+    applicationForm(); upgradeForm();
+    if (useApplication || useUpgrade) {
       mode.disabled = true;
       for (const module of Object.keys(names)) { $("module-" + module).disabled = true; $("ref-" + module).disabled = true; }
     }
+  }
+  function upgradeSummary() {
+    const config = upgrade.profile.configuration;
+    const card = element("article", null, "wizard-card"); card.id = "upgrade-profile-choices";
+    card.append(element("h2", "Migration de l’instance gérée"), element("p", "DNS : " + config.web.hostname),
+      element("p", "Base conservée : " + config.database.name + " / " + config.database.user),
+      element("p", "Version source : " + upgrade.source_commit), element("p", "Version cible : " + upgrade.target_commit),
+      hint("Administrateurs, assistant et données conservés. Arrêt sous maintenance et verrou SQL global de lecture pendant la sauvegarde vérifiée. Aucune migration SQL. Réouverture et démarrage sur confirmation séparée."));
+    return card;
+  }
+  function upgradeForm() {
+    if (!upgrade.profile) return;
+    const group = element("fieldset"); group.append(element("legend", "Instance existante gérée"));
+    const enable = element("input"); enable.type = "checkbox"; enable.id = "upgrade-web-application"; enable.checked = useUpgrade;
+    const choice = element("label", null, "wizard-choice"); choice.append(enable, element("span", "Migrer l’instance HESTIA Web enregistrée")); group.append(choice); content.append(group);
+    enable.addEventListener("change", () => {
+      useUpgrade = enable.checked;
+      if (useUpgrade) { useApplication = false; draft.modules = ["web"]; draft.mode = "upgrade"; draft.refs = {}; }
+      show(3, false); void saveDraft().catch(() => {});
+    });
+    if (!useUpgrade) return;
+    group.append(upgradeSummary());
+    const form = element("form"); form.id = "upgrade-credentials"; form.autocomplete = "off";
+    const inputs = {};
+    for (const name of ["database_password", "authority_user", "authority_password"]) {
+      const node = element("input"); node.id = "upgrade-" + name; node.type = "password"; node.autocomplete = "off";
+      node.maxLength = 1024; node.required = true; node.spellcheck = false; inputs[name] = node; form.append(field(credentialLabels[name], node));
+    }
+    const submit = button("Enregistrer les identifiants de migration", () => {}, "save-upgrade-credentials", true); submit.type = "submit"; form.append(submit);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault(); if (busy || serverBusy) return;
+      const credentials = Object.fromEntries(Object.entries(inputs).map(([name, node]) => [name, node.value])); clearPasswords();
+      void run(async () => {
+        try {
+          await saveChain;
+          upgrade = (await api("/api/web/upgrade/credentials", {confirmation: upgrade.profile_sha256, credentials})).upgrade;
+          show(3, false); message("Identifiants conservés uniquement pour cette session. Préparez le plan à confirmer.");
+        } finally { for (const name of Object.keys(credentials)) credentials[name] = ""; }
+      });
+    });
+    group.append(form, hint(upgrade.missing_credentials.length ? "Identifiants à renseigner avant de préparer le plan." : "Identifiants disponibles pour cette session."));
   }
   function applicationForm() {
     const group = element("fieldset"); group.append(element("legend", "Préparation applicative Web"));
@@ -294,7 +337,7 @@
     const choice = element("label", null, "wizard-choice"); choice.append(enable, element("span", "Préparer une nouvelle instance HESTIA Web"));
     group.append(choice, hint("Debian 13 avec Apache, PHP 8.4 et MariaDB déjà disponibles. Base et administrateur initial, stockages externes et services préparés sous maintenance. Le démarrage des services reste une étape ultérieure."));
     enable.addEventListener("change", () => {
-      useApplication = enable.checked;
+      useApplication = enable.checked; if (useApplication) useUpgrade = false;
       if (useApplication) { draft.modules = ["web"]; draft.mode = "fresh"; draft.refs = {}; }
       show(3, false); void saveDraft().catch(() => {});
     });
@@ -356,7 +399,7 @@
   }
   function renewApplicationCredentials() {
     const details = element("details"); details.append(element("summary", "Ressaisir les identifiants applicatifs"));
-    details.append(hint("Champs manquants : " + (application.missing_credentials?.map((name) => credentialLabels[name]).join(", ") || "aucun signalé") + ". Les étapes validées ne seront pas rejouées."));
+    details.append(hint("Champs manquants : " + ((isUpgrade() ? upgrade : application).missing_credentials?.map((name) => credentialLabels[name]).join(", ") || "aucun signalé") + ". Les étapes validées ne seront pas rejouées."));
     const form = element("form"); form.autocomplete = "off"; const inputs = {};
     const allowed = new Set(installation.plan.steps.flatMap((s) => s.requires_secrets));
     for (const [name, label] of Object.entries(credentialLabels)) {
@@ -371,7 +414,8 @@
       clearPasswords();
       void run(async () => {
         try {
-          application = (await api("/api/web/credentials", {confirmation: installation.plan_sha256, credentials})).application;
+          const result = await api(isUpgrade() ? "/api/web/upgrade/credentials" : "/api/web/credentials", {confirmation: installation.plan_sha256, credentials});
+          if (isUpgrade()) upgrade = result.upgrade; else application = result.application;
           message("Identifiants mis à jour. Choisissez explicitement l'étape à reprendre.");
         } finally { for (const name of Object.keys(credentials)) credentials[name] = ""; }
       });
@@ -381,7 +425,8 @@
   function planForm() {
     if (!installation) { content.append(hint("Aucun plan disponible.")); return; }
     content.append(hint("Identifiant : " + installation.installation_id));
-    if (isApplication() && application.draft) {
+    if (isUpgrade() && upgrade.profile) content.append(upgradeSummary());
+    if (!isUpgrade() && isApplication() && application.draft) {
       const config = application.draft.configuration;
       const card = element("article", null, "wizard-card"); card.id = "application-plan-choices";
       card.append(element("h2", "Configuration Web à confirmer"),
@@ -410,7 +455,7 @@
     if (installation.approved_plan_sha256 === null) {
       const input = element("input"); input.type = "checkbox"; input.id = "confirm-plan"; input.checked = confirmed;
       const label = element("label", null, "wizard-choice");
-      label.append(input, element("span", isApplication() ? "J'ai vérifié ce plan et j'autorise la création des comptes, du Web, de la base et de l'administrateur indiqués, puis la préparation des services sous maintenance." : "J'ai vérifié ce plan et j'autorise uniquement l'acquisition des sources indiquées."));
+      label.append(input, element("span", isUpgrade() ? "J’autorise la migration de cette instance gérée : arrêt sous maintenance, verrou SQL global de lecture et sauvegarde vérifiée. Les données et les comptes sont conservés. Les services resteront arrêtés jusqu’à une confirmation distincte." : isApplication() ? "J'ai vérifié ce plan et j'autorise la création des comptes, du Web, de la base et de l'administrateur indiqués, puis la préparation des services sous maintenance." : "J'ai vérifié ce plan et j'autorise uniquement l'acquisition des sources indiquées."));
       input.addEventListener("change", () => { confirmed = input.checked; controls(); }); content.append(label);
     } else content.append(hint("Ce plan a déjà été approuvé. Sa consultation ne rejoue aucune étape."));
   }
@@ -419,12 +464,12 @@
     const completed = installation.steps.filter((s) => s.state === "DONE").length;
     const bar = element("progress"); bar.max = installation.steps.length || 1; bar.value = completed;
     bar.setAttribute("aria-label", "Étapes validées"); content.append(bar);
-    const title = installation.state === "DONE" ? (isApplication() ? "Web préparé sous maintenance" : installation.mode === "check" ? "Contrôles core terminés" : "Sources prêtes") : states[installation.state] || "État inconnu";
+    const title = installation.state === "DONE" ? (isUpgrade() ? "Web migré sous maintenance" : isApplication() ? "Web préparé sous maintenance" : installation.mode === "check" ? "Contrôles core terminés" : "Sources prêtes") : states[installation.state] || "État inconnu";
     const summary = element("p", title + " - " + completed + " / " + installation.steps.length); summary.id = "execution-state";
     summary.dataset.state = installation.state; content.append(summary);
     if (installation.state === "DONE") content.append(hint(isApplication() ? "La préparation sous maintenance est acquise. Le plan d'activation et la vérification actuelle du Web figurent ci-dessous." : "HESTIA n'est pas encore déployé. L'installation Web, Gateway et APK appartient aux phases suivantes."));
     if (isApplication() && installation.state === "DONE") activationForm();
-    if (isApplication() && installation.state !== "DONE") renewApplicationCredentials();
+    if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
     for (const record of installation.steps) {
@@ -437,8 +482,8 @@
       if (["FAILED", "MANUAL_ACTION_REQUIRED", "ROLLED_BACK"].includes(record.state)) {
         row.append(button("Réessayer cette étape", () => confirmAction("retry", {name: record.name}, "Réessayer uniquement « " + (isApplication() ? spec.action : names[spec.module] || spec.name) + " » ? Les étapes validées ne sont pas rejouées."), "retry-" + record.name));
       }
-      if (spec.rollback_supported && !["PLANNED", "ROLLED_BACK"].includes(record.state)) {
-        row.append(button("Annuler cette frontière", () => confirmAction("rollback", {boundary: spec.boundary}, "Supprimer uniquement les ressources créées par " + (names[spec.module] || spec.name) + " ? Une ressource préexistante ou modifiée ne sera pas supprimée aveuglément."), "rollback-" + record.name));
+      if (spec.rollback_supported && !["PLANNED", "ROLLED_BACK"].includes(record.state) && !(isUpgrade() && activation.installation?.approved_plan_sha256)) {
+        row.append(button("Annuler cette frontière", () => confirmAction("rollback", {boundary: spec.boundary}, isUpgrade() && spec.name === "web.storage-upgrade" ? "Revenir à la version source sous maintenance avec les identifiants ressaisis ? Aucun SQL ne sera restauré. La réouverture après rollback exige une évaluation distincte." : "Supprimer uniquement les ressources créées par " + (names[spec.module] || spec.name) + " ? Une ressource préexistante ou modifiée ne sera pas supprimée aveuglément."), "rollback-" + record.name));
       }
       card.append(row); content.append(card);
     }
@@ -458,7 +503,7 @@
   }
   function activationForm() {
     const card = element("article", null, "wizard-card"); card.id = "application-activation";
-    card.append(element("h2", "Activation du Web local"), hint("Backend : 127.0.0.1:9080. Le frontal TLS public et le démarrage automatique après redémarrage restent à configurer."));
+    card.append(element("h2", "Activation du Web local"), hint("Backend : 127.0.0.1:" + (isUpgrade() ? upgrade.profile.descriptor.http.port : 9080) + ". Le frontal TLS public et le démarrage automatique après redémarrage restent à configurer."));
     const document = activation.installation;
     if (!document) {
       card.append(button("Préparer le plan d'activation", () => void run(async () => {
@@ -544,6 +589,7 @@
     installation = result.installation; serverBusy = result.busy; preflight = result.preflight;
     application = result.application || {draft: null, missing_credentials: []};
     activation = result.activation || {installation: null, availability: null};
+    upgrade = result.upgrade || {profile: null, missing_credentials: []};
     if (navigate) { draft = result.draft; draftConflict = false; }
     if (!serverBusy) {
       try { github = (await api("/api/github/status")).github; } catch (error) { if (error.code !== "BUSY") throw error; }
@@ -561,7 +607,7 @@
     if (current === 3) {
       await saveDraft();
       if (draftConflict) return;
-      installation = (await api("/api/wizard/plan", {...selection(), ...(useApplication ? {application_revision: application.draft.revision} : {})})).installation;
+      installation = (await api("/api/wizard/plan", {...selection(), ...(useApplication ? {application_revision: application.draft.revision} : useUpgrade ? {upgrade_profile_sha256: upgrade.profile_sha256} : {})})).installation;
       confirmed = false; show(4); message("Plan enregistré. Aucune source n'a encore été téléchargée."); return;
     }
     if (current === 4) {
@@ -603,6 +649,7 @@
         const result = await api("/api/wizard/state");
         serverBusy = result.busy;
         application = result.application || application;
+        upgrade = result.upgrade || upgrade;
         activation = result.activation || activation;
         const stamp = result.installation ? result.installation.installation_id + ":" + result.installation.revision + ":" + serverBusy + ":" + activation.installation?.revision : "";
         if (stamp !== lastRevision) {

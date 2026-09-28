@@ -11,11 +11,13 @@ from installer.operations import default_registry
 from installer.model import ErrorCode, InstallerError, exact_keys, require
 from installer.application_plan import ApplicationPlan
 from installer.application_activation import ActivationPlan
+from installer.upgrade_plan import UpgradePlan, UpgradeActivationPlan
 
 POST_ROUTES = {
     **{'/api/web/activation/' + action: 'activation.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     "/api/web/setup": "web.setup",
     "/api/web/credentials": "web.credentials",
+    "/api/web/upgrade/credentials": "web.upgrade.credentials",
     "/api/web/config/validate": "web.config.validate",
     "/api/wizard/draft": "wizard.draft",
     "/api/wizard/plan": "wizard.plan",
@@ -39,13 +41,19 @@ class TransactionService:
         self.github = github
         self.wizard = WizardDraft(engine)
         self.application = ApplicationPlan(engine, github)
-        self.application.restore()
-        self.activation = ActivationPlan(self.application)
+        self.upgrade = UpgradePlan(engine, github)
+        if not self.application.restore(): self.upgrade.restore()
+        self._fresh_activation = ActivationPlan(self.application)
+        self._upgrade_activation = UpgradeActivationPlan(self.upgrade)
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
         self._active = 0
         self._closing = False
+
+    @property
+    def activation(self):
+        return self._upgrade_activation if self.upgrade.owns(self.engine.report()) else self._fresh_activation
 
     @contextmanager
     def _activity(self):
@@ -73,7 +81,7 @@ class TransactionService:
             # does not authorize a replay; mutations retain the engine's lock.
             return {"installation": self.engine.report(), "draft": self.wizard.read(),
                     "busy": self._mutation_lock.locked(), "preflight": self._preflight,
-                    "application": self.application.state(), "activation": self.activation.state()}
+                    "application": self.application.state(), "activation": self.activation.state(), "upgrade": self.upgrade.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -102,6 +110,8 @@ class TransactionService:
                 return {"application": self.application.state()}
             if action == "web.credentials":
                 return {"application": self.application.renew(payload)}
+            if action == "web.upgrade.credentials":
+                return {"upgrade": self.upgrade.renew(payload)}
             if action == "web.config.validate":
                 preview = validate_web_configuration(payload)
                 self.engine.secrets.reject_in(preview)
@@ -115,12 +125,18 @@ class TransactionService:
             if action == "wizard.plan":
                 require(self.github is not None, ErrorCode.UNSUPPORTED_MODULE)
                 application = "application_revision" in payload
-                exact_keys(payload, {"modules", "refs", "mode"} | ({"application_revision"} if application else set()))
+                upgrade = "upgrade_profile_sha256" in payload
+                require(not (application and upgrade))
+                exact_keys(payload, {"modules", "refs", "mode"} | ({"application_revision"} if application else set())
+                           | ({"upgrade_profile_sha256"} if upgrade else set()))
                 self._preflight = preflight_snapshot()
                 require(self._preflight["ok"], ErrorCode.VALIDATION_FAILED)
                 if application:
                     require(payload["modules"] == ["web"] and payload["mode"] == "fresh" and payload["refs"] == {})
                     return {"installation": self.application.plan(payload["application_revision"])}
+                if upgrade:
+                    require(payload["modules"] == ["web"] and payload["mode"] == "upgrade" and payload["refs"] == {})
+                    return {"installation": self.upgrade.plan(payload["upgrade_profile_sha256"])}
                 return {"installation": self.github.plan(payload)}
             if action == "wizard.reset-plan":
                 exact_keys(payload, {"confirm", "confirmation"})
@@ -154,7 +170,10 @@ class TransactionService:
                 exact_keys(payload, keys)
                 require(payload["confirm"] is True, ErrorCode.CONFIRMATION_REQUIRED)
                 confirmation = payload["confirmation"]
-                self.application.restore()
+                if not self.application.restore(): self.upgrade.restore()
+                if action == 'rollback' and self.upgrade.owns(self.engine.report()):
+                    activation = self.activation.journal.read()
+                    require(activation is None or activation['approved_plan_sha256'] is None, ErrorCode.MANUAL_ACTION_REQUIRED)
                 if self.github is not None and action in {"apply", "resume", "retry"}:
                     self.github.verify_completed()
                 if action == "apply":

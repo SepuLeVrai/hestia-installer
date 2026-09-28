@@ -63,13 +63,17 @@ class Activation:
         require('0::/system.slice/' + self.unit(role) in (Path('/proc') / value['MainPID'] / 'cgroup').read_text().splitlines(), ErrorCode.INVALID_STATE)
         return True
 
+    def probe_port(self):
+        require(self.runtime.spec.port == 9080 and self.runtime.spec.ingress == app.ProxyIngress('127.0.0.2', ('127.0.0.1/32',)), ErrorCode.INVALID_STATE)
+        return 9080
+
     def check(self):
         """Explicit bounded local HTTP probe; never invoked by GET/state/recovery."""
         self.serving()
         require(all(self.running(role) for role in ('php', 'apache', 'timer')), ErrorCode.VALIDATION_FAILED)
         spec = self.runtime.spec
-        require(spec.port == 9080 and spec.ingress == app.ProxyIngress('127.0.0.2', ('127.0.0.1/32',)), ErrorCode.INVALID_STATE)
-        connection = http.client.HTTPConnection('127.0.0.1', 9080, timeout=5, source_address=('127.0.0.2', 0))
+        port = self.probe_port()
+        connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5, source_address=('127.0.0.2', 0))
         try:
             connection.request('GET', '/login.php', headers={'Host': spec.hostname,
                 'X-Forwarded-For': '127.0.0.1', 'X-Forwarded-Proto': 'https', 'Connection': 'close'})
@@ -79,7 +83,7 @@ class Activation:
                     and re.search(rb'name="csrf_token" value="[a-f0-9]+"', body) is not None,
                     ErrorCode.VALIDATION_FAILED)
         finally: connection.close()
-        return {'state': 'LOCAL_WEB_AVAILABLE', 'checked_at': now(), 'backend': '127.0.0.1:9080',
+        return {'state': 'LOCAL_WEB_AVAILABLE', 'checked_at': now(), 'backend': '127.0.0.1:' + str(port),
                 'login_page': True, 'administrator_login_tested': False, 'public_tls_verified': False,
                 'boot_persistence_configured': False, 'application_installed': False}
 
@@ -195,6 +199,7 @@ def registry(activation):
 
 
 class ActivationPlan:
+    mode = 'fresh'
     def __init__(self, application):
         self.application = application
         self.journal = StateJournal(application.engine.journal.path.parent / 'activation' / 'state.json')
@@ -224,7 +229,7 @@ class ActivationPlan:
                 exact_keys(payload, {'preparation_sha256'})
                 require(payload['preparation_sha256'] == parent['plan_sha256'], ErrorCode.CONFIRMATION_REQUIRED)
                 if engine.report() is None: activation.runtime.observe(); activation.cleaner.observe()
-                engine.plan(mode='fresh')
+                engine.plan(mode=self.mode)
             elif action == 'check':
                 exact_keys(payload, {'confirmation', 'confirm'})
                 require(payload['confirm'] is True and engine.report() is not None

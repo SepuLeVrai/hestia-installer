@@ -1,5 +1,16 @@
 # État du projet
 
+## Avancement 5D4 - 28 septembre 2026
+
+Le [wizard upgrade](PHASE5D_UPGRADE_WIZARD.md) compose les contrôleurs acquis
+pour une instance legacy gérée et scellée enregistrée localement. Quatre étapes
+migrent les stockages sous maintenance ; un second plan autorise la réouverture
+et démarre les services dédiés. Le rollback natif reste possible avant cette
+autorisation, sans restauration SQL. Six nouvelles recettes réelles ciblent ce
+raccordement. Les résultats du gel figurent au checkpoint et #13. Les campagnes
+5C4/5D1/5D2/5D3 restent acquises. Serveur vierge, boot et frontal public/TLS
+restent à livrer ; phase 5 ouverte. Les sections suivantes sont historiques.
+
 ## Avancement 5D3 - 28 septembre 2026
 
 L'[activation explicite](PHASE5D_ACTIVATION.md) prolonge le fresh 5D2 par un

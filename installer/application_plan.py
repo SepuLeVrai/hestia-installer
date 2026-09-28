@@ -201,6 +201,7 @@ class BoundFactory(Operation):
     def validate(self, context): return self._operation().validate(context)
     def commit(self, context): return self._operation().commit(context)
     def recover(self, context, phase): return self._operation().recover(context, phase)
+    def rollback(self, context): return self._operation().rollback(context)
 
 
 def composition(engine, github, draft):

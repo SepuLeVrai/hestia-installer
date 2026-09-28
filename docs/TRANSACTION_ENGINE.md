@@ -1,5 +1,9 @@
 # Moteur transactionnel - Phases 2 et 3 / issues #4 et #8
 
+Le [lot 5D4](PHASE5D_UPGRADE_WIZARD.md) ajoute une composition upgrade fermée,
+avec enregistrement local du profil géré et une activation liée au journal
+parent. Le format des anciens plans et les contrôleurs natifs restent acquis.
+
 Le [lot 5D3](PHASE5D_ACTIVATION.md) utilise un second journal pour l'activation
 après préparation DONE. Aucun plan approuvé n'est étendu. Sa disponibilité
 actuelle est une observation explicite séparée des reçus historiques.
