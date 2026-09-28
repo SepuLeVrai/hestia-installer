@@ -82,8 +82,13 @@ class FreshJournalLive(JournalMixin, fresh.FinalizationIntegration):
         engine = self.build(); plan = engine.plan(mode='fresh')
         self.assertEqual(engine.apply(plan['plan_sha256'])['state'], 'DONE')
         self.assertEqual(self.observe()['state'], 'WEB_FRESH_FINALIZED')
-        with self.assertRaisesRegex(a.InstallerError, 'ROLLBACK_UNSUPPORTED'):
+        # Finalization is an active dependent: that guard intentionally runs
+        # before testing whether the SQL boundary itself is reversible.
+        with self.assertRaisesRegex(a.InstallerError, 'DEPENDENCY_BLOCKED'):
             engine.rollback('web.database', plan['plan_sha256'])
+        with self.assertRaisesRegex(a.InstallerError, 'ROLLBACK_UNSUPPORTED'):
+            engine.rollback('web.finalization', plan['plan_sha256'])
+        self.assertEqual(self.observe()['state'], 'WEB_FRESH_FINALIZED')
         self.no_secret(engine)
 
     def test_journal_fresh_managed_and_assistant_are_real(self):
