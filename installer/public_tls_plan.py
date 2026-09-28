@@ -18,8 +18,10 @@ class PublicTLSPlan:
 
     def state(self):
         document = self.journal.read()
+        profile = self._read('profile.json')
+        configuration = None if profile is None else {'hostname': native.Profile(profile).hostname, **profile['choices']}
         done = document is not None and document['state'] == 'DONE'
-        return {'installation': document, 'availability': self.availability,
+        return {'installation': document, 'configuration': configuration, 'availability': self.availability,
                 'public_tls_configured': done, 'renewal_configured': done, 'phase5_complete': done}
 
     def parents(self, parent):

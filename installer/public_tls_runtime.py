@@ -135,8 +135,8 @@ class PublicTLS(Profile):
         if verb == 'reload':
             require(role == 'https'); args = ['kill', '--kill-whom=main', '--signal=HUP', '--', unit]
         elif verb == 'show':
-            props = ('Id', 'FragmentPath', 'DropInPaths', 'NeedDaemonReload', 'LoadState', 'ActiveState',
-                     'SubState', 'MainPID', 'ControlPID', 'ControlGroup', 'Job', 'Result')
+            props = ('Id', 'FragmentPath', 'DropInPaths', 'NeedDaemonReload', 'LoadState', 'ActiveState', 'SubState', 'Job')
+            props += ('Unit',) if role == 'timer' else ('MainPID', 'ControlPID', 'ControlGroup', 'Result')
             args = ['show', '--property=' + ','.join(props), '--', unit]
         else: args = ['start', '--', unit]
         raw = command(['/usr/bin/systemctl', '--no-pager', '--no-ask-password', *args], timeout=900)
@@ -145,6 +145,7 @@ class PublicTLS(Profile):
         require(len(rows) == len(value) and set(value) == set(props), ErrorCode.INVALID_STATE)
         require(all(value[k] == v for k, v in {'Id': unit, 'FragmentPath': str(h.drain.UNIT_ROOT / unit),
                 'DropInPaths': '', 'NeedDaemonReload': 'no', 'LoadState': 'loaded', 'Job': ''}.items()), ErrorCode.INVALID_STATE)
+        if role == 'timer': require(value['Unit'] == self.unit('renew'), ErrorCode.INVALID_STATE)
         return value
 
     def running(self, role):
@@ -180,7 +181,8 @@ class PublicTLS(Profile):
                 and ('server = ' + PRODUCTION).encode() in raw, ErrorCode.INVALID_STATE)
         return {'version': 1, 'configuration_sha256': f._sha(raw), 'profile_sha256': self.digest}
 
-    def certificate(self):
+    def certificate(self, *, minimum_lifetime=604800, allow_expired=False):
+        require(type(minimum_lifetime) is int and minimum_lifetime in (0, 604800) and type(allow_expired) is bool)
         require(self._read('renewal.json') == self.renewal_configuration(), ErrorCode.INVALID_STATE)
         live = self.acme_root / 'live' / CERT_NAME; archive = self.acme_root / 'archive' / CERT_NAME
         versions = set()
@@ -198,9 +200,11 @@ class PublicTLS(Profile):
             for name in ('cert', 'chain', 'fullchain', 'privkey'):
                 material[name] = f._read(fd, name + version + '.pem', 0, mode=0o600 if name == 'privkey' else 0o644)
             require(material['fullchain'] == material['cert'] + material['chain'], ErrorCode.INVALID_STATE)
-        command(['/usr/bin/openssl', 'verify', '-purpose', 'sslserver', '-verify_hostname', self.hostname,
+        command(['/usr/bin/openssl', 'verify', *(['-no_check_time'] if allow_expired else []),
+                 '-purpose', 'sslserver', '-verify_hostname', self.hostname,
                  '-untrusted', str(live / 'chain.pem'), str(live / 'cert.pem')])
-        command(['/usr/bin/openssl', 'x509', '-in', str(live / 'cert.pem'), '-noout', '-checkend', '604800'])
+        if not allow_expired:
+            command(['/usr/bin/openssl', 'x509', '-in', str(live / 'cert.pem'), '-noout', '-checkend', str(minimum_lifetime)])
         public = command(['/usr/bin/openssl', 'x509', '-in', str(live / 'cert.pem'), '-noout', '-pubkey'])
         require(public == command(['/usr/bin/openssl', 'pkey', '-in', str(live / 'privkey.pem'), '-pubout']), ErrorCode.INVALID_STATE)
 
@@ -230,7 +234,7 @@ class PublicTLS(Profile):
             with fs._directory(path.parent) as fd: self.boot.exact_link(fd, path.name, target)
 
     def probe(self):
-        self.configuration(); self.certificate(); self.boot.live()
+        self.configuration(); self.certificate(minimum_lifetime=0); self.boot.live()
         require(self.running('http') and self.running('https') and self.running('timer'), ErrorCode.VALIDATION_FAILED)
         context = ssl.create_default_context()
         connection = http.client.HTTPSConnection(self.hostname, 443, timeout=10, context=context)
@@ -258,7 +262,10 @@ class PublicTLS(Profile):
             account = self.layout.identity.account(); scope = self.http._scope(account)
             require(scope.observe()['state'] == 'SERVING', ErrorCode.MANUAL_ACTION_REQUIRED)
             require(overlay_evidence(scope, self.value['backend_fragment_sha256']) is not None, ErrorCode.INVALID_STATE); return
-        require(phase in ('https', 'renew')); self.certificate(); self.completed('dry-run')
+        require(phase in ('https', 'renew'))
+        # Expiry must not prevent the renewal that repairs it after downtime.
+        # Serving still requires a currently valid leaf; enrollment requires 7d.
+        self.certificate(minimum_lifetime=0, allow_expired=phase == 'renew'); self.completed('dry-run')
         if phase == 'https':
             self.completed('switch')
             require(self._read('https.attempt') is not None, ErrorCode.INVALID_STATE)
@@ -288,7 +295,8 @@ class PublicOperation(Operation):
                 'Conditions Let’s Encrypt : https://letsencrypt.org/repository/',
                 'Tout effet partiel reste manuel. La bascule confirme la reprise après maintenance.')))
 
-    def receipt(self): return Receipt(hashes_non_secret=(('public_tls_profile', self.runtime.digest),))
+    def receipt(self):
+        return Receipt(created_resources=('public_tls',), hashes_non_secret=(('public_tls_profile', self.runtime.digest),))
 
     def prepare(self, context):
         r = self.runtime

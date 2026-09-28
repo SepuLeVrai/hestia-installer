@@ -59,6 +59,22 @@ def setup():
 
 def serve():
     original = n.PublicOperation.apply
+    run = n.subprocess.run
+    def capture(argv, **kwargs):
+        if argv[0] != '/usr/bin/certbot': return run(argv, **kwargs)
+        result = run(argv, **{**kwargs, 'stderr': n.subprocess.PIPE})
+        if result.returncode:
+            text = result.stderr.decode(errors='replace')[:8192]
+            if 'PRIVATE KEY' in text: text = 'REDACTED'
+            (EVIDENCE / 'certbot-error.txt').write_text(text)
+        return result
+    def diagnostic(callback):
+        def checked(operation, *args):
+            try: return callback(operation, *args)
+            except Exception:
+                with (EVIDENCE / 'public-operation-traceback.txt').open('a') as output: traceback.print_exc(file=output)
+                raise
+        return checked
     def invoke(operation, context):
         try:
             result = original(operation, context)
@@ -67,7 +83,8 @@ def serve():
         except Exception:
             with (EVIDENCE / 'public-operation-traceback.txt').open('a') as output: traceback.print_exc(file=output)
             raise
-    with patch.object(n.PublicOperation, 'apply', invoke): fixture.serve()
+    with patch.object(n.PublicOperation, 'apply', invoke), patch.object(n.PublicOperation, 'prepare', diagnostic(n.PublicOperation.prepare)), \
+         patch.object(n.PublicOperation, 'current', diagnostic(n.PublicOperation.current)), patch.object(n.subprocess, 'run', capture): fixture.serve()
 
 
 def request(path='/login.php', *, tls=True, source='127.0.0.1', headers=None):

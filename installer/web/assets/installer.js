@@ -753,6 +753,11 @@
       card.append(form);
     } else {
       const status = element("p", "Accès HTTPS : " + states[document.state]); status.id = "public-tls-state"; status.dataset.state = document.state; card.append(status);
+      if (publicTLS.configuration) {
+        const config = publicTLS.configuration;
+        card.append(element("p", "Domaine : " + config.hostname), element("p", "Contact : " + config.email));
+        card.append(element("p", config.access === "public" ? "Accès : tous les clients IPv4" : "Accès : " + config.networks.join(", ") + " et contrôle local"));
+      }
       for (const spec of document.plan.steps) {
         const record = document.steps.find((row) => row.name === spec.name);
         card.append(element("p", spec.action + " : " + states[record.state]));

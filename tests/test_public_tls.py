@@ -84,6 +84,25 @@ class PublicProfileTests(unittest.TestCase):
             value = deepcopy(value); value['choices']['email'] = 'second@example.test'
             with self.assertRaisesRegex(InstallerError, 'INCOMPATIBLE_STATE'): n.engine(journal, value)
 
+    def test_every_native_receipt_accounts_for_its_complete_approved_footprint(self):
+        with TemporaryDirectory(dir='/var/lib') as temporary:
+            engine, _ = n.engine(StateJournal(Path(temporary) / 'state.json'), profile())
+            document = engine.plan(mode='fresh')
+            for spec, record in list(zip(document['plan']['steps'], document['steps']))[1:]:
+                operation = engine.registry.get(spec)
+                engine._receipt(document, spec, record, operation.receipt())
+                self.assertEqual(record['evidence']['created_resources'], ['public_tls'])
+
+    def test_displayed_choices_are_frozen_file_only_and_exclude_the_private_bundle(self):
+        with TemporaryDirectory(dir='/var/lib') as temporary:
+            parent = SimpleNamespace(journal=StateJournal(Path(temporary) / 'state.json'))
+            controller = plan.PublicTLSPlan(parent, None, None); value = profile()
+            controller._write('profile.json', value)
+            with patch.object(n.PublicTLS, 'configuration', side_effect=AssertionError('host')):
+                displayed = controller.state()['configuration']
+            self.assertEqual(displayed, {'hostname': 'hestia.example.test', **value['choices']})
+            self.assertNotIn('code', displayed); self.assertNotIn('boot', displayed)
+
     def test_dns_and_foreign_listeners_rejected_without_stopping_them(self):
         r = n.PublicTLS(profile())
         with patch.object(n.socket, 'getaddrinfo', return_value=[(n.socket.AF_INET6, 1, 0, '', ('::1', 443))]), \
@@ -93,6 +112,18 @@ class PublicProfileTests(unittest.TestCase):
              patch.object(n.socket, 'socket') as socket:
             socket.return_value.__enter__.return_value.bind.side_effect = OSError('occupied')
             with self.assertRaises(OSError): r.network_ready()
+
+    def test_timer_uses_timer_properties_and_binds_the_exact_renewal_service(self):
+        r = n.PublicTLS(profile())
+        value = {'Id': r.unit('timer'), 'FragmentPath': str(n.h.drain.UNIT_ROOT / r.unit('timer')),
+            'DropInPaths': '', 'NeedDaemonReload': 'no', 'LoadState': 'loaded', 'ActiveState': 'active',
+            'SubState': 'waiting', 'Job': '', 'Unit': r.unit('renew')}
+        with patch.object(n, 'command', return_value=''.join(k + '=' + v + '\n' for k, v in value.items()).encode()) as command:
+            self.assertTrue(r.running('timer'))
+            self.assertNotIn('MainPID', ' '.join(command.call_args.args[0]))
+        value['Unit'] = 'foreign.service'
+        with patch.object(n, 'command', return_value=''.join(k + '=' + v + '\n' for k, v in value.items()).encode()):
+            with self.assertRaises(InstallerError): r.running('timer')
 
 
 class PublicRecoveryTests(unittest.TestCase):
@@ -138,3 +169,17 @@ class PublicRecoveryTests(unittest.TestCase):
              patch.object(self.r, 'systemctl') as systemctl, patch.object(n, 'command') as command:
             with self.assertRaises(InstallerError): self.r.worker('renew')
             systemctl.assert_not_called(); self.assertEqual(command.call_count, 1)
+
+    def test_expiry_can_trigger_renewal_but_never_bypass_the_post_renewal_check(self):
+        def certificate(**options):
+            if certificate.old:
+                self.assertTrue(options.get('allow_expired'))
+                certificate.old = False
+            else: self.assertFalse(options.get('allow_expired', False))
+        certificate.old = True
+        with patch.object(self.r, 'enabled'), patch.object(self.r, 'completed'), \
+             patch.object(self.r, 'running', return_value=True), patch.object(self.r, 'certificate', side_effect=certificate), \
+             patch.object(self.r, 'systemctl') as systemctl, patch.object(n, 'command') as command:
+            self.r.worker('renew')
+            self.assertEqual(command.call_args_list[0].args[0], self.r.certbot(renew=True))
+            systemctl.assert_called_once_with('reload', 'https')
