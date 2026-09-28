@@ -1,5 +1,14 @@
 # Quality et non-régression de HESTIA Installer
 
+## Avancement 5C3a - 28 septembre 2026
+
+Le [catalogue fermé et son audit des sources](PHASE5C3_CATALOG.md) sont livrés
+dans le présent lot. Les deux builds connus ont le même schéma et les mêmes
+113 migrations ; la paire candidate demande une migration des stockages.
+Aucune transition applicable ni bascule n’est encore qualifiée. Le profil 5C2
+reste clos ; 5C3b doit qualifier le profil source puis le déplacement et la bascule.
+Les campagnes finales de ce lot sont référencées dans son checkpoint et #13.
+
 ## Qualification globale du profil 5C2 - 28 septembre 2026
 
 Les gates du commit `713335d95494512d20c633c8e0c634385b6ada9f` sont vérifiés :
