@@ -183,3 +183,9 @@ class PublicRecoveryTests(unittest.TestCase):
             self.r.worker('renew')
             self.assertEqual(command.call_args_list[0].args[0], self.r.certbot(renew=True))
             systemctl.assert_called_once_with('reload', 'https')
+        # An expired-certificate startup failure must not turn a successful
+        # renewal into an implicit start or a false renewal failure.
+        failed = {'ActiveState': 'failed', 'SubState': 'failed', 'MainPID': '0', 'ControlPID': '0'}
+        with patch.object(self.r, 'systemctl', return_value=failed), patch.object(n.h.drain, '_empty_cgroup', return_value=True):
+            self.assertFalse(self.r.running('https', failed_is_stopped=True))
+            with self.assertRaises(InstallerError): self.r.running('https')

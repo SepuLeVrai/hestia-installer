@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import socketserver
 import ssl
 import struct
 import subprocess
@@ -28,22 +29,36 @@ config = {'pebble': {'listenAddress': '0.0.0.0:14000', 'managementListenAddress'
 (ROOT / 'config.json').write_text(json.dumps(config))
 
 
+def dns_response(data):
+    index = 12; labels = []
+    while data[index]:
+        length = data[index]; index += 1; labels.append(data[index:index + length].decode()); index += length
+    index += 1; kind, cls = struct.unpack('!HH', data[index:index + 4]); end = index + 4
+    name = '.'.join(labels).lower(); address = TARGET if name == 'hestia.example.test' else CA if name in (PRODUCTION, STAGING) else None
+    answer = b''
+    if kind == 1 and cls == 1 and address:
+        answer = b'\xc0\x0c' + struct.pack('!HHIH', 1, 1, 10, 4) + socket.inet_aton(address)
+    return data[:2] + struct.pack('!HHHHH', 0x8180, 1, 1 if answer else 0, 0, 0) + data[12:end] + answer
+
+
 def dns():
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); server.bind(('0.0.0.0', 53))
     while True:
         data, peer = server.recvfrom(4096)
         try:
-            index = 12; labels = []
-            while data[index]:
-                length = data[index]; index += 1; labels.append(data[index:index + length].decode()); index += length
-            index += 1; kind, cls = struct.unpack('!HH', data[index:index + 4]); end = index + 4
-            name = '.'.join(labels).lower(); address = TARGET if name == 'hestia.example.test' else CA if name in (PRODUCTION, STAGING) else None
-            answer = b''
-            if kind == 1 and cls == 1 and address:
-                answer = b'\xc0\x0c' + struct.pack('!HHIH', 1, 1, 10, 4) + socket.inet_aton(address)
-            header = data[:2] + struct.pack('!HHHHH', 0x8180, 1, 1 if answer else 0, 0, 0)
-            server.sendto(header + data[12:end] + answer, peer)
+            server.sendto(dns_response(data), peer)
         except Exception: pass
+
+
+class DNSStream(socketserver.StreamRequestHandler):
+    # Pebble's custom resolver deliberately uses TCP; libc also uses UDP.
+    def handle(self):
+        self.connection.settimeout(10)
+        while prefix := self.rfile.read(2):
+            size, = struct.unpack('!H', prefix); assert 12 <= size <= 4096
+            data = self.rfile.read(size); assert len(data) == size
+            response = dns_response(data)
+            self.wfile.write(struct.pack('!H', len(response)) + response)
 
 
 class Proxy(BaseHTTPRequestHandler):
@@ -68,6 +83,8 @@ class Proxy(BaseHTTPRequestHandler):
 
 
 threading.Thread(target=dns, daemon=True).start()
+tcp_dns = socketserver.ThreadingTCPServer(('0.0.0.0', 53), DNSStream)
+threading.Thread(target=tcp_dns.serve_forever, daemon=True).start()
 pebble = subprocess.Popen(['/usr/local/bin/pebble', '-config', str(ROOT / 'config.json'), '-strict', '-dnsserver', '127.0.0.1:53'],
     env={**os.environ, 'PEBBLE_VA_NOSLEEP': '1', 'PEBBLE_WFE_NONCEREJECT': '0', 'PEBBLE_AUTHZREUSE': '0'})
 for _ in range(100):

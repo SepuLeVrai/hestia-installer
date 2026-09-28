@@ -325,7 +325,7 @@
       const status = element("p", "MariaDB : " + states[document.state]); status.id = "mariadb-state"; status.dataset.state = document.state; card.append(status);
       technical(card, "Plan MariaDB", document.plan);
       card.append(hint("Autorité SQL : " + mariadb.authority_user + ". Ce compte administre l'instance locale ; conservez son mot de passe pour la configuration HESTIA et les opérations futures."));
-      if (document.state === "DONE") card.append(hint("Préparation MariaDB validée. Vous pouvez poursuivre la configuration Web avec ce même mot de passe d'autorité. Le boot et le TLS public restent à préparer."));
+      if (document.state === "DONE") card.append(hint(publicTLS.phase5_complete ? "Préparation MariaDB validée. La configuration Web et HTTPS est également terminée." : "Préparation MariaDB validée. Vous pouvez poursuivre la configuration Web avec ce même mot de passe d'autorité. Le boot et le TLS public restent à préparer."));
       else if (!installation) {
         const form = element("form"); form.autocomplete = "off";
         const password = element("input"); password.type = "password"; password.id = "mariadb-authority-password"; password.required = true; password.minLength = 20; password.maxLength = 1024; password.autocomplete = "new-password";
@@ -582,7 +582,7 @@
     const completed = installation.steps.filter((s) => s.state === "DONE").length;
     const bar = element("progress"); bar.max = installation.steps.length || 1; bar.value = completed;
     bar.setAttribute("aria-label", "Étapes validées"); content.append(bar);
-    const title = upgradeRolledBack ? "Web revenu à la version source sous maintenance" : installation.state === "DONE" ? (isUpgrade() ? "Web migré sous maintenance" : isApplication() ? "Web préparé sous maintenance" : installation.mode === "check" ? "Contrôles core terminés" : "Sources prêtes") : states[installation.state] || "État inconnu";
+    const title = upgradeRolledBack ? "Web revenu à la version source sous maintenance" : installation.state === "DONE" ? (isUpgrade() ? "Web migré sous maintenance" : isApplication() ? (publicTLS.phase5_complete ? "Configuration Web terminée" : "Web préparé sous maintenance") : installation.mode === "check" ? "Contrôles core terminés" : "Sources prêtes") : states[installation.state] || "État inconnu";
     const summary = element("p", title + " - " + completed + " / " + installation.steps.length); summary.id = "execution-state";
     summary.dataset.state = upgradeRolledBack ? "ROLLED_BACK" : installation.state; content.append(summary);
     if (upgradeRolledBack) content.append(hint("Les données sont conservées et les services restent arrêtés. La réouverture de la version source exige une évaluation distincte."));
@@ -625,7 +625,7 @@
   }
   function activationForm() {
     const card = element("article", null, "wizard-card"); card.id = "application-activation";
-    card.append(element("h2", "Activation du Web local"), hint("Backend : 127.0.0.1:" + (isUpgrade() ? upgrade.profile.descriptor.http.port : 9080) + ". Le frontal TLS public reste à configurer. Le démarrage automatique dispose de son propre plan ci-dessous."));
+    card.append(element("h2", "Activation du Web local"), hint("Backend : 127.0.0.1:" + (isUpgrade() ? upgrade.profile.descriptor.http.port : 9080) + (publicTLS.phase5_complete ? ". Le frontal HTTPS est configuré. Sa disponibilité actuelle se vérifie dans la carte HTTPS." : ". Le frontal TLS public reste à configurer. Le démarrage automatique dispose de son propre plan ci-dessous.")));
     const document = activation.installation;
     if (!document) {
       card.append(button("Préparer le plan d'activation", () => void run(async () => {
@@ -722,7 +722,7 @@
       for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Vérifier la reprise HTTPS", () => acmePackagesAction(phase, "retry", {name: record.name}), "retry-acme-" + phase));
       if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
     }
-    if (acmePackages.installation?.state === "DONE") card.append(hint("Dépendances installées. Le frontal public, le certificat et son renouvellement restent à configurer."));
+    if (acmePackages.installation?.state === "DONE" && !publicTLS.phase5_complete) card.append(hint("Dépendances installées. Le frontal public, le certificat et son renouvellement restent à configurer."));
     content.append(card);
   }
   function publicTLSAction(action, extra = {}) {
@@ -792,8 +792,8 @@
     const step = steps[index];
     $("wizard-eyebrow").textContent = step[1]; $("wizard-title").textContent = step[2]; $("wizard-lead").textContent = step[3];
     if (index === 5 && isApplication()) {
-      $("wizard-title").textContent = "Préparation applicative\nHESTIA Web";
-      $("wizard-lead").textContent = "Le plan confirmé prépare le Web et ses services sous maintenance. Les étapes validées restent acquises après une interruption.";
+      $("wizard-title").textContent = publicTLS.phase5_complete ? "Configuration Web\nterminée" : "Préparation applicative\nHESTIA Web";
+      $("wizard-lead").textContent = publicTLS.phase5_complete ? "Les journaux conservent les étapes terminées. Vous pouvez vérifier la disponibilité HTTPS actuelle et télécharger le rapport." : "Le plan confirmé prépare le Web et ses services sous maintenance. Les étapes validées restent acquises après une interruption.";
     }
     $("step-label").textContent = index === 0 ? "Préambule" : `Étape ${index} sur 5`;
     $("step-name").textContent = step[0]; $("welcome-features").hidden = index !== 0;

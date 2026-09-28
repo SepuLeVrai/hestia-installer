@@ -64,7 +64,7 @@ def serve():
         if argv[0] != '/usr/bin/certbot': return run(argv, **kwargs)
         result = run(argv, **{**kwargs, 'stderr': n.subprocess.PIPE})
         if result.returncode:
-            text = result.stderr.decode(errors='replace')[:8192]
+            text = (result.stdout + result.stderr).decode(errors='replace')[:8192]
             if 'PRIVATE KEY' in text: text = 'REDACTED'
             (EVIDENCE / 'certbot-error.txt').write_text(text)
         return result
@@ -140,11 +140,15 @@ class Browser(unittest.TestCase):
             expect(page.locator('#public-tls-state')).to_have_attribute('data-state', 'FAILED')
             self.assertEqual(next(s['name'] for s in state()['installation']['steps'] if s['state'] == 'FAILED'), 'web.public.certificate')
             page.reload(); page.locator('#retry-public-tls').click(); page.locator('#operation-dialog button[value=confirm]').click()
-            expect(page.locator('#public-tls-state')).to_have_attribute('data-state', 'PLANNED')
+            expect(page.locator('#public-tls-state')).to_have_attribute('data-state', re.compile('PLANNED|MANUAL_ACTION_REQUIRED'))
+            self.assertEqual(state()['installation']['state'], 'PLANNED', state())
             page.locator('#resume-public-tls').click(); page.locator('#operation-dialog button[value=confirm]').click()
-            expect(page.locator('#public-tls-state')).to_have_attribute('data-state', 'DONE')
+            expect(page.locator('#public-tls-state')).to_have_attribute('data-state', re.compile('DONE|FAILED|MANUAL_ACTION_REQUIRED'))
+            self.assertEqual(state()['installation']['state'], 'DONE', state())
             page.reload(); expect(page.locator('#public-tls-state')).to_have_attribute('data-state', 'DONE')
             self.assertTrue(state()['phase5_complete']); self.assertEqual(errors, [])
+            expect(page.locator('#wizard-title')).to_have_text('Configuration Web\nterminée')
+            expect(page.locator('#application-activation')).not_to_contain_text('Le frontal TLS public reste à configurer')
             page.locator('#check-public-tls').click()
             expect(page.locator('#public-tls')).to_contain_text('HTTPS disponible')
 

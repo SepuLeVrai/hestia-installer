@@ -148,12 +148,14 @@ class PublicTLS(Profile):
         if role == 'timer': require(value['Unit'] == self.unit('renew'), ErrorCode.INVALID_STATE)
         return value
 
-    def running(self, role):
+    def running(self, role, *, failed_is_stopped=False):
         value = self.systemctl('show', role)
         if role == 'timer':
             return value['ActiveState'] == 'active' and value['SubState'] in ('waiting', 'running', 'elapsed')
-        if value['ActiveState'] == 'inactive' and value['SubState'] == 'dead':
-            require(value['MainPID'] == value['ControlPID'] == '0', ErrorCode.INVALID_STATE); return False
+        if (value['ActiveState'], value['SubState']) == ('inactive', 'dead') or (
+                failed_is_stopped and (value['ActiveState'], value['SubState']) == ('failed', 'failed')):
+            require(value['MainPID'] == value['ControlPID'] == '0' and h.drain._empty_cgroup(self.unit(role)), ErrorCode.INVALID_STATE)
+            return False
         require(value['ActiveState'] == 'active' and value['SubState'] == 'running' and value['Result'] == 'success'
                 and value['ControlPID'] == '0' and re.fullmatch('[1-9][0-9]*', value['MainPID'])
                 and value['ControlGroup'] == '/system.slice/' + self.unit(role), ErrorCode.INVALID_STATE)
@@ -275,7 +277,7 @@ class PublicTLS(Profile):
         command(self.certbot(renew=True), timeout=840)
         self.certificate(); self.configuration()
         command(['/usr/sbin/nginx', '-t', '-c', str(self.root / 'nginx-https.conf')])
-        if self.running('https'): self.systemctl('reload', 'https')
+        if self.running('https', failed_is_stopped=True): self.systemctl('reload', 'https')
 
 
 class PublicOperation(Operation):

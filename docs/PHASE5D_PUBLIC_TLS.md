@@ -45,6 +45,10 @@ Un timer dédié tente le renouvellement deux fois par jour avec délai aléatoi
 et rattrapage. Le service valide les fichiers avant Certbot, puis le certificat
 et NGINX avant d'envoyer HUP à l'unité HTTPS exacte. Le timer global Certbot et
 NGINX global restent masqués. Une maintenance ne rouvre pas le backend au boot.
+Après une longue interruption, l'expiration n'empêche pas Certbot de renouveler
+un ancien certificat dont les autres contrôles restent valides. Le nouveau
+certificat doit passer tous les contrôles avant rechargement. Un frontal déjà
+arrêté reste arrêté ; sa remise en service demeure une action explicite.
 Une preuve d'activation absente bloque les workers ; aucun worker ne retire une
 maintenance, ne modifie SQL ni ne réinstalle des paquets.
 
