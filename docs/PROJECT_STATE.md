@@ -1,3 +1,7 @@
+> Suite 6B1 : [préparation privée des identités P-256](PHASE6B_PRIVATE_IDENTITIES.md).
+> Gateway devient configurable (origine HTTPS, MAIN seul). Composition native et
+> recette intégrée 6B/6C encore à terminer ; acquis phase 5/6A conservés.
+
 # État du projet
 
 ## 28 septembre 2026 - Phase 6A Gateway / Foundation

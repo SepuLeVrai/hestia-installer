@@ -2,7 +2,7 @@ name: Installer Quality
 
 on:
   push:
-    branches: [main, 'quality/**']
+    branches: [main, 'quality/**', 'work/phase6b-private-identities-20260929']
   pull_request:
     branches: [main]
   workflow_dispatch:
