@@ -15,6 +15,7 @@ import time
 
 from installer import system_packages as packages
 from installer import http_runtime as h
+from installer import systemd_invocation as invocation
 from installer.model import ErrorCode, Receipt, ResourceSpec, StepSpec, canonical_bytes, require
 from installer.operations import Operation, Recovery, RecoveryDecision
 from installer.service_identity import ServiceIdentity
@@ -100,7 +101,7 @@ TasksMax=256
                 and h.read_os_release().get('VERSION_ID') == '13', ErrorCode.VALIDATION_FAILED)
         require(Path('/proc/1/comm').read_text().strip() == 'systemd', ErrorCode.VALIDATION_FAILED)
         result = {}
-        for path in (*TOOLS, Path('/usr/bin/systemctl'), Path('/usr/bin/setpriv'), Path('/usr/bin/prlimit')):
+        for path in (*TOOLS, Path('/usr/bin/systemctl'), Path('/usr/bin/busctl'), Path('/usr/bin/setpriv'), Path('/usr/bin/prlimit')):
             p._safe_path(path, directory=False, system=True)
             result[str(path)] = h._system_file_digest(path)
         return result
@@ -145,12 +146,11 @@ TasksMax=256
         expected = {'Id': self.unit, 'LoadState': 'loaded', 'FragmentPath': str(self.unit_path),
             'DropInPaths': '', 'NeedDaemonReload': 'no', 'Type': 'simple', 'Restart': 'no',
             'User': self.identity.user, 'Group': self.identity.user, 'KillMode': 'control-group',
-            'NoNewPrivileges': 'yes', 'ProtectSystem': 'strict', 'EnvironmentFiles': '', 'Environment': '',
-            'ExecStartPre': '', 'ExecStartPost': '', 'ExecStop': '', 'ExecStopPost': '', 'ExecReload': '',
+            'NoNewPrivileges': 'yes', 'ProtectSystem': 'strict', 'Environment': '',
             'RootDirectory': '', 'RootImage': '', 'WorkingDirectory': str(self.data), 'CapabilityBoundingSet': '',
             'Transient': 'no', 'DynamicUser': 'no', 'Job': '', 'ControlPID': '0'}
         keys = (*expected, 'ActiveState', 'SubState', 'MainPID', 'ControlGroup', 'ExecStart')
-        raw = run(['/usr/bin/systemctl', '--no-pager', '--no-ask-password', 'show', '--property=' + ','.join(keys), '--', self.unit])
+        raw = run(['/usr/bin/systemctl', '--no-pager', '--no-ask-password', '--all', 'show', '--property=' + ','.join(keys), '--', self.unit])
         rows = [line.split('=', 1) for line in raw.decode().splitlines()]
         require(len(rows) == len(keys) and all(len(row) == 2 for row in rows), ErrorCode.INVALID_STATE)
         value = dict(rows)
@@ -158,7 +158,21 @@ TasksMax=256
         command = '/usr/sbin/mariadbd --defaults-file=' + str(self.root / 'server.cnf')
         require(value['ExecStart'].startswith('{ path=/usr/sbin/mariadbd ; argv[]=' + command + ' ; ')
                 and value['ExecStart'].count('{') == value['ExecStart'].count('}') == 1, ErrorCode.INVALID_STATE)
+        self.empty_arrays()
         return value
+
+    def empty_arrays(self):
+        # systemctl's struct-array printer emits no row for empty arrays, even
+        # with --all. Ask Properties.Get for explicit typed emptiness instead.
+        t = invocation.t
+        owner = t._owner(t._reply(run(t._argv('GetNameOwner')), 's'))
+        path = '/org/freedesktop/systemd1/unit/' + self.unit.replace('-', '_2d').replace('.', '_2e')
+        prefix = t._argv('ListUnits', owner)[:-3]
+        for name in ('EnvironmentFiles', 'ExecCondition', 'ExecStartPre', 'ExecStartPost', 'ExecStop', 'ExecStopPost', 'ExecReload'):
+            signature = 'a(sb)' if name == 'EnvironmentFiles' else 'a(sasbttttuii)'
+            raw = run(prefix + [path, t.PROPERTIES, 'Get', 'ss', 'org.freedesktop.systemd1.Service', name], timeout=6, limit=16384)
+            require(invocation._variant(raw, signature) == [], ErrorCode.INVALID_STATE)
+        require(t._reply(run(t._argv('GetNameOwner')), 's') == owner, ErrorCode.INVALID_STATE)
 
     def running(self):
         value = self.state()

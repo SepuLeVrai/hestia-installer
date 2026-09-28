@@ -125,5 +125,21 @@ class MariaDBPlanTests(unittest.TestCase):
             self.assertEqual(operation.recover(context, 'apply').decision, RecoveryDecision.MANUAL)
         self.assertEqual(operation.recover(context, 'rollback').decision, RecoveryDecision.MANUAL)
 
+    def test_systemd_struct_arrays_require_typed_empty_values_and_stable_owner(self):
+        runtime = p.native.MariaDB('1' * 32, 'a' * 64)
+        def reply(argv, **kwargs):
+            if 'GetNameOwner' in argv: return canonical_bytes({'type': 's', 'data': [':1.0']})
+            self.assertIn('--auto-start=no', argv); self.assertIn('--allow-interactive-authorization=no', argv)
+            self.assertIn('/org/freedesktop/systemd1/unit/' + runtime.unit.replace('-', '_2d').replace('.', '_2e'), argv)
+            signature = 'a(sb)' if argv[-1] == 'EnvironmentFiles' else 'a(sasbttttuii)'
+            return canonical_bytes({'type': 'v', 'data': [{'type': signature, 'data': []}]})
+        with patch.object(p.native, 'run', side_effect=reply): runtime.empty_arrays()
+        def changed(argv, **kwargs):
+            value = json.loads(reply(argv, **kwargs))
+            if argv[-1] == 'EnvironmentFiles': value['data'][0]['data'] = [['/foreign', False]]
+            return canonical_bytes(value)
+        with patch.object(p.native, 'run', side_effect=changed):
+            with self.assertRaises(InstallerError): runtime.empty_arrays()
+
 
 if __name__ == '__main__': unittest.main()
