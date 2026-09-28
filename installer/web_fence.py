@@ -36,7 +36,7 @@ def _inputs(barrier, confirmed):
     require(type(barrier) is hd.HttpDrainLease, 'WEB_FENCE_LEASE_REQUIRED')
     barrier.assert_held()
     spec = barrier._drain.runtime.spec
-    require(spec.external_uploads and spec.instance == barrier._lease.scope.instance
+    require(spec.maintenance_directory is not None and spec.instance == barrier._lease.scope.instance
             and spec.maintenance_directory == barrier._lease.scope.directory, 'WEB_FENCE_LEASE_REQUIRED')
     require(os.getuid() == os.geteuid() == 0, 'WEB_FENCE_ROOT_REQUIRED')
 

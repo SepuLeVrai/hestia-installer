@@ -47,7 +47,7 @@ class SessionCleaner:
             Path('/etc/php') / self.runtime.spec.php_family / 'fpm/php.ini')}
         profile = {'root': str(self.runtime.spec.root), 'uid': account.pw_uid, 'gid': account.pw_gid,
                    'profile_sha256': f._sha(scope._profile()), 'guard_sha256': f._sha(scope._guard())}
-        if self.runtime.spec.external_uploads:
+        if self.runtime.spec.maintenance_directory is not None:
             profile['maintenance'] = str(scope.directory)
         template = p._read_file(Path(__file__).parent / 'private/session_cleaner_worker.py')
         require(template.count(b'__SESSION_CLEANER_PROFILE_HEX__') == 1)

@@ -68,7 +68,7 @@ class RuntimeSpec:
     def __post_init__(self):
         require(self.ingress is None or type(self.ingress) is ProxyIngress, 'HTTP_RUNTIME_INPUT_REJECTED')
         require(type(self.external_uploads) is bool and
-                (self.maintenance_directory is not None) == self.external_uploads, 'HTTP_RUNTIME_INPUT_REJECTED')
+                (not self.external_uploads or self.maintenance_directory is not None), 'HTTP_RUNTIME_INPUT_REJECTED')
         require(type(self.instance) is str and re.fullmatch(r'[a-f0-9]{32}', self.instance) is not None,
                 'HTTP_RUNTIME_INPUT_REJECTED')
         root, web = _path(self.root, maximum=75), _path(self.webroot, dots=True)
@@ -82,7 +82,7 @@ class RuntimeSpec:
                         for label in self.hostname.split('.')), 'HTTP_RUNTIME_HOST_REJECTED')
         require(type(self.port) is int and 1024 <= self.port <= 65535
                 and type(self.php_family) is str and self.php_family in ('8.2', '8.4'), 'HTTP_RUNTIME_INPUT_REJECTED')
-        if self.external_uploads:
+        if self.maintenance_directory is not None:
             gate = _path(self.maintenance_directory)
             require(gate.startswith('/var/lib/') and self.maintenance_directory.name == 'maintenance'
                     and not any(self.maintenance_directory == path or path in self.maintenance_directory.parents
@@ -190,12 +190,12 @@ class HttpRuntime:
         p._safe_path(Path('/etc/mime.types'), directory=False)
         require(Path('/proc/1/comm').read_text().strip() == 'systemd'
                 and Path('/sys/fs/cgroup/cgroup.controllers').is_file(), 'HTTP_RUNTIME_SYSTEMD_REQUIRED')
-        if self.spec.external_uploads:
+        if self.spec.maintenance_directory is not None:
             self._verify_sealed_slot(account)
         return account, extension
 
     def _verify_sealed_slot(self, account):
-        release = f.get_release(STORAGE_COMMIT)
+        release = f.get_release(STORAGE_COMMIT if self.spec.external_uploads else f.WEB_COMMIT)
         require(f._runtime_digest(self.spec.webroot) == release.runtime_sha256, 'SOURCE_PIN_MISMATCH')
         directory, gid = self.spec.maintenance_directory.parent, account.pw_gid
         require(directory.name == fs.configuration_slot({'web': {'webroot': str(self.spec.webroot)}}),
@@ -382,7 +382,7 @@ Delegate=no
                     _unit_absent(self.unit(role))
             with socket.socket() as listener:
                 listener.bind(('127.0.0.1', self.spec.port))
-            if self.spec.external_uploads:
+            if self.spec.maintenance_directory is not None:
                 with fs._directory(self.spec.maintenance_directory.parent) as fd:
                     fs._absent(fd, self.spec.maintenance_directory.name)
             self._plan(account, extension)
@@ -452,7 +452,7 @@ Delegate=no
                     and saved['plan_sha256'] == f._sha(plan) and saved['state'] == 'HTTP_RUNTIME_STAGED',
                     'HTTP_RUNTIME_DRIFT')
         for path, expected in self._directories(account).items():
-            if self.spec.external_uploads and path == self.spec.root / 'data':
+            if self.spec.maintenance_directory is not None and path == self.spec.root / 'data':
                 from installer import data_access
                 expected = (0, account.pw_gid, data_access.expected_mode(self, account))
             with fs._directory(path.parent) as parent:
@@ -506,7 +506,7 @@ class HttpRuntimeOperation(Operation):
         self.runtime = runtime
         resources = (ResourceSpec('runtime', 'directory', str(runtime.spec.root)),
             *((ResourceSpec('maintenance', 'directory', str(runtime.spec.maintenance_directory)),)
-              if runtime.spec.external_uploads else ()),
+              if runtime.spec.maintenance_directory is not None else ()),
             *(ResourceSpec(role + '_unit', 'file', str(drain.UNIT_ROOT / runtime.unit(role))) for role in ('apache', 'php')),
             *(ResourceSpec(role + '_dropin', 'directory', str(drain.UNIT_ROOT / (runtime.unit(role) + '.d'))) for role in ('apache', 'php')))
         super().__init__(StepSpec(name='web.http-runtime', operation='web.http-runtime.stage', module='web',

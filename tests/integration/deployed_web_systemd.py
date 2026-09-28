@@ -41,6 +41,7 @@ WEB = None
 class DeployedWebLive(final_tests.FinalizationIntegration):
     release_commit = f.WEB_COMMIT
     external_uploads = False
+    sealed_maintenance = False
     proxy_user = None
     @classmethod
     def setUpClass(cls):
@@ -108,7 +109,7 @@ class DeployedWebLive(final_tests.FinalizationIntegration):
         self.spec = h.RuntimeSpec(instance, self.http_root, self.webroot, self.web.pw_name,
                                   self.payload['web']['hostname'], port, '8.4', self.policy,
                                   external_uploads=self.external_uploads,
-                                  maintenance_directory=self.directory / 'maintenance' if self.external_uploads else None)
+                                  maintenance_directory=self.directory / 'maintenance' if self.external_uploads or self.sealed_maintenance else None)
         self.http_runtime = h.HttpRuntime(self.spec)
         self.scope = self.http_runtime._scope(self.web)
         self.units = [self.http_runtime.unit(role) for role in ('apache', 'php')]

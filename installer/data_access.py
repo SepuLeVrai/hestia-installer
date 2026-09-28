@@ -24,7 +24,7 @@ def require(ok, code='DATA_ACCESS_PROFILE_REJECTED'):
 
 
 def _inputs(runtime, lease):
-    require(type(runtime) is h.HttpRuntime and runtime.spec.external_uploads
+    require(type(runtime) is h.HttpRuntime and runtime.spec.maintenance_directory is not None
         and type(lease) is m.MaintenanceLease, 'DATA_ACCESS_LEASE_REQUIRED')
     lease.assert_held(); spec = runtime.spec
     require(spec.instance == lease.scope.instance and spec.maintenance_directory == lease.scope.directory)
