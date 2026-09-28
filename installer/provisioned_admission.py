@@ -63,7 +63,7 @@ class ConfigurationLease:
 
 
 @contextmanager
-def acquire(conf, web, gid):
+def acquire(conf, web, gid, *, external=None):
     """Shared locks coexist with nested backup readers, exclude settings writers."""
     lease=ConfigurationLease(conf,web)
     try:
@@ -78,7 +78,8 @@ def acquire(conf, web, gid):
                 info=os.fstat(fd)
                 data=f._read(conf,name,group,mode=mode,limit=limit)
                 lease._files.append((fd,name,group,mode,limit,(info.st_dev,info.st_ino),data))
-            lease.assert_held()
+            if external is not None: lease._bind_external(external)
+            else: lease.assert_held()
             yield lease
             lease.assert_held()
     finally:

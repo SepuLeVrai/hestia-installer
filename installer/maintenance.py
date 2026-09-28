@@ -179,8 +179,15 @@ class MaintenanceLease:
             try: os.stat(marker,dir_fd=self._directory,follow_symlinks=False)
             except FileNotFoundError: pass
             else: raise MaintenanceError('MAINTENANCE_DATA_ACCESS_CLOSED')
-        f._write(self._directory,'resumed-'+self.lease_id+'.json',
-            p._json({'version':1,'instance':self.scope.instance,'lease_id':self.lease_id,'state':'ACTIVITY_RESUMED'}),self.scope.web_gid)
+        name='resumed-'+self.lease_id+'.json'
+        receipt=p._json({'version':1,'instance':self.scope.instance,'lease_id':self.lease_id,'state':'ACTIVITY_RESUMED'})
+        try: f._write(self._directory,name,receipt,self.scope.web_gid)
+        except FileExistsError:
+            partial=f._read(self._directory,name,self.scope.web_gid)
+            require(receipt.startswith(partial),'MAINTENANCE_RECOVERY_MISMATCH')
+            if partial!=receipt:
+                os.unlink(name,dir_fd=self._directory);os.fsync(self._directory)
+                f._write(self._directory,name,receipt,self.scope.web_gid)
         os.unlink('maintenance.attempt',dir_fd=self._directory);os.fsync(self._directory)
         self.close()
 

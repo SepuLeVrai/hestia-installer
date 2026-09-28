@@ -1,5 +1,14 @@
 # Phase 5C - Upgrade, sauvegarde, reprise et retour arrière
 
+## Avancement 5C4 - reprise et retour arrière
+
+Le [contrôleur de reprise](PHASE5C4_RECOVERY.md) complète la transition scellée
+de 5C3b : convergence des déplacements, rollback avant réouverture, exclusion
+mutuelle et réponse perdue. Il ne restaure jamais SQL par-dessus une dérive.
+Les preuves ciblées et Quality du gel sont au checkpoint et dans #13. La suite
+5D couvre le raccordement opérateur et l'activation de bout en bout ; la phase 5
+reste ouverte. Les sections suivantes conservent l'historique des contrats.
+
 ## Avancement 5C3b - migration des stockages
 
 Le [contrôleur de transition réelle](PHASE5C3_STORAGE_UPGRADE.md) prend en charge

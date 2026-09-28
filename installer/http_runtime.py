@@ -119,12 +119,12 @@ def _unit_absent(unit: str) -> None:
     require(result.returncode in (0, 1) and result.stdout.strip() == b'not-found', 'HTTP_RUNTIME_UNIT_OCCUPIED')
 
 
-def _code_digest(root: Path, web_gid: int) -> str:
+def _code_digest(root: Path, web_gid: int, *, private_parent: bool = False) -> str:
     """The staged source stays immutable, including its historical uploads tree."""
     pending = [root]; digest = hashlib.sha256(); count = total = 0
     while pending:
         path = pending.pop()
-        with fs._directory(path, readable_by=web_gid) as fd:
+        with fs._directory(path, readable_by=None if private_parent else web_gid) as fd:
             for name in sorted(os.listdir(fd)):
                 count += 1; require(count <= 10000, 'HTTP_RUNTIME_SOURCE_LIMIT')
                 info = os.stat(name, dir_fd=fd, follow_symlinks=False)

@@ -1,5 +1,16 @@
 # État du projet
 
+## Avancement 5C4 - 28 septembre 2026
+
+La [reprise et le rollback](PHASE5C4_RECOVERY.md) sont implémentés pour la paire
+de stockages qualifiée. Les reprises reconnaissent les déplacements effectués,
+refusent les dérives SQL/configuration et excluent le rollback dès l'intention
+de réouverture. La recette dédiée comporte vingt scénarios dont quatorze nouveaux,
+avec arrêts SIGKILL et écritures métier après réponse perdue. Les résultats réels
+et Quality du gel sont consignés au checkpoint et #13. Le raccordement wizard,
+journal opérateur, activation et recette globale 5D restent à livrer.
+Les sections suivantes décrivent les gels précédents.
+
 ## Avancement 5C3b - 28 septembre 2026
 
 La [migration des stockages](PHASE5C3_STORAGE_UPGRADE.md) possède maintenant son

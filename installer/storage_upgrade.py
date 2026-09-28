@@ -62,8 +62,14 @@ def _replace(path, expected, data, gid, mode):
     with fs._directory(path.parent) as fd:
         require(f._read(fd, path.name, gid, mode=mode, limit=p.MAX_FILE) == expected,
                 'STORAGE_UPGRADE_TARGET_CHANGED')
-        temporary = '.upgrade-' + os.urandom(16).hex()
-        f._write(fd, temporary, data, gid, mode=mode)
+        temporary = '.upgrade-' + f._sha(data)[:32]
+        try: f._write(fd, temporary, data, gid, mode=mode)
+        except FileExistsError:
+            partial = f._read(fd, temporary, gid, mode=mode, limit=p.MAX_FILE)
+            require(data.startswith(partial), 'STORAGE_UPGRADE_TARGET_CHANGED')
+            if partial != data:
+                os.unlink(temporary, dir_fd=fd); os.fsync(fd)
+                f._write(fd, temporary, data, gid, mode=mode)
         require(f._read(fd, path.name, gid, mode=mode, limit=p.MAX_FILE) == expected,
                 'STORAGE_UPGRADE_TARGET_CHANGED')
         os.replace(temporary, path.name, src_dir_fd=fd, dst_dir_fd=fd)
@@ -134,10 +140,12 @@ class StorageUpgrade:
                 fs._absent(fd, path.name)
 
     def apply(self, payload, authority, *, config_root, backup_root, confirmed, allow_global_read_lock, cancel=None):
+        from installer import storage_upgrade_recovery as recovery
         require(confirmed is True and allow_global_read_lock is True, 'STORAGE_UPGRADE_CONSENT_REQUIRED')
         require(type(authority) is db.SqlAuthorityCredentials and isinstance(config_root, Path))
         slot = None
         stage = 'PREFLIGHT'
+        operation = ExitStack()
         try:
             self._paths(backup_root)
             config = f._configuration(payload, fresh=False)
@@ -164,6 +172,7 @@ class StorageUpgrade:
                 require(authority._user != database['user'] and authority._password != database['password'])
                 slot = backup_root / ('upgrade-' + lease.lease_id)
                 _mkdir(slot)
+                operation.enter_context(recovery.operation_lock(slot))
                 binding = {'version': 1, 'instance': lease.scope.instance, 'lease_id': lease.lease_id,
                            'source_commit': LEGACY_COMMIT, 'target_commit': STORAGE_COMMIT,
                            'preflight_sha256': assessment.sha256, 'webroot': str(web),
@@ -214,6 +223,8 @@ class StorageUpgrade:
                 with snapshot._open(lease) as (_, captured):
                     expected_uploads = _upload_metadata(slot / 'relocated', captured['records'], account)
                 _save(slot / 'uploads-after.json', expected_uploads)
+                prepared = recovery.prepare(self, slot, lease, account, extension, old_files, old_plan, old_staged,
+                    old_cleaner_plan, old_receipt, expected_uploads, snapshot._manifest_sha256, verified)
                 _event(slot, 2, 'TARGET_PREPARED')
                 held(); barrier.assert_held(); snapshot.verify_sources(lease, cancel=cancel)
                 web_inodes.assert_held(); data_inodes.assert_held(); config_inodes.assert_held()
@@ -227,54 +238,13 @@ class StorageUpgrade:
                 # Re-reading legacy business files through code audits now would
                 # advance atime after the immutable flag changed their ctime.
                 held(); snapshot.verify_sources(lease, cancel=cancel)
-                _mkdir(self.previous)
-                _move(web, self.previous / 'web')
-                _move(self.next_web, web)
-                _move(slot / 'relocated/uploads', self.http.spec.root / 'data/uploads')
-                new_receipt = {**old_receipt, 'source_commit': STORAGE_COMMIT,
-                               'runtime_sha256': get_release(STORAGE_COMMIT).runtime_sha256}
-                _replace(directory / 'finalized.json', p._json(old_receipt), p._json(new_receipt), gid, 0o640)
-                # All generated service files keep the same mandatory maintenance gate.
-                new_plan = self.target_http._plan(account, extension)
-                _, _, new_cleaner_files, new_cleaner_plan = self.target_collector._profile_inputs(account, lease.scope, f._sha(new_plan))
-                new_files = {**self.target_http._files(account, extension), **new_cleaner_files}
-                require(set(new_files) == set(old_files))
-                for path, content in new_files.items():
-                    mode = 0o644 if path.is_relative_to(h.drain.UNIT_ROOT) else 0o640
-                    group = gid if path.parent == self.target_collector.directory else 0
-                    _replace(path, old_files[path], content, group, mode)
-                _replace(self.http.spec.root / 'provision.attempt', old_plan, new_plan, 0, 0o640)
-                _replace(self.http.spec.root / 'staged.json', p._json(old_staged), p._json({**old_staged, 'plan_sha256': f._sha(new_plan), 'lease_id': lease.lease_id}), 0, 0o640)
-                with fs._directory(self.collector.directory) as fd:
-                    old_cleaner_staged = f._read(fd, 'staged.json', 0)
-                _replace(self.collector.directory / 'cleaner.attempt', old_cleaner_plan, new_cleaner_plan, 0, 0o640)
-                _replace(self.collector.directory / 'staged.json', old_cleaner_staged,
-                    p._json({'version': 1, 'state': 'SESSION_CLEANER_STAGED', 'plan_sha256': f._sha(new_cleaner_plan), 'lease_id': lease.lease_id}), 0, 0o640)
-                self.target_http._configtest()
-                h._command(['/usr/bin/systemctl', '--no-pager', '--no-ask-password', 'daemon-reload'])
+                recovery.switch(self, slot, lease, prepared, 'forward')
                 stage = 'TARGET_VERIFICATION'
-                held(); self.target_http.observe(); self.target_collector.observe()
-                target_inventory = files.DataInventory((('uploads', self.http.spec.root / 'data/uploads'),), account.pw_uid, gid)
-                actual = files._Scan(target_inventory, lease, cancel=cancel).run()
-                # Blob names are capture indices; compare semantic content and metadata.
-                without_blob = lambda rows: [{k: v for k, v in row.items() if k != 'blob'} for row in rows]
-                require(without_blob(actual) == without_blob(expected_uploads), 'STORAGE_UPGRADE_FILES_CHANGED')
                 coordinated._recheck(self.runtime, self.source, database, ca, authority, slot, verified, cancel)
                 probe = f._probe(self.runtime, config, directory, gid, active=True, cancel=cancel)
                 require(probe['database_verified'] is True)
                 held()
-                result = {'version': 1, 'state': 'STORAGE_UPGRADE_APPLIED_GATED',
-                    'source_commit': LEGACY_COMMIT, 'target_commit': STORAGE_COMMIT,
-                    'instance': lease.scope.instance, 'lease_id': lease.lease_id,
-                    'source_profile': 'SEALED_MANAGED_ROOT_OWNED_WEB', 'backup_verified': True,
-                    'database_preserved': True, 'sql_migrations_executed': 0,
-                    'upload_files': sum(x['kind'] == 'file' for x in expected_uploads),
-                    'upload_bytes': sum(x.get('bytes', 0) for x in expected_uploads),
-                    'upload_contents_and_dates_preserved': True, 'upload_ownership_migrated': True,
-                    'runtime_plan_sha256': f._sha(new_plan), 'cleaner_plan_sha256': f._sha(new_cleaner_plan),
-                    'data_manifest_sha256': snapshot._manifest_sha256, 'sql_logical_sha256': verified['logical_sha256'],
-                    'services_started': False, 'activity_resumed': False, 'rollback_verified': False,
-                    'phase5c3_complete': False, 'phase5_complete': False, 'application_installed': False}
+                result = recovery.applied(prepared, expected_uploads)
                 _event(slot, 4, 'TARGET_VERIFIED')
             # Admission checks and SQL lock release must also succeed. External
             # reservations stay durable until explicit target authorization.
@@ -287,41 +257,20 @@ class StorageUpgrade:
                 return {'state': 'STORAGE_UPGRADE_INCOMPLETE', 'code': code, 'failure_type': type(error).__name__, 'stage': stage, 'services_started': False,
                         'activity_resumed': False, 'manual_action_required': True, 'application_installed': False}
             raise StorageUpgradeError(code) from None
+        finally:
+            operation.close()
 
     def authorize_resume(self, backup_root, lease_id, *, confirmed):
-        """Explicit gate release after a complete target proof; never starts services.
+        from installer.storage_upgrade_recovery import authorize_resume
+        return authorize_resume(self, backup_root, lease_id, confirmed=confirmed)
 
-        Incomplete cutovers are refused and retained for the recovery controller.
-        This does not roll back SQL or replay apply after a lost response.
-        """
-        require(confirmed is True, 'STORAGE_UPGRADE_CONSENT_REQUIRED')
-        require(isinstance(backup_root, Path) and str(backup_root).startswith('/var/lib/'))
-        with fs._directory(backup_root) as fd:
-            files._private(fd, directory=True)
-        require(type(lease_id) is str and len(lease_id) == 32 and all(x in '0123456789abcdef' for x in lease_id))
-        slot = backup_root / ('upgrade-' + lease_id)
-        value = _read(slot / 'applied.json')
-        binding = _read(slot / 'attempt.json')
-        require(value['state'] == 'STORAGE_UPGRADE_APPLIED_GATED' and value['lease_id'] == lease_id
-                and value['instance'] == self.http.spec.instance and value['target_commit'] == STORAGE_COMMIT)
-        account, _, plan, _ = self.target_http._inspect_configuration()
-        require(f._sha(plan) == value['runtime_plan_sha256'])
-        self.target_http.observe(); self.target_collector.observe()
-        scope = self.target_http._scope(account)
-        with scope.recover(lease_id, confirmed=True) as lease:
-            require(files._read(lease._directory, MARKER, 4096) == p._json(binding))
-            self.target_http.observe(); self.target_collector.observe()
-            inventory = files.DataInventory((('uploads', self.http.spec.root / 'data/uploads'),), account.pw_uid, account.pw_gid)
-            actual = files._Scan(inventory, lease).run()
-            without_blob = lambda rows: [{k: v for k, v in row.items() if k != 'blob'} for row in rows]
-            require(without_blob(actual) == without_blob(_read(slot / 'uploads-after.json')),
-                    'STORAGE_UPGRADE_FILES_CHANGED')
-            with ef.recover(lease, confirmed=True) as external:
-                external.unseal(confirmed=True)
-            with da.recover(self.target_http, lease, confirmed=True) as data:
-                data.reopen(confirmed=True)
-            _save(slot / 'resume-authorized.json', {'version': 1, 'lease_id': lease_id, 'applied_sha256': f._sha(p._json(value))})
-            os.unlink(MARKER, dir_fd=lease._directory); os.fsync(lease._directory)
-            lease.resume(confirmed=True)
-        return {'state': 'STORAGE_UPGRADE_RESUME_AUTHORIZED', 'services_started': False,
-                'rollback_requires_new_assessment': True, 'application_installed': False}
+    def recover(self, payload, authority, *, config_root, backup_root, lease_id, direction,
+                confirmed, allow_global_read_lock, cancel=None):
+        from installer.storage_upgrade_recovery import recover
+        return recover(self, payload, authority, config_root=config_root, backup_root=backup_root,
+                       lease_id=lease_id, direction=direction, confirmed=confirmed,
+                       allow_global_read_lock=allow_global_read_lock, cancel=cancel)
+
+    def observe(self, backup_root, lease_id):
+        from installer.storage_upgrade_recovery import observe
+        return observe(self, backup_root, lease_id)
