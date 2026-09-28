@@ -108,6 +108,11 @@ comme une nouvelle exécution de l'ensemble des recettes pour ce catalogue.
 
 ## Suite concrète 5C3b
 
+Le [contrôleur 5C3b](PHASE5C3_STORAGE_UPGRADE.md) implémente désormais ce parcours
+pour le profil scellé managed. Ce catalogue seul ne donne toujours aucune
+autorisation d'application ; la reprise globale et le rollback restent ouverts.
+Le paragraphe suivant conserve le périmètre prévu lors du gel 5C3a.
+
 La paire historique vers stockages externes reste une candidate, pas une paire
 supportée. La prochaine étape doit qualifier la sauvegarde de ses fichiers
 historiques, inventoriés sous une maintenance tenue, puis leur déplacement vers

@@ -137,6 +137,7 @@ class StorageUpgrade:
         require(confirmed is True and allow_global_read_lock is True, 'STORAGE_UPGRADE_CONSENT_REQUIRED')
         require(type(authority) is db.SqlAuthorityCredentials and isinstance(config_root, Path))
         slot = None
+        stage = 'PREFLIGHT'
         try:
             self._paths(backup_root)
             config = f._configuration(payload, fresh=False)
@@ -184,6 +185,7 @@ class StorageUpgrade:
                     require(cancel is None or not cancel.is_set(), 'STORAGE_UPGRADE_INTERRUPTED')
                     lease.assert_held(); sql_lock.assert_held(); schedulers.assert_held(); external.assert_held()
                 held()
+                stage = 'BACKUP'
                 _mkdir(slot / 'data'); _mkdir(slot / 'sql')
                 roots = tuple((name.replace('-', '_'), self.http.spec.root / 'data' / name) for name in h.DATA) + (('uploads', web / 'uploads'),)
                 inventory = files.DataInventory(roots, account.pw_uid, gid)
@@ -195,6 +197,7 @@ class StorageUpgrade:
                 _save(slot / 'backup.json', {'sql': verified, 'files': snapshot.report(lease)})
                 held(); snapshot.verify_sources(lease, cancel=cancel)
                 _event(slot, 1, 'BACKUP_VERIFIED')
+                stage = 'TARGET_PREPARATION'
                 deploy.WebDeployment(deploy.DeploymentSpec(self.target_source, self.next_web,
                     slot / 'deployment', commit=STORAGE_COMMIT)).create(confirmed=True)
                 # Pointers are generated for the final canonical path, never activated in staging.
@@ -216,10 +219,14 @@ class StorageUpgrade:
                 web_inodes.assert_held(); data_inodes.assert_held(); config_inodes.assert_held()
                 # Durable intent and both restored backups precede any source-envelope mutation.
                 _event(slot, 3, 'CUTOVER_STARTED')
+                stage = 'CUTOVER'
                 web_inodes.unseal(confirmed=True)
                 config_inodes.unseal(confirmed=True)
                 data_inodes.unseal(confirmed=True)
-                held(); barrier.assert_held(); snapshot.verify_sources(lease, cancel=cancel)
+                # The full barrier was verified immediately before unsealing.
+                # Re-reading legacy business files through code audits now would
+                # advance atime after the immutable flag changed their ctime.
+                held(); snapshot.verify_sources(lease, cancel=cancel)
                 _mkdir(self.previous)
                 _move(web, self.previous / 'web')
                 _move(self.next_web, web)
@@ -245,6 +252,7 @@ class StorageUpgrade:
                     p._json({'version': 1, 'state': 'SESSION_CLEANER_STAGED', 'plan_sha256': f._sha(new_cleaner_plan), 'lease_id': lease.lease_id}), 0, 0o640)
                 self.target_http._configtest()
                 h._command(['/usr/bin/systemctl', '--no-pager', '--no-ask-password', 'daemon-reload'])
+                stage = 'TARGET_VERIFICATION'
                 held(); self.target_http.observe(); self.target_collector.observe()
                 target_inventory = files.DataInventory((('uploads', self.http.spec.root / 'data/uploads'),), account.pw_uid, gid)
                 actual = files._Scan(target_inventory, lease, cancel=cancel).run()
@@ -276,7 +284,7 @@ class StorageUpgrade:
             message = str(error)
             code = message if re.fullmatch(r'[A-Z][A-Z0-9_]{2,100}', message) else 'STORAGE_UPGRADE_INCOMPLETE'
             if slot is not None:
-                return {'state': 'STORAGE_UPGRADE_INCOMPLETE', 'code': code, 'failure_type': type(error).__name__, 'services_started': False,
+                return {'state': 'STORAGE_UPGRADE_INCOMPLETE', 'code': code, 'failure_type': type(error).__name__, 'stage': stage, 'services_started': False,
                         'activity_resumed': False, 'manual_action_required': True, 'application_installed': False}
             raise StorageUpgradeError(code) from None
 

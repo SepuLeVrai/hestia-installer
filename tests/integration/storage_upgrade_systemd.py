@@ -64,9 +64,10 @@ class StorageUpgradeLive(previous.DeployedWebLive):
                     owned.update((Path(entry['path']), Path(entry['path']).parent / entry['stage']))
             for path in owned:
                 if path.exists(): fixture.fixture_clear(path); path.unlink()
-        for name in ('webroot', 'http_root', 'output'):
+        for name in ('webroot', 'output'):
             path = getattr(self, name, None)
             if path is not None and path.exists(): fixture.fixture_clear(path)
+        if hasattr(self, 'http_root'): fixture.fixture_clear(self.http_root / 'data')
         super().stop_services()
         for path in (getattr(self, 'output', None), getattr(self, 'backups', None)):
             if path is not None: shutil.rmtree(path, ignore_errors=True)

@@ -1,5 +1,16 @@
 # État du projet
 
+## Avancement 5C3b - 28 septembre 2026
+
+La [migration des stockages](PHASE5C3_STORAGE_UPGRADE.md) possède maintenant son
+contrôleur : sauvegarde restaurée, déplacement réel des uploads, bascule du Web
+et des configurations, puis autorisation distincte de reprise. Le profil reste
+le Web historique scellé géré par l'Installer, sur Debian 13/PHP 8.4/Ext4.
+La recette dédiée utilise les vrais services et six scénarios ciblés ; ses
+résultats sont consignés dans le checkpoint et #13. La reprise/rollback 5C4 et
+le raccordement wizard/services 5D restent à livrer. La phase 5 reste ouverte.
+Les sections suivantes décrivent les gels précédents.
+
 ## Avancement 5C3a - 28 septembre 2026
 
 Le [catalogue fermé et son audit des sources](PHASE5C3_CATALOG.md) sont livrés

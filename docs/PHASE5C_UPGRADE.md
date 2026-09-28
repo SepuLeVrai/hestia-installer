@@ -1,5 +1,14 @@
 # Phase 5C - Upgrade, sauvegarde, reprise et retour arrière
 
+## Avancement 5C3b - migration des stockages
+
+Le [contrôleur de transition réelle](PHASE5C3_STORAGE_UPGRADE.md) prend en charge
+la paire épinglée historique vers stockages externes pour le profil scellé
+managed. Il sauvegarde, déplace et bascule sous maintenance, sans rejouer SQL.
+Les incidents conservent le blocage ; reprise automatisée et rollback restent
+5C4, journal/wizard et activation restent 5D. Les sections suivantes sont
+l'historique des contrats et gels précédents.
+
 ## Avancement 5C3a - 28 septembre 2026
 
 Le [catalogue fermé et son audit des sources](PHASE5C3_CATALOG.md) sont livrés
