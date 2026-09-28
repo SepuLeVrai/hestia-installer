@@ -197,7 +197,12 @@ TasksMax=256
         return run(argv, (statement + '\n').encode(), directory=self.root, timeout=20).decode().strip()
 
     def probe(self):
-        value = json.loads(self.sql("SELECT JSON_OBJECT('user',CURRENT_USER(),'data',@@datadir,'bind',@@bind_address,'port',@@port,'binlog',@@log_bin,'general',@@general_log,'slow',@@slow_query_log,'local',@@local_infile)"))
+        # MariaDB boolean system-variable items can serialize as bare OFF/ON
+        # inside JSON_OBJECT. Cast to text and accept only explicit false values.
+        value = json.loads(self.sql("SELECT JSON_OBJECT('user',CURRENT_USER(),'data',@@datadir,'bind',@@bind_address,'port',@@port,'binlog',CAST(@@log_bin AS CHAR),'general',CAST(@@general_log AS CHAR),'slow',CAST(@@slow_query_log AS CHAR),'local',CAST(@@local_infile AS CHAR))"))
+        for name in ('binlog', 'general', 'slow', 'local'):
+            require(value[name] in ('OFF', '0'), ErrorCode.VALIDATION_FAILED)
+            value[name] = 0
         require(value == {'user': 'root@localhost', 'data': str(self.data) + '/', 'bind': '127.0.0.1', 'port': 3306,
                           'binlog': 0, 'general': 0, 'slow': 0, 'local': 0}, ErrorCode.VALIDATION_FAILED)
 

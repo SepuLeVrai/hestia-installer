@@ -141,5 +141,14 @@ class MariaDBPlanTests(unittest.TestCase):
         with patch.object(p.native, 'run', side_effect=changed):
             with self.assertRaises(InstallerError): runtime.empty_arrays()
 
+    def test_sql_probe_accepts_explicit_false_text_and_refuses_enabled_flags(self):
+        runtime = p.native.MariaDB('1' * 32, 'a' * 64)
+        value = {'user': 'root@localhost', 'data': str(runtime.data) + '/', 'bind': '127.0.0.1', 'port': 3306,
+                 'binlog': 'OFF', 'general': '0', 'slow': 'OFF', 'local': '0'}
+        with patch.object(runtime, 'sql', return_value=json.dumps(value)): runtime.probe()
+        for flag in ('binlog', 'general', 'slow', 'local'):
+            with patch.object(runtime, 'sql', return_value=json.dumps({**value, flag: 'ON'})):
+                with self.assertRaises(InstallerError): runtime.probe()
+
 
 if __name__ == '__main__': unittest.main()

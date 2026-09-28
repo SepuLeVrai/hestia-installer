@@ -393,6 +393,7 @@
       "test_mariadb_plan.MariaDBPlanTests.test_new_server_rejects_existing_database_mode_and_changed_sql_names",
       "test_mariadb_plan.MariaDBPlanTests.test_plan_closed_immutable_restart_no_live_probe",
       "test_mariadb_plan.MariaDBPlanTests.test_private_profile_symlink_and_truncated_bytes_are_rejected",
+      "test_mariadb_plan.MariaDBPlanTests.test_sql_probe_accepts_explicit_false_text_and_refuses_enabled_flags",
       "test_mariadb_plan.MariaDBPlanTests.test_sql_requires_installed_packages_and_exact_parent_confirmation",
       "test_mariadb_plan.MariaDBPlanTests.test_systemd_struct_arrays_require_typed_empty_values_and_stable_owner",
       "test_model.ModelTests.test_step_serialization",
