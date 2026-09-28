@@ -9,6 +9,7 @@ from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import sys
 import threading
@@ -64,12 +65,14 @@ class Browser(unittest.TestCase):
             context = browser.new_context(ignore_https_errors=True, viewport={'width': 1366, 'height': 900})
             cleanup.callback(context.close)
             page = context.new_page(); page.set_default_timeout(120000)
+            cleanup.callback(page.screenshot, path=str(EVIDENCE / ('wizard-' + PHASE + '.png')), full_page=True)
             errors = []; page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto('https://127.0.0.1:' + str(connection['port']))
             page.locator('#bootstrap-code').fill(connection['code']); page.locator('#bootstrap-form button[type=submit]').click()
-            # At restored GitHub step, Next correctly remains disabled without
-            # a token; Cancel is enabled as soon as initialization completes.
-            expect(page.locator('#cancel-button')).to_be_enabled()
+            # This attribute is set by show() only after state initialization.
+            # HTML button defaults do not prove readiness; restored Next can
+            # correctly stay disabled without a GitHub token.
+            expect(page.locator('body')).to_have_attribute('data-wizard-step', re.compile('^[01]$'))
             if page.locator('body').get_attribute('data-wizard-step') == '0': page.locator('#next-button').click()
             expect(page.locator('#package-preparation')).to_be_visible()
             if PHASE == 'acquire':
@@ -103,7 +106,6 @@ class Browser(unittest.TestCase):
             self.assertIsNone(state['installation']); self.assertFalse(state['packages']['application_installed'])
             self.assertFalse(state['packages']['mariadb_ready']); self.assertEqual(errors, [])
             (EVIDENCE / ('wizard-state-' + PHASE + '.json')).write_text(json.dumps(state, indent=2))
-            page.screenshot(path=str(EVIDENCE / ('wizard-' + PHASE + '.png')), full_page=True)
 
 
 class FailureClone(unittest.TestCase):
