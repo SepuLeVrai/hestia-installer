@@ -54,6 +54,7 @@
   let upgrade = {profile: null, missing_credentials: []}, useUpgrade = false;
   let boot = {installation: null, availability: null};
   let acmePackages = {profile: null, acquisition: null, installation: null, selection: null};
+  let publicTLS = {installation: null, availability: null};
   let activation = {installation: null, availability: null};
   let packages = {profile: null, acquisition: null, installation: null, selection: null};
   let mariadb = {profile: null, installation: null, missing_credentials: []};
@@ -589,6 +590,7 @@
     if (isApplication() && installation.state === "DONE") activationForm();
     if (isApplication() && !isUpgrade() && activation.installation?.state === "DONE" && mariadb.installation?.state === "DONE") bootForm();
     if (isApplication() && !isUpgrade() && boot.installation?.state === "DONE") acmePackagesForm();
+    if (isApplication() && !isUpgrade() && acmePackages.installation?.state === "DONE") publicTLSForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
@@ -723,6 +725,54 @@
     if (acmePackages.installation?.state === "DONE") card.append(hint("Dépendances installées. Le frontal public, le certificat et son renouvellement restent à configurer."));
     content.append(card);
   }
+  function publicTLSAction(action, extra = {}) {
+    pendingAction = {action: "public-tls." + action, payload: {confirmation: publicTLS.installation.plan_sha256, confirm: true, ...extra}};
+    $("operation-title").textContent = "Confirmer l'accès HTTPS public";
+    $("operation-description").textContent = "Ouvrir les ports 80 et 443, demander le certificat Let's Encrypt en acceptant ses conditions de service, tester puis programmer son renouvellement ? Apache sera brièvement placé en maintenance et remis en service. Relisez le domaine et les réseaux autorisés dans le plan.";
+    $("operation-dialog").showModal();
+  }
+  function publicTLSForm() {
+    const card = element("article", null, "wizard-card"); card.id = "public-tls";
+    card.append(element("h2", "Accès HTTPS et renouvellement"), hint("Le domaine Web doit pointer vers ce serveur en IPv4, sans enregistrement AAAA. Les ports 80 et 443 doivent être disponibles et accessibles depuis Internet. Le port 80 reste ouvert pour HTTP-01 et redirige les autres requêtes vers HTTPS."));
+    const document = publicTLS.installation;
+    if (!document) {
+      const form = element("form"); form.id = "public-tls-form";
+      const email = element("input"); email.type = "email"; email.id = "public-tls-email"; email.required = true; email.maxLength = 254;
+      const access = element("select"); access.id = "public-tls-access";
+      for (const [value, label] of [["allowlist", "Limiter aux réseaux indiqués"], ["public", "Autoriser tous les clients IPv4"]]) {
+        const option = element("option", label); option.value = value; access.append(option);
+      }
+      const networks = element("input"); networks.id = "public-tls-networks"; networks.placeholder = "203.0.113.0/24, 198.51.100.7/32"; networks.maxLength = 600;
+      form.append(field("Adresse e-mail Let's Encrypt", email), field("Accès Web", access), field("Réseaux IPv4 autorisés (CIDR, séparés par des virgules)", networks));
+      const submit = element("button", "Préparer le plan HTTPS"); submit.type = "submit"; submit.id = "plan-public-tls"; form.append(submit);
+      form.addEventListener("submit", (event) => { event.preventDefault(); void run(async () => {
+        const choices = {email: email.value.trim(), access: access.value, networks: access.value === "public" ? [] : [...new Set(networks.value.split(",").map((x) => x.trim()).filter(Boolean))].sort()};
+        publicTLS = (await api("/api/web/public-tls/plan", {acme_sha256: acmePackages.installation.plan_sha256, choices})).public_tls;
+        show(5); message("Plan HTTPS prêt à relire et confirmer.");
+      }); });
+      card.append(form);
+    } else {
+      const status = element("p", "Accès HTTPS : " + states[document.state]); status.id = "public-tls-state"; status.dataset.state = document.state; card.append(status);
+      for (const spec of document.plan.steps) {
+        const record = document.steps.find((row) => row.name === spec.name);
+        card.append(element("p", spec.action + " : " + states[record.state]));
+      }
+      technical(card, "Plan HTTPS complet", document.plan);
+      if (document.approved_plan_sha256 === null) card.append(button("Valider l'accès HTTPS", () => publicTLSAction("apply"), "apply-public-tls", true));
+      else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre le plan HTTPS", () => publicTLSAction("resume"), "resume-public-tls"));
+      for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Vérifier la reprise du frontal", () => publicTLSAction("retry", {name: record.name}), "retry-public-tls"));
+      if (document.state === "DONE") {
+        card.append(hint("Configuration du serveur terminée : HTTPS, démarrage automatique et renouvellement sont configurés."));
+        card.append(button("Vérifier HTTPS maintenant", () => void run(async () => {
+          publicTLS = (await api("/api/web/public-tls/check", {confirmation: document.plan_sha256, confirm: true})).public_tls;
+          show(5); message("Vérification HTTPS terminée.");
+        }), "check-public-tls"));
+      }
+      if (publicTLS.availability) card.append(hint((publicTLS.availability.state === "PUBLIC_TLS_AVAILABLE" ? "HTTPS disponible" : "Disponibilité HTTPS à contrôler") + " — " + publicTLS.availability.checked_at));
+      if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
+    }
+    content.append(card);
+  }
   async function downloadReport() {
     const data = await api("/api/installation/report");
     const blob = new Blob([JSON.stringify(data, null, 2) + "\n"], {type: "application/json"});
@@ -765,6 +815,9 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action.startsWith("public-tls.")) {
+        publicTLS = (await api("/api/web/public-tls/" + action.action.slice(11), action.payload)).public_tls;
+        show(5);
       } else if (action.action.startsWith("acme-packages.")) {
         acmePackages = (await api("/api/system/acme-packages/" + action.action.slice(14), action.payload)).acme_packages;
         show(5); message("État des dépendances HTTPS mis à jour.");
@@ -794,6 +847,7 @@
     activation = result.activation || {installation: null, availability: null};
     boot = result.boot || {installation: null, availability: null};
     acmePackages = result.acme_packages || {profile: null, acquisition: null, installation: null, selection: null};
+    publicTLS = result.public_tls || {installation: null, availability: null};
     packages = result.packages || {profile: null, acquisition: null, installation: null, selection: null};
     mariadb = result.mariadb || {profile: null, installation: null, missing_credentials: []};
     upgrade = result.upgrade || {profile: null, missing_credentials: []};
@@ -860,9 +914,10 @@
         activation = result.activation || activation;
         boot = result.boot || boot;
         acmePackages = result.acme_packages || acmePackages;
+        publicTLS = result.public_tls || publicTLS;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
         if (stamp !== lastRevision) {
           lastRevision = stamp;
           installation = result.installation;

@@ -16,8 +16,10 @@ from installer.package_plan import PackagePlan
 from installer.mariadb_plan import MariaDBPlan
 from installer.boot_plan import BootPlan
 from installer.acme_packages import AcmePackagePlan
+from installer.public_tls_plan import PublicTLSPlan
 
 POST_ROUTES = {
+    **{'/api/web/public-tls/' + action: 'public-tls.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/system/acme-packages/' + phase + '/' + action: 'acme-packages.' + phase + '.' + action
        for phase in ('acquire', 'install') for action in ('plan', 'apply', 'resume', 'retry')},
     **{'/api/system/boot/' + action: 'boot.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
@@ -59,6 +61,7 @@ class TransactionService:
         self._upgrade_activation = UpgradeActivationPlan(self.upgrade)
         self.boot = BootPlan(self.application, self._fresh_activation, self.mariadb)
         self.acme_packages = AcmePackagePlan(engine, self.packages, self.boot)
+        self.public_tls = PublicTLSPlan(engine, self.boot, self.acme_packages)
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
@@ -97,7 +100,7 @@ class TransactionService:
                     "busy": self._mutation_lock.locked(), "preflight": self._preflight,
                     "application": self.application.state(), "activation": self.activation.state(), "upgrade": self.upgrade.state(),
                     "packages": self.packages.state(), "mariadb": self.mariadb.state(), "boot": self.boot.state(),
-                    "acme_packages": self.acme_packages.state()}
+                    "acme_packages": self.acme_packages.state(), "public_tls": self.public_tls.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -124,10 +127,14 @@ class TransactionService:
             if boot['installation'] is not None: result['boot'] = boot
             acme = self.acme_packages.state()
             if acme['profile'] is not None: result['acme_packages'] = acme
+            public = self.public_tls.state()
+            if public['installation'] is not None: result['public_tls'] = public
             return result
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('public-tls.'):
+                return {"public_tls": self.public_tls.execute(action.removeprefix('public-tls.'), payload)}
             if action.startswith('acme-packages.'):
                 return {"acme_packages": self.acme_packages.execute(action.removeprefix('acme-packages.'), payload)}
             if action.startswith('boot.'):

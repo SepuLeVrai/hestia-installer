@@ -131,13 +131,16 @@ def audit_unit(scope: m.MaintenanceScope, binding: UnitBinding, *, stopped=False
     require(hashlib.sha256(_root_file(fragment)).hexdigest() == binding.fragment_sha256
             and _root_file(dropin) == condition_dropin(scope), 'SYSTEM_DRAIN_UNIT_DRIFT')
     value = _show(unit)
+    from installer.public_tls_profile import overlay_evidence
+    public = overlay_evidence(scope, binding.fragment_sha256) if binding.role == 'apache' else None
+    dropins = str(dropin) + (' ' + public['path'] if public is not None else '')
     # Only the typed collector composition may wait for a genuine oneshot
     # activation job. The four-role barrier and final stopped proof stay strict.
     pending = (running_collector and value['Type'] == 'oneshot'
         and value['ActiveState'] == 'activating' and value['SubState'] == 'start'
         and re.fullmatch(r'[1-9][0-9]*', value['Job']) is not None)
     required = {'Id': unit, 'LoadState': 'loaded', 'FragmentPath': str(fragment),
-        'DropInPaths': str(dropin), 'NeedDaemonReload': 'no', 'KillMode': 'control-group',
+        'DropInPaths': dropins, 'NeedDaemonReload': 'no', 'KillMode': 'control-group',
         'SendSIGKILL': 'yes', 'Delegate': 'no', 'Slice': 'system.slice', 'Restart': 'no',
         'RemainAfterExit': 'no', 'RefuseManualStop': 'no', 'Job': value['Job'] if pending else ''}
     require(all(value[k] == v for k, v in required.items())
@@ -159,10 +162,13 @@ class SystemDrain:
                 'SYSTEM_DRAIN_PROFILE_REJECTED')
         self.scope, self.bindings = scope, bindings
         self._dropin = condition_dropin(scope)
+        from installer.public_tls_profile import overlay_evidence
+        self._public = overlay_evidence(scope, bindings[0].fragment_sha256)
         self._profile = p._json({'version': 1, 'instance': scope.instance,
             'maintenance': str(scope.directory), 'policy': 'STOP_ONLY_SYSTEMD_CGROUP2_V1',
             'dropin_sha256': f._sha(self._dropin),
-            'units': [{'role': b.role, 'fragment_sha256': b.fragment_sha256} for b in bindings]})
+            'units': [{'role': b.role, 'fragment_sha256': b.fragment_sha256} for b in bindings],
+            **({'public_ingress': self._public} if self._public is not None else {})})
 
     def __repr__(self):
         return '<SystemDrain private enrolled services>'
@@ -175,6 +181,9 @@ class SystemDrain:
         audit_unit(self.scope, binding, stopped=stopped)
 
     def _audit_all(self, *, stopped=False) -> None:
+        from installer.public_tls_profile import overlay_evidence
+        require(overlay_evidence(self.scope, self.bindings[0].fragment_sha256) == self._public,
+                'SYSTEM_DRAIN_PROFILE_REJECTED')
         for binding in self.bindings:
             self._audit(binding, stopped=stopped)
 

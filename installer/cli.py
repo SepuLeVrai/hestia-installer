@@ -111,6 +111,9 @@ def main(argv: list[str] | None = None) -> int:
             from installer.acme_packages import AcmePackagePlan
             acme = AcmePackagePlan(engine, PackagePlan(engine), None).state()
             if acme['profile'] is not None: result['acme_packages'] = acme
+            from installer.public_tls_plan import PublicTLSPlan
+            public = PublicTLSPlan(engine, None, None).state()
+            if public['installation'] is not None: result['public_tls'] = public
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
         if args.resume:

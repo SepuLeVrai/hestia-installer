@@ -153,6 +153,9 @@ class HttpDrain:
             extra = {'policy': 'PROVISIONED_HTTP_AND_CLEANER_STOP_ONLY_V1',
                      'cleaner_plan_sha256': f._sha(cleaner_plan),
                      'timer_sha256': f._sha(files[s.UNIT_ROOT / self.cleaner.timer])}
+        from installer.public_tls_profile import overlay_evidence
+        public = overlay_evidence(scope, bindings[0].fragment_sha256)
+        if public is not None: extra['public_ingress'] = public
         profile = p._json({'version': 1, 'instance': scope.instance, 'maintenance': str(scope.directory),
             'policy': 'PROVISIONED_HTTP_STOP_ONLY_V1', 'runtime_plan_sha256': f._sha(plan),
             'uid': account.pw_uid, 'gid': account.pw_gid,

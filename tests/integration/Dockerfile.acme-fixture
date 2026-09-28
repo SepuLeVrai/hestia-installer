@@ -1,0 +1,6 @@
+# Disposable CA only; never part of a deployed server.
+FROM debian:13-slim
+RUN apt-get update -qq && apt-get install -y --no-install-recommends python3 openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY pebble /usr/local/bin/pebble
+COPY tests/integration/acme_fixture.py /fixture.py
+CMD ["python3", "/fixture.py"]
