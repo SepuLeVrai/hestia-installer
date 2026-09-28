@@ -1,5 +1,16 @@
 # État du projet
 
+## Réservations des chemins externes et bilan 5C2 - 28 septembre 2026
+
+Base Web qualifiée `c54ff0367d7ddf07de9b6c6a76373e642e96176d`, run `36383437417`.
+Les [réservations externes](PHASE5_EXTERNAL_FENCE.md) ferment les deux anciens
+noms IA par inodes vides immutable, après refus de toute occupation initiale.
+Préparation et levée sont journalisées ; aucune reprise implicite. Le
+[bilan 5C2](PHASE5C2_COVERAGE.md) rapproche destinations et neuf groupes de
+producteurs. Gel attendu : 117 locaux, 196 Debian, 36 scénarios en quatre groupes.
+Quality globales, transition réelle 5C3, incidents/rollback 5C4 et wizard 5D
+restent à qualifier ; aucun flag global n'est relevé.
+
 ## Protection du Web déployé - 28 septembre 2026
 
 Base qualifiée `2963db6513945a3940341496fd8a797e7046d65a`, run `36338904729`.

@@ -28,6 +28,7 @@ from installer import data_access as da
 from installer import inode_fence as inf
 from installer import configuration_fence as cf
 from installer import web_fence as wf
+from installer import external_fence as ef
 import test_inode_fence_files as inode_fixture
 from installer.web_releases import STORAGE_COMMIT, get_release
 from http_runtime_systemd import command, until
@@ -55,6 +56,19 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         self.web_mounted=True
 
     def stop_services(self):
+        if hasattr(self,'scope'):
+            owned=set()
+            for name in (ef.PREPARE,ef.MARKER,ef.RELEASE):
+                journal=self.scope.directory/name
+                if not journal.is_file():continue
+                value=json.loads(journal.read_bytes());self.assertEqual(value['instance'],self.scope.instance)
+                for entry in value['entries']:
+                    self.assertIn(Path(entry['path']),ef.PATHS)
+                    owned.update((Path(entry['path']),Path(entry['path']).parent/entry['stage']))
+            for path in sorted(owned):
+                if not path.exists():continue
+                self.assertEqual(path.stat().st_dev,inode_fixture.VOLUME.stat().st_dev)
+                inode_fixture.fixture_clear(path);path.unlink()
         if getattr(self,'web_mounted',False):inode_fixture.fixture_clear(self.webroot)
         if hasattr(self,'http_root') and self.http_root.is_relative_to(inode_fixture.VOLUME):
             inode_fixture.fixture_clear(self.http_root/'data')
@@ -76,6 +90,11 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
     def unseal_web(self,barrier):
         self.assertTrue((self.scope.directory/wf.MARKER).is_file())
         with wf.recover(barrier,confirmed=True) as protected:protected.unseal(confirmed=True)
+
+    def unseal_external(self,lease):
+        self.assertTrue((self.scope.directory/ef.MARKER).is_file())
+        with ef.recover(lease,confirmed=True) as protected:protected.unseal(confirmed=True)
+        self.assertTrue(all(not path.exists() for path in ef.PATHS))
 
     def setup_backup(self):
         self.ready();self.backups=self.root/'integrated-backups';self.backups.mkdir(mode=0o700)
@@ -132,6 +151,7 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         self.assertTrue(result['installer_settings_fenced']);self.assertTrue(result['configuration_storage_admitted'])
         self.assertTrue(result['configuration_slot_inodes_fenced']);self.assertTrue(result['ordinary_root_settings_writes_fenced'])
         self.assertTrue(result['web_code_fenced']);self.assertTrue(result['web_activation_pointers_fenced'])
+        self.assertTrue(result['legacy_external_paths_reserved']);self.assertTrue(result['ordinary_root_legacy_path_writes_fenced'])
         self.assertTrue(result['classic_scheduler_absence_observed'])
         self.assertTrue(result['canonical_data_paths_fenced'])
         self.assertTrue(result['data_inode_writes_fenced'])
@@ -158,6 +178,7 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         # Explicit fixture-only restore under the recovered exact attempt.
         with hd.HttpDrain(self.http_runtime,cleaner=self.collector).recover(manifest['lease_id'],confirmed=True) as barrier:
             lease=barrier.maintenance_lease
+            self.unseal_external(lease)
             self.unseal_web(barrier)
             self.unseal_configuration(lease)
             snapshot=previous.files.FileSnapshot(slot/'data'/data['snapshot_id'],data['manifest_sha256'],
@@ -276,12 +297,15 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         self.setup_backup();path=Path('/var/lib/hestia-ai');self.assertFalse(path.exists())
         capture=previous.files.capture_and_verify
         def drift(*args,**kwargs):
-            result=capture(*args,**kwargs);path.mkdir(mode=0o700);return result
-        try:
-            with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
-            self.incomplete(result);self.assertEqual(result['code'],'PROVISIONED_EXTERNAL_STORAGE_REJECTED')
-        finally:
-            if path.exists():path.rmdir()
+            result=capture(*args,**kwargs)
+            # Explicit administrative removal is outside ordinary I/O fencing;
+            # the next observation still revokes certification.
+            fd=os.open(path,inf.files.REGULAR)
+            try:ef._flags(fd,ef._flags(fd)&~inf.IMMUTABLE)
+            finally:os.close(fd)
+            path.unlink();path.mkdir(mode=0o700);return result
+        with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
+        self.incomplete(result);self.assertTrue(path.is_dir());path.rmdir()
 
     def scheduler_refused_before_gate(self):
         before=self.scope.observe()
@@ -608,6 +632,59 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
         self.incomplete(result);self.assertTrue((self.scope.directory/wf.MARKER).exists())
 
+    def test_provisioned_root_external_reservations_and_siblings_after_copy(self):
+        self.setup_backup();capture=previous.files.capture_and_verify;checks=[]
+        def writer(*args,**kwargs):
+            saved=capture(*args,**kwargs)
+            body='import os,pathlib\nassert os.geteuid()==0\nfor name in ("/etc/hestia/conf_db_ia.php","/var/lib/hestia-ai"):\n p=pathlib.Path(name)\n for action in (lambda:p.write_bytes(b"bad"),p.unlink,lambda:p.chmod(0o600)):\n  try:action()\n  except PermissionError:pass\n  else:raise SystemExit(9)\n sibling=p.parent/("unrelated-"+str(os.getpid()));sibling.write_bytes(b"ok");sibling.unlink()\nprint("external-denied")'
+            self.assertEqual(command('/usr/bin/python3','-c',body).stdout,b'external-denied\n')
+            checks.append(True);return saved
+        with patch.object(previous.files,'capture_and_verify',side_effect=writer):result=self.execute()
+        self.assertEqual(result['state'],'PROVISIONED_BACKUP_RESTORE_VERIFIED',result)
+        self.assertTrue(result['legacy_external_paths_reserved']);self.assertEqual(checks,[True]);self.closed()
+
+    def test_provisioned_death_during_external_reservation_recovers_then_http_reopens(self):
+        self.setup_backup();flags=ef._flags;pid=os.fork()
+        if pid==0:
+            def die(fd,value=None):
+                result=flags(fd,value)
+                if value is not None:os._exit(76)
+                return result
+            try:
+                with patch.object(ef,'_flags',side_effect=die):self.execute()
+            except BaseException:os._exit(74)
+            os._exit(73)
+        _,status=os.waitpid(pid,0);self.assertTrue(os.WIFEXITED(status));self.assertEqual(os.WEXITSTATUS(status),76)
+        self.assertTrue((self.scope.directory/ef.MARKER).exists());self.assertEqual(list(self.backups.iterdir()),[]);self.closed()
+        with self.assertRaises(PermissionError):ef.PATHS[0].write_bytes(b'bad')
+        lease_id=self.scope.observe()['lease_id']
+        with hd.HttpDrain(self.http_runtime,cleaner=self.collector).recover(lease_id,confirmed=True) as barrier:
+            lease=barrier.maintenance_lease;self.unseal_external(lease);self.unseal_web(barrier);self.unseal_configuration(lease)
+            with da.recover(self.http_runtime,lease,confirmed=True) as data_fence:
+                with inf.recover(data_fence,confirmed=True) as protected:protected.unseal(confirmed=True)
+                data_fence.reopen(confirmed=True)
+            lease.resume(confirmed=True)
+        self.restart_fixture_services();self.assertEqual(self.request('/index.php')[0],200)
+
+    def test_provisioned_removed_external_flag_after_copy_prevents_receipt(self):
+        self.setup_backup();capture=previous.files.capture_and_verify
+        def drift(*args,**kwargs):
+            saved=capture(*args,**kwargs);fd=os.open(ef.PATHS[0],inf.files.REGULAR)
+            try:ef._flags(fd,ef._flags(fd)&~inf.IMMUTABLE)
+            finally:os.close(fd)
+            return saved
+        with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
+        self.incomplete(result);self.assertTrue((self.scope.directory/ef.MARKER).exists())
+
+    def test_provisioned_existing_external_configuration_is_preserved_without_execution(self):
+        self.setup_backup();path=ef.PATHS[0];marker=self.root/'legacy-executed'
+        body='<?php file_put_contents('+repr(str(marker))+',"bad");';path.write_text(body)
+        try:
+            self.admission_refused('PROVISIONED_EXTERNAL_STORAGE_REJECTED')
+            self.assertEqual(path.read_text(),body);self.assertFalse(marker.exists())
+            self.assertFalse((self.scope.directory/ef.PREPARE).exists())
+        finally:path.unlink()
+
     def test_provisioned_removed_inode_flag_after_copy_prevents_receipt(self):
         self.setup_backup();capture=previous.files.capture_and_verify
         path=self.http_root/'data/tmp/flag-drift';path.write_bytes(b'original');path.chmod(0o600)
@@ -631,8 +708,8 @@ if __name__=='__main__':
     previous.previous.WEB=args.web
     source=quality.snapshot(ROOT)
     names=sorted(n for n in ProvisionedBackupLive.__dict__ if n.startswith('test_provisioned_'))
-    if len(names)!=32:raise RuntimeError('Expected all 32 provisioned scenarios before partitioning')
-    names=names[args.shard_index::args.shard_count];expected=32//args.shard_count
+    if len(names)!=36:raise RuntimeError('Expected all 36 provisioned scenarios before partitioning')
+    names=names[args.shard_index::args.shard_count];expected=36//args.shard_count
     class ImmediateResult(unittest.TextTestResult):
         def addError(self,test,error):
             super().addError(test,error);self.stream.write(self.errors[-1][1]);self.stream.flush()
@@ -641,7 +718,7 @@ if __name__=='__main__':
     result=unittest.TextTestRunner(verbosity=2,resultclass=ImmediateResult).run(unittest.TestSuite(ProvisionedBackupLive(n) for n in names))
     stable=source==quality.snapshot(ROOT);release=get_release(STORAGE_COMMIT)
     report={'suite':'Provisioned services and durable Ext4 data/configuration/Web fences','tests':result.testsRun,'expected':expected,
-        'shard_count':args.shard_count,'shard_index':args.shard_index,'total_scenarios':32,'test_ids':names,
+        'shard_count':args.shard_count,'shard_index':args.shard_index,'total_scenarios':36,'test_ids':names,
         'failures':len(result.failures),'errors':len(result.errors),'skips':len(result.skipped),
         'status':'PASS' if result.wasSuccessful() and result.testsRun==expected and not result.skipped and stable else 'FAIL',
         'source_stable':stable,'source_files':len(source),'web_commit':release.commit,'web_tree':release.tree,
@@ -651,6 +728,7 @@ if __name__=='__main__':
         'ordinary_root_and_bind_alias_writes_tested':True,'durable_ext4_inode_fence_tested':True,
         'durable_configuration_slot_fence_tested':True,'ordinary_root_settings_writes_tested':True,
         'durable_web_tree_fence_tested':True,'ordinary_root_web_writes_tested':True,
+        'durable_legacy_path_reservations_tested':True,'ordinary_root_legacy_path_writes_tested':True,
         'storage_inventory_complete':False,'complete_web_backup':False,'application_installed':False,'phase5_complete':False}
     args.report.parent.mkdir(parents=True,exist_ok=True)
     (args.report.parent/'PROVISIONED-BACKUP-SOURCE-MANIFEST.json').write_bytes(quality.encode(source))

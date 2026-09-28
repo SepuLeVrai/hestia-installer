@@ -1,5 +1,13 @@
 # Sauvegarde intégrée des services provisionnés
 
+## Réservations externes - 28 septembre 2026
+
+Le [lot externe](PHASE5_EXTERNAL_FENCE.md) réserve les deux chemins IA absents
+par inodes vides immutable après la barrière Web et avant SQL/copie. L'admission
+lie leurs preuves durables à la même maintenance. Le manifeste V8 et le reçu
+les identifient ; la reprise exige leur levée explicite avant les autres barrières.
+Le [bilan 5C2](PHASE5C2_COVERAGE.md) décrit les neuf groupes et les gates restants.
+
 ## Protection du Web - 28 septembre 2026
 
 La [barrière Web](PHASE5_WEB_FENCE.md) protège l'arbre déployé et ses pointeurs

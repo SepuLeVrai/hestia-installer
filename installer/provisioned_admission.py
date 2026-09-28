@@ -32,9 +32,20 @@ def _absent(path):
 class ConfigurationLease:
     def __init__(self, conf, web):
         self._conf=conf;self._web=web;self._files=[];self._pid=os.getpid();self._closed=False
+        self._external=None
 
     def __repr__(self): return '<ConfigurationLease private settings admission>'
     def __reduce__(self): raise TypeError('Configuration leases cannot be serialized')
+
+    def _bind_external(self, fence):
+        from installer import external_fence as ef
+        require(type(fence) is ef.ExternalFence and self._external is None)
+        fence.assert_held()
+        with fs._directory(fence._lease.scope.directory.parent) as fd:
+            expected,actual=os.fstat(fd),os.fstat(self._conf)
+            require((expected.st_dev,expected.st_ino)==(actual.st_dev,actual.st_ino))
+        self._external=(fence._lease,fence._raw)
+        self.assert_held()
 
     def assert_held(self):
         require(not self._closed and self._pid==os.getpid())
@@ -43,9 +54,12 @@ class ConfigurationLease:
             require((opened.st_dev,opened.st_ino)==identity==(named.st_dev,named.st_ino))
             require(f._read(self._conf,name,gid,mode=mode,limit=limit)==data)
         f.FinalizationStep._pending_edits(self._conf)
-        for path in (Path('/etc/hestia/conf_db_ia.php'),Path('/var/lib/hestia-ai'),
-                     self._web/'includes/conf_db_ia.php'):
-            _absent(path)
+        if self._external is None:
+            for path in (Path('/etc/hestia/conf_db_ia.php'),Path('/var/lib/hestia-ai')):_absent(path)
+        else:
+            from installer import external_fence as ef
+            ef.assert_reservation(*self._external)
+        _absent(self._web/'includes/conf_db_ia.php')
 
 
 @contextmanager

@@ -1,5 +1,14 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot chemins externes - 28 septembre 2026
+
+Le [lot externe](PHASE5_EXTERNAL_FENCE.md) ajoute cinq contrats et douze essais
+Ext4 au core obligatoire. Qualification ciblée : 117 contrôles locaux, 196
+Debian et 36 scénarios intégrés, chacun une fois dans quatre groupes isolés.
+Les rapports, sources exactes et empreintes conditionnent la qualification.
+Le [bilan 5C2](PHASE5C2_COVERAGE.md) conserve les Quality globales comme gate de
+promotion et distingue le profil provisionné de l'inventaire général de l'hôte.
+
 ## Lot Web Ext4 - 28 septembre 2026
 
 Le [lot Web](PHASE5_WEB_FENCE.md) ajoute six contrats et dix essais Ext4

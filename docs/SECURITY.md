@@ -1,5 +1,14 @@
 # Modèle de sécurité
 
+## Réservations externes de maintenance - 28 septembre 2026
+
+Le [contrat externe](PHASE5_EXTERNAL_FENCE.md) refuse toute occupation initiale
+et ne manipule que deux nouveaux inodes vides root 0000, aux noms liés à une
+intention durable. Publication exclusive, parents/inodes exacts, flags Ext4,
+liens limités aux deux noms contrôlés, levée explicite récupérable et erreurs
+fermées sont obligatoires. Aucun ancien PHP n'est exécuté. Les changements de
+parents/montages/flags par administration de l'hôte restent hors garantie.
+
 ## Protection du code et des pointeurs Web - 28 septembre 2026
 
 La [barrière Web](PHASE5_WEB_FENCE.md) étend immutable Ext4 à toute l'arborescence
