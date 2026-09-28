@@ -53,6 +53,7 @@
   let application = {draft: null, missing_credentials: []}, useApplication = false, applicationDirty = false;
   let upgrade = {profile: null, missing_credentials: []}, useUpgrade = false;
   let boot = {installation: null, availability: null};
+  let acmePackages = {profile: null, acquisition: null, installation: null, selection: null};
   let activation = {installation: null, availability: null};
   let packages = {profile: null, acquisition: null, installation: null, selection: null};
   let mariadb = {profile: null, installation: null, missing_credentials: []};
@@ -587,6 +588,7 @@
     if (installation.state === "DONE") content.append(hint(isApplication() ? "La préparation sous maintenance est acquise. Le plan d'activation et la vérification actuelle du Web figurent ci-dessous." : "HESTIA n'est pas encore déployé. L'installation Web, Gateway et APK appartient aux phases suivantes."));
     if (isApplication() && installation.state === "DONE") activationForm();
     if (isApplication() && !isUpgrade() && activation.installation?.state === "DONE" && mariadb.installation?.state === "DONE") bootForm();
+    if (isApplication() && !isUpgrade() && boot.installation?.state === "DONE") acmePackagesForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
@@ -685,6 +687,42 @@
     }
     content.append(card);
   }
+  function acmePackagesAction(phase, action, extra = {}) {
+    const document = acmePackages[phase === "acquire" ? "acquisition" : "installation"];
+    pendingAction = {action: "acme-packages." + phase + "/" + action, payload: {confirmation: document.plan_sha256, confirm: true, ...extra}};
+    $("operation-title").textContent = phase === "acquire" ? "Confirmer le téléchargement" : "Confirmer les dépendances HTTPS";
+    $("operation-description").textContent = phase === "acquire" ? "Télécharger Certbot et, si nécessaire, NGINX depuis les dépôts Debian authentifiés ? Les versions exactes seront présentées avant l'installation." : "Installer les paquets indiqués ? Leurs services par défaut resteront bloqués. Le certificat et le renouvellement devront ensuite être configurés.";
+    $("operation-dialog").showModal();
+  }
+  function acmePackagesForm() {
+    const card = element("article", null, "wizard-card"); card.id = "acme-packages";
+    card.append(element("h2", "Dépendances HTTPS"), hint("Préparer Certbot pour Let's Encrypt et NGINX pour l'accès Web. Ce plan n'ouvre aucun port public et ne demande pas encore de certificat."));
+    for (const phase of ["acquire", "install"]) {
+      const acquired = acmePackages.acquisition;
+      if (phase === "install" && acquired?.state !== "DONE") continue;
+      const document = acmePackages[phase === "acquire" ? "acquisition" : "installation"];
+      if (!document) {
+        card.append(button(phase === "acquire" ? "Préparer le téléchargement HTTPS" : "Relire les paquets HTTPS à installer", () => void run(async () => {
+          const payload = phase === "acquire" ? {packages_sha256: packages.installation.plan_sha256} : {acquisition_sha256: acquired.plan_sha256};
+          acmePackages = (await api("/api/system/acme-packages/" + phase + "/plan", payload)).acme_packages;
+          show(5); message("Plan des dépendances HTTPS prêt à relire.");
+        }), "plan-acme-" + phase));
+        continue;
+      }
+      const status = element("p", (phase === "acquire" ? "Téléchargement" : "Installation des dépendances") + " : " + states[document.state]);
+      status.id = "acme-" + phase + "-state"; status.dataset.state = document.state; card.append(status);
+      if (phase === "install" && acmePackages.selection) {
+        for (const row of acmePackages.selection.packages) card.append(element("p", row.name + " — " + row.version + " (" + row.architecture + ")"));
+      }
+      technical(card, "Plan des dépendances HTTPS", document.plan);
+      if (document.approved_plan_sha256 === null) card.append(button(phase === "acquire" ? "Valider le téléchargement HTTPS" : "Installer les dépendances HTTPS", () => acmePackagesAction(phase, "apply"), "apply-acme-" + phase, true));
+      else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre les dépendances HTTPS", () => acmePackagesAction(phase, "resume"), "resume-acme-" + phase));
+      for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Vérifier la reprise HTTPS", () => acmePackagesAction(phase, "retry", {name: record.name}), "retry-acme-" + phase));
+      if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
+    }
+    if (acmePackages.installation?.state === "DONE") card.append(hint("Dépendances installées. Le frontal public, le certificat et son renouvellement restent à configurer."));
+    content.append(card);
+  }
   async function downloadReport() {
     const data = await api("/api/installation/report");
     const blob = new Blob([JSON.stringify(data, null, 2) + "\n"], {type: "application/json"});
@@ -727,6 +765,9 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action.startsWith("acme-packages.")) {
+        acmePackages = (await api("/api/system/acme-packages/" + action.action.slice(14), action.payload)).acme_packages;
+        show(5); message("État des dépendances HTTPS mis à jour.");
       } else if (action.action.startsWith("boot.")) {
         boot = (await api("/api/system/boot/" + action.action.slice(5), action.payload)).boot;
         show(5); message("État du démarrage automatique mis à jour.");
@@ -752,6 +793,7 @@
     application = result.application || {draft: null, missing_credentials: []};
     activation = result.activation || {installation: null, availability: null};
     boot = result.boot || {installation: null, availability: null};
+    acmePackages = result.acme_packages || {profile: null, acquisition: null, installation: null, selection: null};
     packages = result.packages || {profile: null, acquisition: null, installation: null, selection: null};
     mariadb = result.mariadb || {profile: null, installation: null, missing_credentials: []};
     upgrade = result.upgrade || {profile: null, missing_credentials: []};
@@ -817,9 +859,10 @@
         upgrade = result.upgrade || upgrade;
         activation = result.activation || activation;
         boot = result.boot || boot;
+        acmePackages = result.acme_packages || acmePackages;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
         if (stamp !== lastRevision) {
           lastRevision = stamp;
           installation = result.installation;

@@ -108,6 +108,9 @@ def main(argv: list[str] | None = None) -> int:
             if mariadb['profile'] is not None: result['mariadb'] = mariadb
             boot = StateJournal(args.state_dir / 'boot/state.json').read()
             if boot is not None: result['boot'] = {'installation': boot, 'availability': None}
+            from installer.acme_packages import AcmePackagePlan
+            acme = AcmePackagePlan(engine, PackagePlan(engine), None).state()
+            if acme['profile'] is not None: result['acme_packages'] = acme
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
         if args.resume:
