@@ -1,5 +1,17 @@
 # État du projet
 
+## 28 septembre 2026 - Phase 6A Gateway / Foundation
+
+La [phase 6](PHASE6_GATEWAY_FOUNDATION.md) reprend le gel phase 5 qualifié.
+6A fixe la base Gateway bootstrap/SQLite 6 et la matrice : Web 9080,
+Foundation DEV 9081 / MAIN 9082, Gateway Installer 9083. Le défaut autonome
+Gateway reste 9080. Le composant apporte les sondes adaptées et le refus
+des ports étrangers ; son run et son paquet exact sont suivis dans Gateway #4.
+
+Le code Installer reste inchangé dans ce lot documentaire. 6B doit encore
+composer les moteurs, clés, Foundation, FCM et wizard ; 6C doit qualifier
+l'ensemble avec NGINX Mobile. Phase 6 et issues globales restent ouvertes.
+
 ## 28 septembre 2026 — 5D7b, dernier plan du parcours Web
 
 Le [frontal HTTPS et son renouvellement](PHASE5D_PUBLIC_TLS.md) complètent
