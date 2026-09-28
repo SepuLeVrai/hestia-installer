@@ -1045,6 +1045,7 @@
       "test_web_fence_files.WebFenceFiles.test_code_pointers_executables_and_hidden_metadata_are_all_protected",
       "test_web_fence_files.WebFenceFiles.test_explicit_unseal_preserves_gate_and_original_executable_modes",
       "test_web_fence_files.WebFenceFiles.test_flag_removal_and_changed_content_are_not_silently_repaired",
+      "test_web_fence_files.WebFenceFiles.test_fully_closed_recovery_never_reapplies_matching_immutable_flags",
       "test_web_fence_files.WebFenceFiles.test_nested_bind_and_tmpfs_refuse_without_weaker_fallback",
       "test_web_fence_files.WebFenceFiles.test_partial_closure_keeps_intent_and_exact_recovery_completes",
       "test_web_fence_files.WebFenceFiles.test_partial_release_requires_existing_exact_intent",

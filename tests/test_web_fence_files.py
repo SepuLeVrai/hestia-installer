@@ -86,6 +86,22 @@ class WebFenceFiles(unittest.TestCase):
         with a.recover(self.barrier,confirmed=True) as protected:protected.assert_held()
         with self.assertRaises(PermissionError):(self.web/'includes/db.php').write_bytes(b'bad')
 
+    def test_fully_closed_recovery_never_reapplies_matching_immutable_flags(self):
+        self.seal().close();flags=a._flags;changes=[]
+        def reject_redundant_set(fd,value=None):
+            if value is not None:
+                if value==flags(fd):raise PermissionError(errno.EPERM,'immutable no-op refused')
+                changes.append(value)
+            return flags(fd,value)
+        with patch.object(a,'_flags',side_effect=reject_redundant_set):
+            with a.recover(self.barrier,confirmed=True) as protected:
+                self.assertEqual(changes,[]);protected.assert_held()
+                with self.assertRaises(PermissionError):(self.web/'index.php').write_bytes(b'bad')
+                protected.unseal(confirmed=True)
+        self.assertTrue(changes);self.assertTrue(all(not value&a.inode.IMMUTABLE for value in changes))
+        self.assertFalse((self.scope.directory/a.MARKER).exists())
+        (self.web/'index.php').write_bytes(b'resumable')
+
     def test_partial_release_requires_existing_exact_intent(self):
         fence=self.seal();flags=a._flags;changed=[]
         def fail(fd,value=None):

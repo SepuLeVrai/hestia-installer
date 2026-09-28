@@ -45,6 +45,8 @@ ne convertit de volume et n'adopte pas une protection immutable préexistante.
 Fermeture du handle, succès, échec ou mort du contrôleur ne retirent aucun flag.
 `recover` complète uniquement une fermeture dont le journal, le profil et les
 fichiers correspondent exactement. Une dérive ne déclenche aucune réparation.
+Une protection déjà conforme est synchronisée et revérifiée sans réappliquer
+ses flags : Ext4 peut refuser cette opération sur un inode déjà immutable.
 
 `unseal(confirmed=True)` journalise `web-inodes.release`, lié au journal exact,
 puis retire les flags des descendants avant leurs parents. Il vérifie les
@@ -64,11 +66,20 @@ périmètre ; ils ne certifient pas eux-mêmes la protection du Web.
 
 ## Qualification et frontière suivante
 
-Gel attendu : 112 contrôles locaux, 178 Debian 13 dont neuf essais Ext4 Web,
+Gel attendu : 112 contrôles locaux, 179 Debian 13 dont dix essais Ext4 Web,
 32 scénarios intégrés. Les trois ajouts intégrés exercent écritures root,
 pointeurs, alias et descripteur préouvert après copie, mort réelle en cours de
 fermeture, et retrait administratif d'un flag empêchant le reçu. Le positif
 conserve sauvegarde, restauration et reprise HTTP réelle.
+
+La campagne initiale `36380602630` a atteint sa limite de 25 minutes après
+28 scénarios réussis et une erreur de reprise. Les diagnostics ciblés
+`36382628712` et `36382948650` ont identifié le refus d'une réapplication de
+flags sur un inode déjà protégé. Le candidat corrigé ajoute une régression de
+reprise idempotente. La qualification répartit les 32 scénarios en quatre groupes
+disjoints de huit, sur quatre environnements isolés et les mêmes sources exactes.
+Chaque rapport nomme ses cas ; l'agrégation exige leur union exacte, sans doublon
+ni omission. Les erreurs du banc sont imprimées immédiatement.
 
 Le banc copie le Web de fixture sur le volume Ext4 jetable et le monte à son
 chemin `/srv` d'origine avant finalisation. La source Web épinglée reste inchangée.

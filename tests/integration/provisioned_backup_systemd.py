@@ -623,14 +623,27 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--web',type=Path,required=True)
-    parser.add_argument('--report',type=Path,required=True);args=parser.parse_args();previous.previous.WEB=args.web
+    parser.add_argument('--report',type=Path,required=True)
+    parser.add_argument('--shard-count',type=int,choices=(1,4),default=1)
+    parser.add_argument('--shard-index',type=int,default=0)
+    args=parser.parse_args()
+    if not 0<=args.shard_index<args.shard_count:parser.error('Shard index outside declared count')
+    previous.previous.WEB=args.web
     source=quality.snapshot(ROOT)
     names=sorted(n for n in ProvisionedBackupLive.__dict__ if n.startswith('test_provisioned_'))
-    result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(ProvisionedBackupLive(n) for n in names))
+    if len(names)!=32:raise RuntimeError('Expected all 32 provisioned scenarios before partitioning')
+    names=names[args.shard_index::args.shard_count];expected=32//args.shard_count
+    class ImmediateResult(unittest.TextTestResult):
+        def addError(self,test,error):
+            super().addError(test,error);self.stream.write(self.errors[-1][1]);self.stream.flush()
+        def addFailure(self,test,error):
+            super().addFailure(test,error);self.stream.write(self.failures[-1][1]);self.stream.flush()
+    result=unittest.TextTestRunner(verbosity=2,resultclass=ImmediateResult).run(unittest.TestSuite(ProvisionedBackupLive(n) for n in names))
     stable=source==quality.snapshot(ROOT);release=get_release(STORAGE_COMMIT)
-    report={'suite':'Provisioned services and durable Ext4 data/configuration/Web fences','tests':result.testsRun,'expected':32,
+    report={'suite':'Provisioned services and durable Ext4 data/configuration/Web fences','tests':result.testsRun,'expected':expected,
+        'shard_count':args.shard_count,'shard_index':args.shard_index,'total_scenarios':32,'test_ids':names,
         'failures':len(result.failures),'errors':len(result.errors),'skips':len(result.skipped),
-        'status':'PASS' if result.wasSuccessful() and result.testsRun==32 and not result.skipped and stable else 'FAIL',
+        'status':'PASS' if result.wasSuccessful() and result.testsRun==expected and not result.skipped and stable else 'FAIL',
         'source_stable':stable,'source_files':len(source),'web_commit':release.commit,'web_tree':release.tree,
         'database_profile':'fresh_managed','proxy_identity_separate':True,'service_activation_delivered':False,
         'classic_scheduler_admission_tested':True,'host_scheduler_inventory_complete':False,'foreign_cli_controlled':False,

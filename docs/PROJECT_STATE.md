@@ -6,7 +6,7 @@ Base qualifiée `2963db6513945a3940341496fd8a797e7046d65a`, run `36338904729`.
 Le [lot Web](PHASE5_WEB_FENCE.md) protège par immutable Ext4 l'arbre complet,
 y compris les deux pointeurs d'activation. Journal durable, levée explicite,
 reprises bornées et refus de réouverture tant que la protection est journalisée.
-Qualification attendue : 112 locaux, 178 Debian et 32 scénarios, résultats au
+Qualification attendue : 112 locaux, 179 Debian et 32 scénarios, résultats au
 checkpoint. Les chemins externes et le bilan 5C2 restent à fermer ; Quality
 globales et phases suivantes ne sont pas déclarées terminées.
 

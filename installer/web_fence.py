@@ -150,9 +150,13 @@ def _set(barrier, root, records, *, closed):
         require(time.monotonic() < deadline, 'WEB_FENCE_LIMIT')
         barrier._lease.assert_held()
         with _opened(root, record) as fd:
-            require(inode._baseline([_entry(fd, record['path'], barrier, mount)]) == [record], 'WEB_FENCE_CHANGED')
+            observed = _entry(fd, record['path'], barrier, mount)
+            require(inode._baseline([observed]) == [record], 'WEB_FENCE_CHANGED')
             flags = record['flags'] | inode.IMMUTABLE if closed else record['flags']
-            _flags(fd, flags); os.fsync(fd)
+            # Recovery must not reapply flags to an already immutable inode.
+            # Still synchronize a matching state left by an interrupted setter.
+            if observed['flags'] != flags: _flags(fd, flags)
+            os.fsync(fd)
             require(_flags(fd) == flags, 'WEB_FENCE_CHANGED')
 
 
