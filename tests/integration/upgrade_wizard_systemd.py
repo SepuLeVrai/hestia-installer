@@ -59,13 +59,13 @@ class UpgradeWizardLive(journal.JournalMixin, journal.previous.RecoveryLive):
         self.before_sql = self.sql(query=f'SELECT id_user,email,password_hash,photo_profil FROM `{self.db}`.UserInfo')
         return self.saved
 
-    def credentials(self, service, confirmation):
+    def provide_credentials(self, service, confirmation):
         return service.execute('web.upgrade.credentials', {'confirmation': confirmation, 'credentials': {
             'database_password': self.payload['secrets']['database_password'],
             'authority_user': self.authority._user, 'authority_password': self.authority._password}})
 
     def planned(self, hook=None):
-        self.registered(); self.credentials(self.service, self.saved['profile_sha256'])
+        self.registered(); self.provide_credentials(self.service, self.saved['profile_sha256'])
         self.service.execute('github.validate', {'credential': DUMMY})
         document = self.service.execute('wizard.plan', {'modules': ['web'], 'refs': {}, 'mode': 'upgrade',
             'upgrade_profile_sha256': self.saved['profile_sha256']})['installation']
@@ -139,7 +139,7 @@ class UpgradeWizardLive(journal.JournalMixin, journal.previous.RecoveryLive):
         other = self.build_service(); before = self.operator_journal.path.read_bytes()
         self.assertEqual(len(other.wizard_state()['upgrade']['missing_credentials']), 3)
         self.assertEqual(other.report()['installation']['state'], 'RUNNING'); self.assertEqual(before, self.operator_journal.path.read_bytes())
-        self.credentials(other, parent['plan_sha256'])
+        self.provide_credentials(other, parent['plan_sha256'])
         result = other.execute('resume', confirm(parent))['installation']; self.done(other, result)
 
     def test_upgrade_browser_rollback_preserves_sql_and_stays_gated(self):
