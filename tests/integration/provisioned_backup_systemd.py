@@ -27,6 +27,7 @@ from installer import provisioned_backup as b, http_drain as hd, sql_read_fence 
 from installer import data_access as da
 from installer import inode_fence as inf
 from installer import configuration_fence as cf
+from installer import web_fence as wf
 import test_inode_fence_files as inode_fixture
 from installer.web_releases import STORAGE_COMMIT, get_release
 from http_runtime_systemd import command, until
@@ -48,13 +49,21 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         self.http_root=inode_fixture.VOLUME/os.urandom(16).hex()
         self.output=inode_fixture.VOLUME/os.urandom(16).hex();self.output.mkdir(mode=0o755)
         self.directory=self.output/self.directory.name
+        self.web_volume=inode_fixture.VOLUME/os.urandom(16).hex()
+        shutil.copytree(self.webroot,self.web_volume)
+        command('mount','--bind',str(self.web_volume),str(self.webroot))
+        self.web_mounted=True
 
     def stop_services(self):
+        if getattr(self,'web_mounted',False):inode_fixture.fixture_clear(self.webroot)
         if hasattr(self,'http_root') and self.http_root.is_relative_to(inode_fixture.VOLUME):
             inode_fixture.fixture_clear(self.http_root/'data')
         if hasattr(self,'output') and self.output.is_relative_to(inode_fixture.VOLUME):
             inode_fixture.fixture_clear(self.output)
         super().stop_services()
+        if getattr(self,'web_mounted',False):
+            command('umount',str(self.webroot));self.web_mounted=False
+            shutil.rmtree(self.web_volume)
         if hasattr(self,'output') and self.output.is_relative_to(inode_fixture.VOLUME):
             shutil.rmtree(self.output,ignore_errors=True)
 
@@ -63,6 +72,10 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         with cf.fs._directory(self.directory) as conf:
             with b.c.admission.acquire(conf,self.webroot,self.web.pw_gid) as configuration:
                 with cf.recover(lease,configuration,confirmed=True) as protected:protected.unseal(confirmed=True)
+
+    def unseal_web(self,barrier):
+        self.assertTrue((self.scope.directory/wf.MARKER).is_file())
+        with wf.recover(barrier,confirmed=True) as protected:protected.unseal(confirmed=True)
 
     def setup_backup(self):
         self.ready();self.backups=self.root/'integrated-backups';self.backups.mkdir(mode=0o700)
@@ -118,6 +131,7 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         self.assertTrue(result['sql_read_fence_verified']);self.assertTrue(result['provisioned_services_drained'])
         self.assertTrue(result['installer_settings_fenced']);self.assertTrue(result['configuration_storage_admitted'])
         self.assertTrue(result['configuration_slot_inodes_fenced']);self.assertTrue(result['ordinary_root_settings_writes_fenced'])
+        self.assertTrue(result['web_code_fenced']);self.assertTrue(result['web_activation_pointers_fenced'])
         self.assertTrue(result['classic_scheduler_absence_observed'])
         self.assertTrue(result['canonical_data_paths_fenced'])
         self.assertTrue(result['data_inode_writes_fenced'])
@@ -144,6 +158,7 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         # Explicit fixture-only restore under the recovered exact attempt.
         with hd.HttpDrain(self.http_runtime,cleaner=self.collector).recover(manifest['lease_id'],confirmed=True) as barrier:
             lease=barrier.maintenance_lease
+            self.unseal_web(barrier)
             self.unseal_configuration(lease)
             snapshot=previous.files.FileSnapshot(slot/'data'/data['snapshot_id'],data['manifest_sha256'],
                 self.scope.instance,lease.lease_id,self.web.pw_gid)
@@ -536,6 +551,63 @@ class ProvisionedBackupLive(previous.BusinessStorageLive):
         with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
         self.incomplete(result);self.assertTrue((self.scope.directory/cf.MARKER).exists())
 
+    def test_provisioned_root_web_writes_pointers_alias_and_preopened_fd_are_blocked(self):
+        self.setup_backup();capture=previous.files.capture_and_verify;checks=[]
+        alias=self.root/'web-alias';alias.mkdir();command('mount','--bind',str(self.webroot),str(alias))
+        try:
+            with (self.webroot/'index.php').open('r+b',buffering=0) as opened:
+                def late_writer(*args,**kwargs):
+                    saved=capture(*args,**kwargs)
+                    for action in (lambda:opened.write(b'bad'),lambda:os.ftruncate(opened.fileno(),0),
+                                   lambda:(alias/'includes/db.php').write_bytes(b'bad'),lambda:(alias/'new.php').write_bytes(b'bad')):
+                        with self.assertRaises(PermissionError):action()
+                    body='import os,pathlib,sys\nassert os.geteuid()==0\nroot=pathlib.Path(sys.argv[1]);count=0\nfor name in ("index.php","includes/db.php","install.lock","includes/conf_db_ia.php","new.php"):\n try:(root/name).write_bytes(b"bad")\n except PermissionError:count+=1\n else:raise SystemExit(9)\nassert count==5\nprint("web-denied")'
+                    child=command('/usr/bin/python3','-c',body,str(self.webroot))
+                    self.assertEqual(child.stdout,b'web-denied\n');checks.append(True);return saved
+                with patch.object(previous.files,'capture_and_verify',side_effect=late_writer):result=self.execute()
+            self.assertEqual(result['state'],'PROVISIONED_BACKUP_RESTORE_VERIFIED',result)
+            self.assertTrue(result['web_code_fenced']);self.assertTrue(result['web_activation_pointers_fenced'])
+            self.assertEqual(checks,[True]);self.closed();self.immutable()
+        finally:command('umount',str(alias))
+
+    def test_provisioned_death_during_web_closure_is_recoverable(self):
+        self.setup_backup();flags=wf._flags;pid=os.fork()
+        if pid==0:
+            count=0
+            def die(fd,value=None):
+                nonlocal count
+                result=flags(fd,value)
+                if value is not None:
+                    count+=1
+                    if count==3:os._exit(75)
+                return result
+            try:
+                with patch.object(wf,'_flags',side_effect=die):self.execute()
+            except BaseException:os._exit(74)
+            os._exit(73)
+        _,status=os.waitpid(pid,0)
+        self.assertTrue(os.WIFEXITED(status));self.assertEqual(os.WEXITSTATUS(status),75)
+        self.assertTrue((self.scope.directory/wf.MARKER).exists());self.assertEqual(list(self.backups.iterdir()),[]);self.closed()
+        with self.assertRaises(PermissionError):(self.webroot/'new.php').write_bytes(b'bad')
+        lease_id=self.scope.observe()['lease_id']
+        with hd.HttpDrain(self.http_runtime,cleaner=self.collector).recover(lease_id,confirmed=True) as barrier:
+            lease=barrier.maintenance_lease;self.unseal_web(barrier);self.unseal_configuration(lease)
+            with da.recover(self.http_runtime,lease,confirmed=True) as data_fence:
+                with inf.recover(data_fence,confirmed=True) as protected:protected.unseal(confirmed=True)
+                data_fence.reopen(confirmed=True)
+            lease.resume(confirmed=True)
+        self.restart_fixture_services();self.assertEqual(self.request('/index.php')[0],200)
+
+    def test_provisioned_removed_web_flag_after_copy_prevents_receipt(self):
+        self.setup_backup();capture=previous.files.capture_and_verify;path=self.webroot/'index.php'
+        def drift(*args,**kwargs):
+            saved=capture(*args,**kwargs);fd=os.open(path,inf.files.REGULAR)
+            try:wf._flags(fd,wf._flags(fd)&~inf.IMMUTABLE)
+            finally:os.close(fd)
+            return saved
+        with patch.object(previous.files,'capture_and_verify',side_effect=drift):result=self.execute()
+        self.incomplete(result);self.assertTrue((self.scope.directory/wf.MARKER).exists())
+
     def test_provisioned_removed_inode_flag_after_copy_prevents_receipt(self):
         self.setup_backup();capture=previous.files.capture_and_verify
         path=self.http_root/'data/tmp/flag-drift';path.write_bytes(b'original');path.chmod(0o600)
@@ -556,15 +628,16 @@ if __name__=='__main__':
     names=sorted(n for n in ProvisionedBackupLive.__dict__ if n.startswith('test_provisioned_'))
     result=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(ProvisionedBackupLive(n) for n in names))
     stable=source==quality.snapshot(ROOT);release=get_release(STORAGE_COMMIT)
-    report={'suite':'Provisioned services and durable Ext4 data/configuration fences','tests':result.testsRun,'expected':29,
+    report={'suite':'Provisioned services and durable Ext4 data/configuration/Web fences','tests':result.testsRun,'expected':32,
         'failures':len(result.failures),'errors':len(result.errors),'skips':len(result.skipped),
-        'status':'PASS' if result.wasSuccessful() and result.testsRun==29 and not result.skipped and stable else 'FAIL',
+        'status':'PASS' if result.wasSuccessful() and result.testsRun==32 and not result.skipped and stable else 'FAIL',
         'source_stable':stable,'source_files':len(source),'web_commit':release.commit,'web_tree':release.tree,
         'database_profile':'fresh_managed','proxy_identity_separate':True,'service_activation_delivered':False,
         'classic_scheduler_admission_tested':True,'host_scheduler_inventory_complete':False,'foreign_cli_controlled':False,
         'canonical_data_path_fence_tested':True,
         'ordinary_root_and_bind_alias_writes_tested':True,'durable_ext4_inode_fence_tested':True,
         'durable_configuration_slot_fence_tested':True,'ordinary_root_settings_writes_tested':True,
+        'durable_web_tree_fence_tested':True,'ordinary_root_web_writes_tested':True,
         'storage_inventory_complete':False,'complete_web_backup':False,'application_installed':False,'phase5_complete':False}
     args.report.parent.mkdir(parents=True,exist_ok=True)
     (args.report.parent/'PROVISIONED-BACKUP-SOURCE-MANIFEST.json').write_bytes(quality.encode(source))

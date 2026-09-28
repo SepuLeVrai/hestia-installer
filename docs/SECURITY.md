@@ -1,5 +1,13 @@
 # Modèle de sécurité
 
+## Protection du code et des pointeurs Web - 28 septembre 2026
+
+La [barrière Web](PHASE5_WEB_FENCE.md) étend immutable Ext4 à toute l'arborescence
+déployée, sans exclusion, et aux pointeurs `includes/db.php` et `install.lock`.
+Elle persiste après la mort du contrôleur ; les reprises et levées sont explicites.
+Les configurations externes et pouvoirs administratifs restent hors garantie.
+Les indicateurs d'exhaustivité de la sauvegarde et des producteurs restent faux.
+
 ## Protection du slot de configuration - 27 septembre 2026
 
 La [barrière de configuration](PHASE5_CONFIGURATION_FENCE.md) interdit aussi les

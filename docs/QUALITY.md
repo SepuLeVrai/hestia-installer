@@ -1,5 +1,13 @@
 # Quality et non-régression de HESTIA Installer
 
+## Lot Web Ext4 - 28 septembre 2026
+
+Le [lot Web](PHASE5_WEB_FENCE.md) ajoute six contrats et neuf essais Ext4
+obligatoires au core. La campagne ciblée attend 112 contrôles locaux, 178 Debian
+et 32 scénarios intégrés. Le Web de fixture est copié sur le volume Ext4 et monté
+à son chemin `/srv` avant finalisation ; le Web source épinglé reste inchangé.
+Ces résultats ciblés ne remplacent pas les Quality globales du même arbre.
+
 ## Lot configuration Ext4 - 27 septembre 2026
 
 La [barrière du slot](PHASE5_CONFIGURATION_FENCE.md) ajoute six contrats et huit

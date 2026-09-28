@@ -1,5 +1,12 @@
 # Sauvegarde intégrée des services provisionnés
 
+## Protection du Web - 28 septembre 2026
+
+La [barrière Web](PHASE5_WEB_FENCE.md) protège l'arbre déployé et ses pointeurs
+après le slot de configuration et avant copie. Le manifeste V7 lie son journal.
+La reprise exige sa levée explicite. Les 29 scénarios parents sont conservés ;
+trois parcours Web réels sont ajoutés. Résultats et empreintes au checkpoint.
+
 ## Protection du slot de configuration - 27 septembre 2026
 
 Le [lot configuration](PHASE5_CONFIGURATION_FENCE.md) protège les fichiers du

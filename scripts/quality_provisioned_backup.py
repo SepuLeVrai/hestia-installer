@@ -10,14 +10,14 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT),str(ROOT/'tests')]
 import quality
 
-MODULES=('test_configuration_fence','test_inode_fence','test_data_access','test_scheduler_admission','test_provisioned_admission','test_provisioned_backup','test_http_drain','test_http_runtime','test_session_cleaner','test_http_cleaner_drain')
+MODULES=('test_web_fence','test_configuration_fence','test_inode_fence','test_data_access','test_scheduler_admission','test_provisioned_admission','test_provisioned_backup','test_http_drain','test_http_runtime','test_session_cleaner','test_http_cleaner_drain')
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--report',type=Path,required=True)
     parser.add_argument('--with-files',action='store_true');args=parser.parse_args()
-    modules=MODULES+(('test_configuration_fence_files','test_inode_fence_files','test_data_access_files','test_coordinated_backup','test_backup_files') if args.with_files else ())
+    modules=MODULES+(('test_web_fence_files','test_configuration_fence_files','test_inode_fence_files','test_data_access_files','test_coordinated_backup','test_backup_files') if args.with_files else ())
     before=quality.snapshot(ROOT);suite=unittest.defaultTestLoader.loadTestsFromNames(modules)
-    ids=sorted(t.id() for t in quality.flatten(suite));expected=163 if args.with_files else 106
+    ids=sorted(t.id() for t in quality.flatten(suite));expected=178 if args.with_files else 112
     required=json.loads((ROOT/'tests/quality-baseline.json').read_bytes())['required_tests']['core']
     assert set(ids)<=set(required) and len(ids)==expected and len(set(ids))==expected
     result=unittest.TextTestRunner(verbosity=2).run(suite);stable=quality.snapshot(ROOT)==before

@@ -99,7 +99,7 @@ class DataAccessFence:
     def reopen(self, *, confirmed):
         require(confirmed is True, 'DATA_ACCESS_CONSENT_REQUIRED'); self.assert_held()
         for name in ('inode-fence.attempt', 'inode-fence.release',
-                     'configuration-inodes.attempt', 'configuration-inodes.release'):
+                     'configuration-inodes.attempt', 'configuration-inodes.release', 'web-inodes.attempt', 'web-inodes.release'):
             try: os.stat(name, dir_fd=self._lease._directory, follow_symlinks=False)
             except FileNotFoundError: pass
             else: raise DataAccessError('DATA_ACCESS_INODES_CLOSED')
