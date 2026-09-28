@@ -106,6 +106,8 @@ def main(argv: list[str] | None = None) -> int:
             from installer.mariadb_plan import MariaDBPlan
             mariadb = MariaDBPlan(engine, PackagePlan(engine)).state()
             if mariadb['profile'] is not None: result['mariadb'] = mariadb
+            boot = StateJournal(args.state_dir / 'boot/state.json').read()
+            if boot is not None: result['boot'] = {'installation': boot, 'availability': None}
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
         if args.resume:

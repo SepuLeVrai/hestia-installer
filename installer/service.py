@@ -14,8 +14,10 @@ from installer.application_activation import ActivationPlan
 from installer.upgrade_plan import UpgradePlan, UpgradeActivationPlan
 from installer.package_plan import PackagePlan
 from installer.mariadb_plan import MariaDBPlan
+from installer.boot_plan import BootPlan
 
 POST_ROUTES = {
+    **{'/api/system/boot/' + action: 'boot.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/system/mariadb/' + action: 'mariadb.' + action for action in ('plan', 'credentials', 'apply', 'resume', 'retry')},
     **{'/api/system/packages/' + phase + '/' + action: 'packages.' + phase + '.' + action
        for phase in ('acquire', 'install') for action in ('plan', 'apply', 'resume', 'retry')},
@@ -52,6 +54,7 @@ class TransactionService:
         if not self.application.restore(): self.upgrade.restore()
         self._fresh_activation = ActivationPlan(self.application)
         self._upgrade_activation = UpgradeActivationPlan(self.upgrade)
+        self.boot = BootPlan(self.application, self._fresh_activation, self.mariadb)
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
@@ -89,7 +92,7 @@ class TransactionService:
             return {"installation": self.engine.report(), "draft": self.wizard.read(),
                     "busy": self._mutation_lock.locked(), "preflight": self._preflight,
                     "application": self.application.state(), "activation": self.activation.state(), "upgrade": self.upgrade.state(),
-                    "packages": self.packages.state(), "mariadb": self.mariadb.state()}
+                    "packages": self.packages.state(), "mariadb": self.mariadb.state(), "boot": self.boot.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -112,10 +115,14 @@ class TransactionService:
             if packages['profile'] is not None: result['packages'] = packages
             mariadb = self.mariadb.state()
             if mariadb['profile'] is not None: result['mariadb'] = mariadb
+            boot = self.boot.state()
+            if boot['installation'] is not None: result['boot'] = boot
             return result
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('boot.'):
+                return {"boot": self.boot.execute(action.removeprefix('boot.'), payload)}
             if action.startswith('mariadb.'):
                 return {"mariadb": self.mariadb.execute(action.removeprefix('mariadb.'), payload)}
             if action.startswith('packages.'):

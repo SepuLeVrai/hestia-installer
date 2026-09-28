@@ -52,6 +52,7 @@
   let pendingAction = null, lastRevision = "", pollCount = 0;
   let application = {draft: null, missing_credentials: []}, useApplication = false, applicationDirty = false;
   let upgrade = {profile: null, missing_credentials: []}, useUpgrade = false;
+  let boot = {installation: null, availability: null};
   let activation = {installation: null, availability: null};
   let packages = {profile: null, acquisition: null, installation: null, selection: null};
   let mariadb = {profile: null, installation: null, missing_credentials: []};
@@ -585,6 +586,7 @@
     if (upgradeRolledBack) content.append(hint("Les données sont conservées et les services restent arrêtés. La réouverture de la version source exige une évaluation distincte."));
     if (installation.state === "DONE") content.append(hint(isApplication() ? "La préparation sous maintenance est acquise. Le plan d'activation et la vérification actuelle du Web figurent ci-dessous." : "HESTIA n'est pas encore déployé. L'installation Web, Gateway et APK appartient aux phases suivantes."));
     if (isApplication() && installation.state === "DONE") activationForm();
+    if (isApplication() && !isUpgrade() && activation.installation?.state === "DONE" && mariadb.installation?.state === "DONE") bootForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
@@ -619,7 +621,7 @@
   }
   function activationForm() {
     const card = element("article", null, "wizard-card"); card.id = "application-activation";
-    card.append(element("h2", "Activation du Web local"), hint("Backend : 127.0.0.1:" + (isUpgrade() ? upgrade.profile.descriptor.http.port : 9080) + ". Le frontal TLS public et le démarrage automatique après redémarrage restent à configurer."));
+    card.append(element("h2", "Activation du Web local"), hint("Backend : 127.0.0.1:" + (isUpgrade() ? upgrade.profile.descriptor.http.port : 9080) + ". Le frontal TLS public reste à configurer. Le démarrage automatique dispose de son propre plan ci-dessous."));
     const document = activation.installation;
     if (!document) {
       card.append(button("Préparer le plan d'activation", () => void run(async () => {
@@ -644,6 +646,41 @@
       const availability = activation.availability;
       const live = element("p", availability ? (availability.state === "LOCAL_WEB_AVAILABLE" ? "Page de connexion locale disponible" : "Web local indisponible") + " - Vérifié à " + availability.checked_at : "Disponibilité actuelle non vérifiée. Le journal décrit les actions déjà terminées.");
       live.id = "activation-availability"; card.append(live);
+      if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
+    }
+    content.append(card);
+  }
+  function bootAction(action, extra = {}) {
+    pendingAction = {action: "boot." + action, payload: {confirmation: boot.installation.plan_sha256, confirm: true, ...extra}};
+    $("operation-title").textContent = "Confirmer le démarrage automatique";
+    $("operation-description").textContent = "Configurer MariaDB et les services Web dédiés pour les prochains démarrages ? Une maintenance en cours continue de bloquer le Web. Aucun redémarrage immédiat n'est effectué.";
+    $("operation-dialog").showModal();
+  }
+  function bootForm() {
+    const card = element("article", null, "wizard-card"); card.id = "server-boot";
+    card.append(element("h2", "Démarrage automatique"), hint("MariaDB, PHP, Apache et nettoyage des sessions. Le journal conserve la configuration acquise ; une vérification actuelle reste explicite."));
+    const document = boot.installation;
+    if (!document) {
+      card.append(button("Préparer le plan de démarrage", () => void run(async () => {
+        boot = (await api("/api/system/boot/plan", {activation_sha256: activation.installation.plan_sha256})).boot;
+        show(5); message("Plan de démarrage prêt à relire.");
+      }), "plan-boot"));
+    } else {
+      const status = element("p", "Démarrage automatique : " + (states[document.state] || document.state));
+      status.id = "boot-state"; status.dataset.state = document.state; card.append(status);
+      for (const spec of document.plan.steps) {
+        const record = document.steps.find((row) => row.name === spec.name);
+        card.append(element("p", spec.action + " : " + states[record.state]));
+        if (["FAILED", "MANUAL_ACTION_REQUIRED"].includes(record.state)) card.append(button("Vérifier la reprise du démarrage", () => bootAction("retry", {name: record.name}), "retry-boot"));
+      }
+      technical(card, "Plan de démarrage complet", document.plan);
+      if (document.approved_plan_sha256 === null) card.append(button("Valider le démarrage automatique", () => bootAction("apply"), "apply-boot", true));
+      else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre la configuration du démarrage", () => bootAction("resume"), "resume-boot"));
+      if (document.state === "DONE") card.append(button("Vérifier la configuration du démarrage", () => void run(async () => {
+        boot = (await api("/api/system/boot/check", {confirmation: document.plan_sha256, confirm: true})).boot;
+        show(5); message("Vérification du démarrage terminée.");
+      }), "check-boot"));
+      if (boot.availability) card.append(hint((boot.availability.boot_persistence_configured ? "Configuration du démarrage vérifiée" : "Configuration ou disponibilité à contrôler") + " - " + boot.availability.checked_at));
       if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
     }
     content.append(card);
@@ -690,6 +727,9 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action.startsWith("boot.")) {
+        boot = (await api("/api/system/boot/" + action.action.slice(5), action.payload)).boot;
+        show(5); message("État du démarrage automatique mis à jour.");
       } else if (action.action.startsWith("activation.")) {
         activation = (await api("/api/web/activation/" + action.action.slice(11), action.payload)).activation;
         show(5); message("État de l'activation mis à jour.");
@@ -711,6 +751,7 @@
     installation = result.installation; serverBusy = result.busy; preflight = result.preflight;
     application = result.application || {draft: null, missing_credentials: []};
     activation = result.activation || {installation: null, availability: null};
+    boot = result.boot || {installation: null, availability: null};
     packages = result.packages || {profile: null, acquisition: null, installation: null, selection: null};
     mariadb = result.mariadb || {profile: null, installation: null, missing_credentials: []};
     upgrade = result.upgrade || {profile: null, missing_credentials: []};
@@ -775,9 +816,10 @@
         application = result.application || application;
         upgrade = result.upgrade || upgrade;
         activation = result.activation || activation;
+        boot = result.boot || boot;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
         if (stamp !== lastRevision) {
           lastRevision = stamp;
           installation = result.installation;
