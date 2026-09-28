@@ -1,5 +1,9 @@
 # Moteur transactionnel - Phases 2 et 3 / issues #4 et #8
 
+Le [lot 5D3](PHASE5D_ACTIVATION.md) utilise un second journal pour l'activation
+après préparation DONE. Aucun plan approuvé n'est étendu. Sa disponibilité
+actuelle est une observation explicite séparée des reçus historiques.
+
 Mise à jour 5D : les adaptateurs applicatifs privés sont décrits dans
 [PHASE5D_APPLICATION_JOURNAL.md](PHASE5D_APPLICATION_JOURNAL.md). Le moteur et le
 schéma historiques ci-dessous restent inchangés ; leur registre public ne gagne

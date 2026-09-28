@@ -1,5 +1,8 @@
 # Phase 5D2 - Composition du fresh Web depuis le wizard
 
+Le prolongement [5D3](PHASE5D_ACTIVATION.md) ajoute une activation séparée après
+DONE. Les dix étapes et les contrats de préparation décrits ici sont conservés.
+
 Ce lot raccorde un parcours fresh réel au wizard, jusqu'à la préparation du Web
 et des services sous maintenance. Il ne déclare ni l'installation globale
 terminée, ni la disponibilité du site. Le parcours historique d'acquisition des

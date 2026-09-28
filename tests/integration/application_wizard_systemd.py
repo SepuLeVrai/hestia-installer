@@ -163,11 +163,12 @@ class ApplicationWizardLive(journal.JournalMixin, journal.fresh.FinalizationInte
             for secret in choices['credentials'].values(): self.assertNotIn(secret, page.content())
             page.screenshot(path='/evidence/' + self._testMethodName + '.png', full_page=True)
 
-    def fixture_login(self, runtime):
+    def fixture_login(self, runtime, *, already_active=False):
         """A real login proof; these service starts explicitly remain fixture work."""
         spec = runtime.spec; scope = runtime._scope(pwd.getpwnam(spec.service_user))
-        with scope.recover(scope.observe()['lease_id'], confirmed=True) as lease: lease.resume(confirmed=True)
-        for role in ('php', 'apache'): command('systemctl', 'start', runtime.unit(role))
+        if not already_active:
+            with scope.recover(scope.observe()['lease_id'], confirmed=True) as lease: lease.resume(confirmed=True)
+            for role in ('php', 'apache'): command('systemctl', 'start', runtime.unit(role))
         front = self.root / 'frontend'; front.mkdir(mode=0o755)
         cert, key = front / 'fixture.crt', front / 'fixture.key'
         command('openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=' + spec.hostname,

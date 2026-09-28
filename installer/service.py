@@ -10,8 +10,10 @@ from installer.web_config import validate_web_configuration
 from installer.operations import default_registry
 from installer.model import ErrorCode, InstallerError, exact_keys, require
 from installer.application_plan import ApplicationPlan
+from installer.application_activation import ActivationPlan
 
 POST_ROUTES = {
+    **{'/api/web/activation/' + action: 'activation.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     "/api/web/setup": "web.setup",
     "/api/web/credentials": "web.credentials",
     "/api/web/config/validate": "web.config.validate",
@@ -38,6 +40,7 @@ class TransactionService:
         self.wizard = WizardDraft(engine)
         self.application = ApplicationPlan(engine, github)
         self.application.restore()
+        self.activation = ActivationPlan(self.application)
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
@@ -70,7 +73,7 @@ class TransactionService:
             # does not authorize a replay; mutations retain the engine's lock.
             return {"installation": self.engine.report(), "draft": self.wizard.read(),
                     "busy": self._mutation_lock.locked(), "preflight": self._preflight,
-                    "application": self.application.state()}
+                    "application": self.application.state(), "activation": self.activation.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -85,10 +88,15 @@ class TransactionService:
 
     def report(self) -> dict:
         with self._activity():
-            return {"installation": self.engine.report()}
+            result = {"installation": self.engine.report()}
+            activation = self.activation.state()
+            if activation['installation'] is not None: result['activation'] = activation
+            return result
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('activation.'):
+                return {"activation": self.activation.execute(action.removeprefix('activation.'), payload)}
             if action == "web.setup":
                 self.application.save(payload)
                 return {"application": self.application.state()}

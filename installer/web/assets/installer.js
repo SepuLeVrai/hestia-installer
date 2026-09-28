@@ -51,6 +51,7 @@
   let saveChain = Promise.resolve(), draftConflict = false, polling = false, confirmed = false;
   let pendingAction = null, lastRevision = "", pollCount = 0;
   let application = {draft: null, missing_credentials: []}, useApplication = false, applicationDirty = false;
+  let activation = {installation: null, availability: null};
   const credentialLabels = {
     database_password: "Mot de passe du compte SQL applicatif", admin_password: "Mot de passe du premier administrateur",
     migration_user: "Compte SQL de préparation", migration_password: "Mot de passe SQL de préparation",
@@ -421,7 +422,8 @@
     const title = installation.state === "DONE" ? (isApplication() ? "Web préparé sous maintenance" : installation.mode === "check" ? "Contrôles core terminés" : "Sources prêtes") : states[installation.state] || "État inconnu";
     const summary = element("p", title + " - " + completed + " / " + installation.steps.length); summary.id = "execution-state";
     summary.dataset.state = installation.state; content.append(summary);
-    if (installation.state === "DONE") content.append(hint(isApplication() ? "La base, l'administrateur et la configuration sont préparés. Les services restent arrêtés et l'accès fermé. La disponibilité de l'application n'est pas encore validée." : "HESTIA n'est pas encore déployé. L'installation Web, Gateway et APK appartient aux phases suivantes."));
+    if (installation.state === "DONE") content.append(hint(isApplication() ? "La préparation sous maintenance est acquise. Le plan d'activation et la vérification actuelle du Web figurent ci-dessous." : "HESTIA n'est pas encore déployé. L'installation Web, Gateway et APK appartient aux phases suivantes."));
+    if (isApplication() && installation.state === "DONE") activationForm();
     if (isApplication() && installation.state !== "DONE") renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
@@ -447,6 +449,43 @@
     if (installation.state !== "DONE") row.append(button("Ressaisir le jeton", () => show(1), "renew-credential"));
     row.append(button("Télécharger le rapport", () => void run(downloadReport), "download-report"));
     content.append(row); technical(content, "Journal technique (non secret)", installation);
+  }
+  function activationAction(action, extra = {}) {
+    pendingAction = {action: "activation." + action, payload: {confirmation: activation.installation.plan_sha256, confirm: true, ...extra}};
+    $("operation-title").textContent = "Confirmer l'activation";
+    $("operation-description").textContent = "Appliquer les étapes autorisées de ce plan d'activation ? La sortie de maintenance autorise les écritures Web. Aucun retour arrière SQL automatique n'est prévu.";
+    $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+  }
+  function activationForm() {
+    const card = element("article", null, "wizard-card"); card.id = "application-activation";
+    card.append(element("h2", "Activation du Web local"), hint("Backend : 127.0.0.1:9080. Le frontal TLS public et le démarrage automatique après redémarrage restent à configurer."));
+    const document = activation.installation;
+    if (!document) {
+      card.append(button("Préparer le plan d'activation", () => void run(async () => {
+        activation = (await api("/api/web/activation/plan", {preparation_sha256: installation.plan_sha256})).activation;
+        show(5); message("Plan d'activation prêt à relire. Aucun service n'a été démarré.");
+      }), "plan-activation"));
+    } else {
+      const status = element("p", "Activation : " + (states[document.state] || document.state));
+      status.id = "activation-state"; status.dataset.state = document.state; card.append(status);
+      for (const spec of document.plan.steps) {
+        const record = document.steps.find((row) => row.name === spec.name);
+        card.append(element("p", spec.action + " : " + states[record.state]));
+        if (["FAILED", "MANUAL_ACTION_REQUIRED"].includes(record.state)) card.append(button("Réessayer « " + spec.action + " »", () => activationAction("retry", {name: record.name}), "retry-" + record.name));
+      }
+      technical(card, "Plan d'activation complet", document.plan);
+      if (document.approved_plan_sha256 === null) card.append(button("Valider et activer le Web local", () => activationAction("apply"), "apply-activation", true));
+      else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre l'activation", () => activationAction("resume"), "resume-activation", true));
+      if (document.state === "DONE") card.append(button("Vérifier maintenant le Web local", () => void run(async () => {
+        activation = (await api("/api/web/activation/check", {confirmation: document.plan_sha256, confirm: true})).activation;
+        show(5); message("Vérification locale terminée.");
+      }), "check-availability"));
+      const availability = activation.availability;
+      const live = element("p", availability ? (availability.state === "LOCAL_WEB_AVAILABLE" ? "Page de connexion locale disponible" : "Web local indisponible") + " - Vérifié à " + availability.checked_at : "Disponibilité actuelle non vérifiée. Le journal décrit les actions déjà terminées.");
+      live.id = "activation-availability"; card.append(live);
+      if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
+    }
+    content.append(card);
   }
   async function downloadReport() {
     const data = await api("/api/installation/report");
@@ -490,6 +529,9 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action.startsWith("activation.")) {
+        activation = (await api("/api/web/activation/" + action.action.slice(11), action.payload)).activation;
+        show(5); message("État de l'activation mis à jour.");
       } else {
         installation = (await api("/api/installation/" + action.action, action.payload)).installation;
         show(5); message(installation.last_error_redacted ? errorMessage({code: installation.last_error_redacted}) : "État du chantier mis à jour.");
@@ -501,6 +543,7 @@
     const result = await api("/api/wizard/state");
     installation = result.installation; serverBusy = result.busy; preflight = result.preflight;
     application = result.application || {draft: null, missing_credentials: []};
+    activation = result.activation || {installation: null, availability: null};
     if (navigate) { draft = result.draft; draftConflict = false; }
     if (!serverBusy) {
       try { github = (await api("/api/github/status")).github; } catch (error) { if (error.code !== "BUSY") throw error; }
@@ -560,7 +603,8 @@
         const result = await api("/api/wizard/state");
         serverBusy = result.busy;
         application = result.application || application;
-        const stamp = result.installation ? result.installation.installation_id + ":" + result.installation.revision + ":" + serverBusy : "";
+        activation = result.activation || activation;
+        const stamp = result.installation ? result.installation.installation_id + ":" + result.installation.revision + ":" + serverBusy + ":" + activation.installation?.revision : "";
         if (stamp !== lastRevision) {
           lastRevision = stamp;
           installation = result.installation;

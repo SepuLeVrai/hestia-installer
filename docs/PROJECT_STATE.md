@@ -1,5 +1,16 @@
 # État du projet
 
+## Avancement 5D3 - 28 septembre 2026
+
+L'[activation explicite](PHASE5D_ACTIVATION.md) prolonge le fresh 5D2 par un
+second plan lié au premier, sans modifier ses étapes acquises. Le produit ouvre
+l'admission, démarre Apache/PHP-FPM et le timer dédiés, puis vérifie la page locale.
+Le wizard distingue l'historique DONE d'une disponibilité actuelle horodatée.
+Huit nouvelles recettes réelles sont définies ; les résultats du gel sont au
+checkpoint et #13. Frontal public/TLS, persistance au boot, wizard upgrade et
+serveur vierge restent à livrer. Phase 5 reste ouverte. Les sections suivantes
+décrivent l'historique des gels précédents.
+
 ## Avancement 5C4 - 28 septembre 2026
 
 La [reprise et le rollback](PHASE5C4_RECOVERY.md) sont implémentés pour la paire
