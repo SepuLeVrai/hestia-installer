@@ -1,5 +1,13 @@
 # État du projet
 
+## 28 septembre 2026 — 5D5a, dépendances du serveur vierge
+
+Le [raccordement des paquets officiels au wizard](PHASE5D_PACKAGE_WIZARD.md) ajoute
+deux plans distincts, téléchargement puis installation des versions figées.
+Les plans Web acquis 5D1–5D4 et les contrôleurs natifs restent inchangés.
+MariaDB, le boot et le frontal public/TLS restent à livrer ; la phase 5 est ouverte.
+Le nouveau gel exige les gates générales et sa recette ciblée en CI jetable.
+
 ## Avancement 5D4 - 28 septembre 2026
 
 Le [wizard upgrade](PHASE5D_UPGRADE_WIZARD.md) compose les contrôleurs acquis

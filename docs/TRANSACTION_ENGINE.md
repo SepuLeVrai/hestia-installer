@@ -1,5 +1,13 @@
 # Moteur transactionnel - Phases 2 et 3 / issues #4 et #8
 
+## 28 septembre 2026 — 5D5a, dépendances du serveur vierge
+
+Le [raccordement des paquets officiels au wizard](PHASE5D_PACKAGE_WIZARD.md) ajoute
+deux plans distincts, téléchargement puis installation des versions figées.
+Les plans Web acquis 5D1–5D4 et les contrôleurs natifs restent inchangés.
+MariaDB, le boot et le frontal public/TLS restent à livrer ; la phase 5 est ouverte.
+Le nouveau gel exige les gates générales et sa recette ciblée en CI jetable.
+
 Le [lot 5D4](PHASE5D_UPGRADE_WIZARD.md) ajoute une composition upgrade fermée,
 avec enregistrement local du profil géré et une activation liée au journal
 parent. Le format des anciens plans et les contrôleurs natifs restent acquis.

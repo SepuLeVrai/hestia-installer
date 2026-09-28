@@ -12,8 +12,11 @@ from installer.model import ErrorCode, InstallerError, exact_keys, require
 from installer.application_plan import ApplicationPlan
 from installer.application_activation import ActivationPlan
 from installer.upgrade_plan import UpgradePlan, UpgradeActivationPlan
+from installer.package_plan import PackagePlan
 
 POST_ROUTES = {
+    **{'/api/system/packages/' + phase + '/' + action: 'packages.' + phase + '.' + action
+       for phase in ('acquire', 'install') for action in ('plan', 'apply', 'resume', 'retry')},
     **{'/api/web/activation/' + action: 'activation.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     "/api/web/setup": "web.setup",
     "/api/web/credentials": "web.credentials",
@@ -42,6 +45,7 @@ class TransactionService:
         self.wizard = WizardDraft(engine)
         self.application = ApplicationPlan(engine, github)
         self.upgrade = UpgradePlan(engine, github)
+        self.packages = PackagePlan(engine)
         if not self.application.restore(): self.upgrade.restore()
         self._fresh_activation = ActivationPlan(self.application)
         self._upgrade_activation = UpgradeActivationPlan(self.upgrade)
@@ -81,7 +85,8 @@ class TransactionService:
             # does not authorize a replay; mutations retain the engine's lock.
             return {"installation": self.engine.report(), "draft": self.wizard.read(),
                     "busy": self._mutation_lock.locked(), "preflight": self._preflight,
-                    "application": self.application.state(), "activation": self.activation.state(), "upgrade": self.upgrade.state()}
+                    "application": self.application.state(), "activation": self.activation.state(), "upgrade": self.upgrade.state(),
+                    "packages": self.packages.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -99,10 +104,18 @@ class TransactionService:
             result = {"installation": self.engine.report()}
             activation = self.activation.state()
             if activation['installation'] is not None: result['activation'] = activation
+            packages = self.packages.state()
+            if packages['profile'] is not None: result['packages'] = packages
             return result
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('packages.'):
+                return {"packages": self.packages.execute(action.removeprefix('packages.'), payload)}
+            if action in ('wizard.plan', 'github.plan', 'plan') and self.packages.profile() is not None:
+                package_state = self.packages.state()
+                require(package_state['installation'] is not None and package_state['installation']['state'] == 'DONE',
+                        ErrorCode.DEPENDENCY_BLOCKED)
             if action.startswith('activation.'):
                 return {"activation": self.activation.execute(action.removeprefix('activation.'), payload)}
             if action == "web.setup":

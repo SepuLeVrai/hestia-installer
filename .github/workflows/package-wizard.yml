@@ -1,0 +1,128 @@
+name: Installer virgin package wizard Quality
+
+on:
+  push:
+    branches: ['work/phase5d-packages-wizard-20260928']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-wizard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wizard:
+    name: Fresh Debian 13 / browser and offline recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build separate fresh target and browser images
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/package-wizard-source" evidence
+          git archive --format=tar HEAD > "$RUNNER_TEMP/package-wizard-source.tar"
+          tar -xf "$RUNNER_TEMP/package-wizard-source.tar" -C "$RUNNER_TEMP/package-wizard-source"
+          git rev-parse HEAD > evidence/commit.txt
+          git rev-parse HEAD^{tree} > evidence/tree.txt
+          docker build -f tests/integration/Dockerfile.package-wizard -t package-target "$RUNNER_TEMP/package-wizard-source"
+          docker build -f tests/integration/Dockerfile.package-browser -t package-browser "$RUNNER_TEMP/package-wizard-source"
+      - name: Real wizard acquisition on a virgin server
+        run: |
+          set -Eeuo pipefail
+          docker run -d --name package-target --privileged --cgroupns=private \
+            --tmpfs /run --tmpfs /run/lock --tmpfs /tmp package-target
+          for attempt in $(seq 1 60); do
+            state=$(docker exec package-target systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
+            sleep 1
+          done
+          test "$state" = running || test "$state" = degraded
+          docker exec package-target dpkg-query -W > evidence/before-packages.txt
+          docker exec -d -e HESTIA_PACKAGE_WIZARD_TEST=1 package-target \
+            python3 /opt/hestia-installer/tests/integration/package_wizard_systemd.py --phase serve
+          for attempt in $(seq 1 30); do
+            if docker exec package-target test -f /var/lib/hestia-package-browser.json; then break; fi
+            sleep 1
+          done
+          docker cp package-target:/var/lib/hestia-package-browser.json "$RUNNER_TEMP/package-browser.json"
+          docker run -d --name package-browser --network container:package-target package-browser
+          docker cp "$RUNNER_TEMP/package-browser.json" package-browser:/var/lib/hestia-package-browser.json
+          rm "$RUNNER_TEMP/package-browser.json"
+          docker exec -e HESTIA_PACKAGE_WIZARD_TEST=1 package-browser \
+            /opt/browser-venv/bin/python /opt/hestia-installer/tests/integration/package_wizard_systemd.py --phase acquire \
+            2>&1 | tee evidence/wizard-acquire.log
+          docker cp package-browser:/evidence/. evidence/
+          docker rm -f package-browser
+          docker exec -e HESTIA_PACKAGE_WIZARD_TEST=1 package-target \
+            python3 /opt/hestia-installer/tests/integration/package_wizard_systemd.py --phase stop
+          for attempt in $(seq 1 30); do
+            if ! docker exec package-target test -f /var/lib/hestia-package-browser.json; then break; fi
+            sleep 1
+          done
+          docker exec package-target test ! -f /var/lib/hestia-package-browser.json
+          docker exec package-target dpkg-query -W > evidence/after-acquire-packages.txt
+          cmp evidence/before-packages.txt evidence/after-acquire-packages.txt
+          docker exec package-target test ! -d /var/lib/mysql
+          docker commit package-target package-acquired
+          docker network disconnect bridge package-target
+          docker inspect --format '{{json .NetworkSettings.Networks}}' package-target > evidence/network-disconnected.json
+          test "$(cat evidence/network-disconnected.json)" = '{}'
+      - name: Restart wizard and install approved versions with no network
+        run: |
+          set -Eeuo pipefail
+          docker exec -d -e HESTIA_PACKAGE_WIZARD_TEST=1 package-target \
+            python3 /opt/hestia-installer/tests/integration/package_wizard_systemd.py --phase serve
+          for attempt in $(seq 1 30); do
+            if docker exec package-target test -f /var/lib/hestia-package-browser.json; then break; fi
+            sleep 1
+          done
+          docker cp package-target:/var/lib/hestia-package-browser.json "$RUNNER_TEMP/package-browser.json"
+          docker run -d --name package-browser --network container:package-target package-browser
+          docker cp "$RUNNER_TEMP/package-browser.json" package-browser:/var/lib/hestia-package-browser.json
+          rm "$RUNNER_TEMP/package-browser.json"
+          docker exec -e HESTIA_PACKAGE_WIZARD_TEST=1 package-browser \
+            /opt/browser-venv/bin/python /opt/hestia-installer/tests/integration/package_wizard_systemd.py --phase install \
+            2>&1 | tee evidence/wizard-install.log
+          docker cp package-browser:/evidence/. evidence/
+          docker exec -e HESTIA_PACKAGE_WIZARD_TEST=1 package-target \
+            python3 /opt/hestia-installer/tests/integration/package_wizard_systemd.py --phase verify-installed
+          docker exec -e HESTIA_PACKAGE_WIZARD_TEST=1 package-target \
+            python3 /opt/hestia-installer/tests/integration/package_wizard_systemd.py --phase stop
+      - name: Lost reply and missing receipt on disposable offline clones
+        run: |
+          set -Eeuo pipefail
+          for phase in lost-reply interrupted; do
+            docker run -d --name "package-$phase" --network none --privileged --cgroupns=private \
+              --tmpfs /run --tmpfs /run/lock --tmpfs /tmp package-acquired
+            for attempt in $(seq 1 60); do
+              state=$(docker exec "package-$phase" systemctl is-system-running 2>/dev/null || true)
+              if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
+              sleep 1
+            done
+            test "$state" = running || test "$state" = degraded
+            docker exec -e HESTIA_PACKAGE_WIZARD_TEST=1 "package-$phase" \
+              python3 /opt/hestia-installer/tests/integration/package_wizard_systemd.py --phase "$phase" \
+              2>&1 | tee "evidence/wizard-$phase.log"
+            docker cp "package-$phase:/evidence/." evidence/
+          done
+      - name: Preserve non-secret evidence and remove containers
+        if: always()
+        run: |
+          docker cp package-target:/evidence/. evidence/ || true
+          docker cp package-browser:/evidence/. evidence/ || true
+          docker cp package-lost-reply:/evidence/. evidence/ || true
+          docker cp package-interrupted:/evidence/. evidence/ || true
+          docker logs --tail 60 package-target > evidence/boot.log 2>&1 || true
+          docker rm -f package-target package-browser package-lost-reply package-interrupted || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: installer-package-wizard-debian-13
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7

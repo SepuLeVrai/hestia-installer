@@ -53,6 +53,7 @@
   let application = {draft: null, missing_credentials: []}, useApplication = false, applicationDirty = false;
   let upgrade = {profile: null, missing_credentials: []}, useUpgrade = false;
   let activation = {installation: null, availability: null};
+  let packages = {profile: null, acquisition: null, installation: null, selection: null};
   const credentialLabels = {
     database_password: "Mot de passe du compte SQL applicatif", admin_password: "Mot de passe du premier administrateur",
     migration_user: "Compte SQL de préparation", migration_password: "Mot de passe SQL de préparation",
@@ -129,7 +130,8 @@
     if (current === 1) nextAllowed = github.ready === true || installation?.state === "DONE";
     if (current === 2) nextAllowed = preflight?.ok === true && github.ready === true;
     if (current === 3) nextAllowed = draft.modules.length > 0 && github.ready === true && preflight?.ok === true &&
-      (!useApplication || (application.draft !== null && !applicationDirty)) && (!useUpgrade || upgrade.missing_credentials.length === 0);
+      (!useApplication || (application.draft !== null && !applicationDirty)) && (!useUpgrade || upgrade.missing_credentials.length === 0) &&
+      (!packages.profile || packages.installation?.state === "DONE");
     if (current === 4) nextAllowed = Boolean(installation) && (installation.approved_plan_sha256 !== null || confirmed);
     $("next-button").disabled = disabled || !nextAllowed;
     $("next-button-label").textContent = current === 1 && installation ? "Retour au chantier" : current === 3 ? "Préparer le plan" : current === 4 ? (installation?.approved_plan_sha256 ? "Voir le suivi" : "Acquérir les sources") : current === 5 ? "Actualiser" : "Suivant";
@@ -219,6 +221,7 @@
     }), "clear-github"));
     content.append(controlsRow);
     if (installation) content.append(hint("Le plan déjà enregistré reste inchangé. Revalider un jeton ne modifie pas ses commits."));
+    packagesForm();
   }
   function renderGitHubRows() {
     const target = $("github-repositories");
@@ -237,6 +240,64 @@
       renderPreflight(); message(preflight.ok ? "Tous les prérequis sont validés." : errors.VALIDATION_FAILED);
     }, "Vérification du serveur..."), "run-preflight", true));
     const rows = element("div"); rows.id = "preflight-results"; content.append(rows); renderPreflight();
+    packagesForm();
+  }
+  function packageAction(phase, action, extra = {}) {
+    if (busy || serverBusy) return;
+    const document = packages[phase === "acquire" ? "acquisition" : "installation"];
+    pendingAction = {action: "packages." + phase + "/" + action, payload: {confirmation: document.plan_sha256, confirm: true, ...extra}};
+    $("operation-title").textContent = phase === "acquire" ? "Confirmer le téléchargement" : "Confirmer l'installation des paquets";
+    $("operation-description").textContent = phase === "acquire" ? "Télécharger les dépendances Debian officielles dans un cache privé ? Aucun paquet ne sera installé à cette étape." : "Installer les versions exactes du plan affiché ? Les services applicatifs par défaut resteront masqués. Aucun retour arrière ni réparation automatique des paquets n'est prévu.";
+    $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+  }
+  function packagesForm() {
+    if (installation && !packages.profile) return;
+    const card = element("details", null, "wizard-card"); card.id = "package-preparation"; card.open = packages.profile !== null;
+    card.append(element("summary", "Préparer les dépendances d'un serveur vierge"),
+      hint("Debian 13 sans Apache, FPM, nginx ni serveur SQL installé. Les paquets sont téléchargés puis installés après deux confirmations distinctes. Aucun jeton GitHub n'est nécessaire pour ces paquets Debian."));
+    card.append(hint("Ce parcours prépare les dépendances. La configuration MariaDB, l'installation HESTIA, le boot et le frontal TLS public restent des étapes séparées."));
+    if (!packages.profile) {
+      const nginx = element("input"); nginx.type = "checkbox"; nginx.id = "packages-nginx";
+      card.append(field("Inclure le paquet nginx pour le futur frontal", nginx), button("Préparer le plan de téléchargement", () => void run(async () => {
+        packages = (await api("/api/system/packages/acquire/plan", {nginx: nginx.checked})).packages;
+        show(current, false); message("Plan de téléchargement prêt à relire. Aucun paquet téléchargé ni installé.");
+      }), "plan-packages-acquire", true));
+    } else {
+      card.append(hint("Paquet nginx : " + (packages.profile.nginx ? "inclus" : "non demandé") + ". Ce choix est figé pour ce chantier."));
+      if (!installation && !packages.acquisition) card.append(button("Retrouver le plan de téléchargement", () => void run(async () => {
+        packages = (await api("/api/system/packages/acquire/plan", {nginx: packages.profile.nginx})).packages;
+        show(current, false);
+      }), "plan-packages-acquire"));
+      if (packages.selection) {
+        const rows = packages.selection.packages;
+        card.append(element("p", rows.length + " paquets, " + Math.ceil(rows.reduce((n, p) => n + p.bytes, 0) / 1048576) + " Mio d'archives. Installation depuis le cache, sans téléchargement."));
+        const versions = element("details"); versions.id = "package-versions"; versions.append(element("summary", "Relire les versions exactes"));
+        const list = element("ul");
+        for (const row of rows) list.append(element("li", row.name + " — " + row.version + " (" + row.architecture + ")"));
+        versions.append(list); card.append(versions);
+      }
+      for (const [phase, key, label] of [["acquire", "acquisition", "Téléchargement"], ["install", "installation", "Installation des paquets"]]) {
+        const document = packages[key];
+        if (!document) continue;
+        const status = element("p", label + " : " + states[document.state]); status.id = "packages-" + phase + "-state"; status.dataset.state = document.state; card.append(status);
+        technical(card, "Plan « " + label + " »", document.plan);
+        if (document.state === "DONE") continue;
+        if (installation) { card.append(hint("Un plan principal existe. Les actions paquets sont bloquées pour ce chantier.")); continue; }
+        if (document.approved_plan_sha256 === null) card.append(button(phase === "acquire" ? "Valider et télécharger" : "Valider et installer les paquets", () => packageAction(phase, "apply"), "apply-packages-" + phase, true));
+        else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre « " + label + " »", () => packageAction(phase, "resume"), "resume-packages-" + phase));
+        for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) {
+          card.append(hint("Une interruption peut exiger une inspection manuelle. La reprise vérifie les reçus existants ; elle ne répare pas une installation partielle."),
+            button("Vérifier la reprise de « " + label + " »", () => packageAction(phase, "retry", {name: record.name}), "retry-packages-" + phase));
+        }
+      }
+      if (!installation && packages.acquisition?.state === "DONE" && !packages.installation) card.append(button("Préparer le plan d'installation des paquets", () => void run(async () => {
+        packages = (await api("/api/system/packages/install/plan", {acquisition_sha256: packages.acquisition.plan_sha256})).packages;
+        show(current, false); message("Versions exactes prêtes à relire. L'installation attend votre confirmation.");
+      }), "plan-packages-install", true));
+      if (packages.installation?.state === "DONE") card.append(hint("Installation des paquets validée. Les services applicatifs par défaut restent masqués. MariaDB et HESTIA ne sont pas encore configurés."));
+      card.append(button("Télécharger le rapport", () => void run(downloadReport), "download-packages-report"));
+    }
+    content.append(card);
   }
   function renderPreflight() {
     const rows = $("preflight-results");
@@ -250,6 +311,7 @@
     }
   }
   function modulesForm() {
+    if (packages.profile && packages.installation?.state !== "DONE") content.append(hint("Terminez le parcours des paquets dans l'étape Préflight avant de figer un plan HESTIA."));
     const group = element("fieldset"); group.append(element("legend", "Composants à acquérir"));
     for (const module of Object.keys(names)) {
       const input = element("input"); input.type = "checkbox"; input.id = "module-" + module;
@@ -579,6 +641,9 @@
       } else if (action.action.startsWith("activation.")) {
         activation = (await api("/api/web/activation/" + action.action.slice(11), action.payload)).activation;
         show(5); message("État de l'activation mis à jour.");
+      } else if (action.action.startsWith("packages.")) {
+        packages = (await api("/api/system/packages/" + action.action.slice(9), action.payload)).packages;
+        show(current, false); message("État des dépendances mis à jour.");
       } else {
         installation = (await api("/api/installation/" + action.action, action.payload)).installation;
         show(5); message(installation.last_error_redacted ? errorMessage({code: installation.last_error_redacted}) : "État du chantier mis à jour.");
@@ -591,6 +656,7 @@
     installation = result.installation; serverBusy = result.busy; preflight = result.preflight;
     application = result.application || {draft: null, missing_credentials: []};
     activation = result.activation || {installation: null, availability: null};
+    packages = result.packages || {profile: null, acquisition: null, installation: null, selection: null};
     upgrade = result.upgrade || {profile: null, missing_credentials: []};
     if (navigate) { draft = result.draft; draftConflict = false; }
     if (!serverBusy) {
@@ -647,17 +713,19 @@
     if (!initialized || polling || document.hidden) return;
     polling = true;
     try {
-      if (installation || serverBusy) {
+      if (installation || packages.profile || serverBusy) {
         const result = await api("/api/wizard/state");
         serverBusy = result.busy;
         application = result.application || application;
         upgrade = result.upgrade || upgrade;
         activation = result.activation || activation;
-        const stamp = result.installation ? result.installation.installation_id + ":" + result.installation.revision + ":" + serverBusy + ":" + activation.installation?.revision : "";
+        packages = result.packages || packages;
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, packages.acquisition?.revision, packages.installation?.revision]);
         if (stamp !== lastRevision) {
           lastRevision = stamp;
           installation = result.installation;
           if (current === 5) show(5, false);
+          else if (packages.profile && !busy && [1, 2].includes(current)) { $("package-preparation")?.remove(); packagesForm(); }
         }
       } else if (!busy && current === 1 && ++pollCount % 4 === 0) {
         github = (await api("/api/github/status")).github; renderGitHubRows();

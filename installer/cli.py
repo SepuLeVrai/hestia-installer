@@ -99,7 +99,11 @@ def main(argv: list[str] | None = None) -> int:
                               "plan_sha256": plan_digest(plan)}, ensure_ascii=False, indent=2))
             return 0
         if args.report:
-            print(json.dumps({"installation": engine.report()}, ensure_ascii=False, indent=2))
+            from installer.package_plan import PackagePlan
+            result = {"installation": engine.report()}
+            packages = PackagePlan(engine).state()
+            if packages['profile'] is not None: result['packages'] = packages
+            print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
         if args.resume:
             document = engine.report()
