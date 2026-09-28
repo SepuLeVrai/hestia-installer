@@ -42,7 +42,9 @@ Le certificat est contrôlé avec la chaîne de confiance système, le nom DNS,
 l'échéance, les liens de lineage, la correspondance clé/certificat et fullchain.
 
 Un timer dédié tente le renouvellement deux fois par jour avec délai aléatoire
-et rattrapage. Le service valide les fichiers avant Certbot, puis le certificat
+et rattrapage. Ce timer porte l'aléa ; le délai interne supplémentaire de Certbot
+est désactivé, notamment pendant le test interactif du wizard.
+Le service valide les fichiers avant Certbot, puis le certificat
 et NGINX avant d'envoyer HUP à l'unité HTTPS exacte. Le timer global Certbot et
 NGINX global restent masqués. Une maintenance ne rouvre pas le backend au boot.
 Après une longue interruption, l'expiration n'empêche pas Certbot de renouveler

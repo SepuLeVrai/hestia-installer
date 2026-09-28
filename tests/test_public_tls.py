@@ -57,11 +57,13 @@ class PublicProfileTests(unittest.TestCase):
     def test_fixed_acme_commands_and_isolated_certbot_configuration(self):
         r = n.PublicTLS(profile()); issue = r.certbot(); dry = r.certbot(renew=True, dry_run=True); renew = r.certbot(renew=True)
         self.assertIn(p.PRODUCTION, issue); self.assertNotIn(p.PRODUCTION, dry); self.assertIn(p.STAGING, dry)
+        self.assertIn('--no-random-sleep-on-renew', dry); self.assertIn('--no-random-sleep-on-renew', renew)
         for argv in (issue, dry, renew):
             self.assertIn('--no-directory-hooks', argv); self.assertIn(str(r.root / 'certbot.ini'), argv)
             self.assertNotIn('--nginx', argv); self.assertNotIn('--apache', argv)
             self.assertNotIn('--force-renewal', argv); self.assertNotIn('--no-verify-ssl', argv)
         self.assertIn('OnCalendar=*-*-* 00,12:00:00', r.units()[r.unit('timer')].decode())
+        self.assertIn('RandomizedDelaySec=3600', r.units()[r.unit('timer')].decode())
         self.assertIn('Requires=' + r.boot.target, r.units()[r.unit('https')].decode())
         self.assertNotIn(r.boot.target, r.units()[r.unit('http')].decode())
 

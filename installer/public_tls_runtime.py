@@ -167,7 +167,9 @@ class PublicTLS(Profile):
                 '--work-dir', str(self.root / 'certbot-work'), '--logs-dir', str(self.root / 'certbot-logs'),
                 '--non-interactive', '--no-directory-hooks', '--cert-name', CERT_NAME]
         if renew:
-            args += ['renew']
+            # The dedicated timer already supplies scheduling jitter. Avoid
+            # Certbot's extra eight-minute sleep, including wizard dry-runs.
+            args += ['renew', '--no-random-sleep-on-renew']
             if dry_run: args += ['--dry-run', '--server', STAGING]
         else:
             args += ['certonly', '--webroot', '-w', str(self.public / 'htdocs'), '-d', self.hostname,
