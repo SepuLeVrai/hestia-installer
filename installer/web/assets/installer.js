@@ -41,7 +41,7 @@
     ["Bienvenue", "Installation clé en main", "Bienvenue dans l'installation\nde HESTIA", "Cet assistant va vous guider pas à pas pour installer et configurer votre environnement HESTIA."],
     ["Accès GitHub", "Accès aux sources", "Autorisez l'accès aux\nsources HESTIA", "Validez la lecture des trois dépôts. Aucune archive n'est téléchargée à cette étape."],
     ["Préflight", "Préflight machine", "Vérifions les prérequis\nde votre serveur", "Ces contrôles sont non destructifs. Un prérequis manquant bloque la suite."],
-    ["Modules", "Composition HESTIA", "Choisissez les sources\nà préparer", "Seuls les composants sélectionnés seront acquis. Leur installation applicative sera disponible dans les phases suivantes."],
+    ["Modules", "Composition HESTIA", "Choisissez votre parcours\nHESTIA", "Sélectionnez les sources à acquérir ou la préparation d'une nouvelle instance Web sur un serveur déjà prêt."],
     ["Plan", "Validation avant action", "Relisez le plan\navant de l'appliquer", "Les commits sont figés. Vérifiez les chemins et les possibilités de retour arrière avant de confirmer."],
     ["Acquisition", "Suivi du chantier", "Préparation des sources\nHESTIA", "Le serveur conserve l'avancement. Une fermeture ou un rafraîchissement du navigateur ne relance aucune étape validée."]
   ];
@@ -378,6 +378,18 @@
   function planForm() {
     if (!installation) { content.append(hint("Aucun plan disponible.")); return; }
     content.append(hint("Identifiant : " + installation.installation_id));
+    if (isApplication() && application.draft) {
+      const config = application.draft.configuration;
+      const card = element("article", null, "wizard-card"); card.id = "application-plan-choices";
+      card.append(element("h2", "Configuration Web à confirmer"),
+        element("p", "DNS : " + config.web.hostname),
+        element("p", "Base : " + config.database.name + " / " + config.database.user + " / " + config.database.host + ":" + config.database.port),
+        element("p", config.database.mode === "managed" ? "Création de la base et des comptes SQL" : "Base vide et comptes SQL existants"),
+        element("p", "Administrateur : " + config.administrator.first_name + " " + config.administrator.last_name + " / " + config.administrator.email),
+        element("p", config.assistant.desired_enabled ? "Assistant configuré (accès API non testé)" : "Assistant désactivé"),
+        hint("Backend local prévu : 127.0.0.1:9080. Services arrêtés, accès sous maintenance en fin de préparation."));
+      content.append(card);
+    }
     for (const spec of installation.plan.steps) {
       const card = element("article", null, "wizard-card"); card.append(element("h2", names[spec.module] || "Contrôle core"));
       card.append(element("p", spec.action));
@@ -419,7 +431,7 @@
       if (record.last_error_redacted) card.append(hint(errorMessage({code: record.last_error_redacted})));
       const row = element("div", null, "wizard-controls");
       if (["FAILED", "MANUAL_ACTION_REQUIRED", "ROLLED_BACK"].includes(record.state)) {
-        row.append(button("Réessayer cette étape", () => confirmAction("retry", {name: record.name}, "Réessayer uniquement " + (names[spec.module] || spec.name) + " ? Les étapes validées ne sont pas rejouées."), "retry-" + record.name));
+        row.append(button("Réessayer cette étape", () => confirmAction("retry", {name: record.name}, "Réessayer uniquement « " + (isApplication() ? spec.action : names[spec.module] || spec.name) + " » ? Les étapes validées ne sont pas rejouées."), "retry-" + record.name));
       }
       if (spec.rollback_supported && !["PLANNED", "ROLLED_BACK"].includes(record.state)) {
         row.append(button("Annuler cette frontière", () => confirmAction("rollback", {boundary: spec.boundary}, "Supprimer uniquement les ressources créées par " + (names[spec.module] || spec.name) + " ? Une ressource préexistante ou modifiée ne sera pas supprimée aveuglément."), "rollback-" + record.name));

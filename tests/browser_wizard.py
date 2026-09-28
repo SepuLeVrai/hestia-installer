@@ -76,7 +76,10 @@ class BrowserWizardTests(unittest.TestCase):
         headers.update(options.get("headers", {}))
         conn = http.client.HTTPSConnection("127.0.0.1", self.port, context=self.context, timeout=15)
         try:
-            conn.request(options.get("method", "GET"), path, body=options.get("body"), headers=headers)
+            body = options.get("body")
+            # Match native fetch's UTF-8 JSON transport, including operator names.
+            if isinstance(body, str): body = body.encode('utf-8')
+            conn.request(options.get("method", "GET"), path, body=body, headers=headers)
             response = conn.getresponse()
             body = response.read().decode("utf-8")
             return {"status": response.status, "body": body, "headers": dict(response.getheaders())}
@@ -188,6 +191,8 @@ class BrowserWizardTests(unittest.TestCase):
             self.page.locator('#next-button').click(); self.step(4)
         document = self.service.engine.report()
         self.assertEqual(len(document['plan']['steps']), 10)
+        expect(self.page.locator('#application-plan-choices')).to_contain_text(value['configuration']['administrator']['first_name'])
+        expect(self.page.locator('#application-plan-choices')).to_contain_text(value['configuration']['database']['name'])
         expect(self.page.locator('#next-button')).to_be_disabled()
         expect(self.page.locator('#confirm-plan').locator('..')).to_contain_text('création des comptes')
         self.assertEqual(self.fake.archive_requests, [])

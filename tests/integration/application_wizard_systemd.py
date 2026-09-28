@@ -163,11 +163,11 @@ class ApplicationWizardLive(journal.JournalMixin, journal.fresh.FinalizationInte
             for secret in choices['credentials'].values(): self.assertNotIn(secret, page.content())
             page.screenshot(path='/evidence/' + self._testMethodName + '.png', full_page=True)
 
-    def fixture_login(self, http):
+    def fixture_login(self, runtime):
         """A real login proof; these service starts explicitly remain fixture work."""
-        spec = http.spec; scope = http._scope(pwd.getpwnam(spec.service_user))
+        spec = runtime.spec; scope = runtime._scope(pwd.getpwnam(spec.service_user))
         with scope.recover(scope.observe()['lease_id'], confirmed=True) as lease: lease.resume(confirmed=True)
-        for role in ('php', 'apache'): command('systemctl', 'start', http.unit(role))
+        for role in ('php', 'apache'): command('systemctl', 'start', runtime.unit(role))
         front = self.root / 'frontend'; front.mkdir(mode=0o755)
         cert, key = front / 'fixture.crt', front / 'fixture.key'
         command('openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=' + spec.hostname,
@@ -242,7 +242,10 @@ class ApplicationWizardLive(journal.JournalMixin, journal.fresh.FinalizationInte
         self.assertEqual(result['last_error_redacted'], 'SECRET_REQUIRED')
         before = [row for row in result['steps'] if row['state'] == 'DONE']
         other.execute('web.credentials', {'confirmation': document['plan_sha256'], 'credentials': self.choices()['credentials']})
-        self.assertEqual(other.execute('retry', confirm(document, name='web.database'))['installation']['state'], 'DONE')
+        retried = other.execute('retry', confirm(document, name='web.database'))['installation']
+        self.assertEqual(retried['state'], 'PLANNED')
+        self.assertEqual(next(row for row in retried['steps'] if row['name'] == 'web.database')['state'], 'DONE')
+        self.assertEqual(other.execute('resume', confirm(document))['installation']['state'], 'DONE')
         self.assertEqual(before, other.engine.report()['steps'][:len(before)]); self.staged(other)
 
 
