@@ -1,4 +1,21 @@
-# Wizard fonctionnel - Phase 4
+# Wizard fonctionnel
+
+## Parcours Web de phase 5
+
+Les cartes du panneau existant pilotent les plans séparés de paquets, MariaDB,
+Web/Admin/Assistant, activation locale, boot et dépendances ACME. Le dernier
+[plan HTTPS](PHASE5D_PUBLIC_TLS.md) demande le contact Let's Encrypt et les
+réseaux autorisés, présente le domaine et les effets, puis exige une confirmation.
+Une fermeture de fenêtre, un refresh ou un GET ne rejoue aucune opération.
+
+Après DONE, « Configuration du serveur terminée » désigne le parcours Web de ce
+profil. Le bouton « Vérifier HTTPS maintenant » produit un résultat daté ; un
+échec actuel ne réécrit pas le journal historique. Le rapport inclut le journal
+`public_tls`, ses flags de configuration et cette disponibilité distincte.
+Les assets, la navigation fixe et les styles acquis restent inchangés.
+Les autres modules et le réseau complet relèvent des phases suivantes.
+
+## Historique de la phase 4
 
 Base : `710760aec85ae96795224adce8e91e37e5cb86e5`. Livraison suivie par #11,
 dans le chantier du wizard complet #3 et le parent #1.

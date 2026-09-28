@@ -1,5 +1,23 @@
 # État du projet
 
+## 28 septembre 2026 — 5D7b, dernier plan du parcours Web
+
+Le [frontal HTTPS et son renouvellement](PHASE5D_PUBLIC_TLS.md) complètent
+les plans acquis : paquets 5D5a, MariaDB/fresh 5D5b, boot 5D6 et dépendances
+ACME 5D7a. Les anciens journaux, unités, contrôleurs et bundle boot sont
+conservés. L'overlay Apache est explicite et reconnu par la sauvegarde native.
+Le nouveau frontal emploie une identité distincte, un certificat HTTP-01,
+un test de renouvellement et un timer dédié. La maintenance reste fermée au boot.
+
+La clôture de phase 5 porte sur les profils qualifiés : fresh serveur Debian 13,
+PHP 8.4, IPv4, et upgrade managed scellé acquis. Elle exige les gates Quality et
+la recette finale du même gel ; leurs résultats et SHA sont consignés dans #13.
+La recette ACME utilise une autorité privée jetable, sans émission Let's Encrypt
+de production. #1/#3 et Web #135 couvrent aussi les phases suivantes et restent
+ouverts. Aucune promotion des branches actives n'est implicite.
+
+Les sections suivantes sont historiques.
+
 ## 28 septembre 2026 — 5D5a, dépendances du serveur vierge
 
 Le [raccordement des paquets officiels au wizard](PHASE5D_PACKAGE_WIZARD.md) ajoute

@@ -192,7 +192,9 @@ class Backup(unittest.TestCase):
         operation = provisioned_backup.ProvisionedBackup(replace(r.layout.runtime(), timeout_seconds=120), fixture.TARGET, r.http, r.boot.activation.cleaner)
         result = operation.create_and_verify(payload, authority, config_root=r.layout.config_root, backup_root=backup_root,
             confirmed=True, allow_global_read_lock=True).report()
-        self.assertEqual(result['state'], 'COORDINATED_BACKUP_VERIFIED', result)
+        self.assertEqual(result['state'], 'PROVISIONED_BACKUP_RESTORE_VERIFIED', result)
+        self.assertTrue(result['provisioned_services_drained'] and result['sql_read_fence_verified'])
+        self.assertTrue(result['database_restoration_verified'] and result['registered_data_restoration_verified'])
         self.assertFalse(result['activity_resumed'])
         scope = r.http._scope(r.layout.identity.account()); self.assertEqual(scope.observe()['state'], 'MAINTENANCE_REQUIRED')
         self.assertEqual(request('/.well-known/acme-challenge/absent', tls=False)[0], 404)

@@ -1,5 +1,18 @@
 # HESTIA Installer
 
+## Phase 5 — parcours Web et frontal HTTPS
+
+Le parcours Web enchaîne maintenant paquets officiels, MariaDB dédiée, fresh,
+activation, démarrage automatique, certificat HTTP-01, frontal NGINX et
+renouvellement. Le wizard upgrade conserve son profil managed scellé acquis.
+Le [contrat final HTTPS](docs/PHASE5D_PUBLIC_TLS.md) précise les confirmations,
+la reprise, la maintenance et le périmètre Debian 13/PHP 8.4/IPv4.
+Les SHA et résultats qui autorisent la clôture sont suivis dans
+[l'issue #13](https://github.com/SepuLeVrai/hestia-installer/issues/13).
+Gateway, Mobile et le réseau complet restent des phases distinctes.
+
+Les sections suivantes conservent l'historique des lots précédents.
+
 Phase5 en cours : [relations et candidats du census vivant](docs/PHASE5_CENSUS_RELATIONS.md).
 Sélection privée de revue ; aucune clôture globale ni promotion.
 
