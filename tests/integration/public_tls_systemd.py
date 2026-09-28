@@ -219,7 +219,10 @@ class Backup(unittest.TestCase):
         self.assertFalse(result['activity_resumed'])
         scope = r.http._scope(r.layout.identity.account()); self.assertEqual(scope.observe()['state'], 'MAINTENANCE_REQUIRED')
         self.assertEqual(request('/.well-known/acme-challenge/absent', tls=False)[0], 404)
-        self.assertEqual(request()[0], 502)
+        # Requires=apache propagates its explicit maintenance stop to HTTPS.
+        # The independent HTTP-01 service stays available for renewal.
+        self.assertFalse(r.running('https'))
+        with self.assertRaises(ConnectionRefusedError): request()
         (EVIDENCE / 'public-backup-report.json').write_bytes(quality.encode(result))
 
 

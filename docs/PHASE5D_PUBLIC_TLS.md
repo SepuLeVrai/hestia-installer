@@ -47,6 +47,8 @@ est désactivé, notamment pendant le test interactif du wizard.
 Le service valide les fichiers avant Certbot, puis le certificat
 et NGINX avant d'envoyer HUP à l'unité HTTPS exacte. Le timer global Certbot et
 NGINX global restent masqués. Une maintenance ne rouvre pas le backend au boot.
+L'arrêt explicite d'Apache pour sauvegarde arrête aussi le frontal HTTPS par
+sa dépendance systemd ; le service HTTP-01 indépendant reste disponible.
 Après une longue interruption, l'expiration n'empêche pas Certbot de renouveler
 un ancien certificat dont les autres contrôles restent valides. Le nouveau
 certificat doit passer tous les contrôles avant rechargement. Un frontal déjà
