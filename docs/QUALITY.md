@@ -1,5 +1,17 @@
 # Quality et non-régression de HESTIA Installer
 
+## Qualification globale du profil 5C2 - 28 septembre 2026
+
+Les gates du commit `713335d95494512d20c633c8e0c634385b6ada9f` sont vérifiés :
+1 077 core par Debian 12/13, 16 DOM, 21 HTTPS, 91/151 scénarios système,
+18 tests paquets par Debian, 118 SQL/HTTP et 33 proxy/Web métier. Les 36
+scénarios provisionnés déjà verts portent exactement sur le même arbre.
+Voir la [décision et les campagnes](PHASE5C2_QUALIFICATION_20260928.md).
+Le premier échec de préparation SQL du banc reste conservé ; l'union des
+suites valides des deux campagnes est contrôlée sans omission ni doublon.
+Cette mise à jour documentaire n'est pas attribuée aux runs du code parent.
+Les sections suivantes décrivent les frontières de leurs gels historiques.
+
 ## Lot chemins externes - 28 septembre 2026
 
 Le [lot externe](PHASE5_EXTERNAL_FENCE.md) ajoute cinq contrats et douze essais

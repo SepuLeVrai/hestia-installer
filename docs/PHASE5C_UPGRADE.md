@@ -1,6 +1,19 @@
 # Phase 5C - Upgrade, sauvegarde, reprise et retour arrière
 
-## Point courant - 5C2a, puis 5C2b
+## Point actuel - profil 5C2 provisionné clos (28 septembre 2026)
+
+La [qualification globale](PHASE5C2_QUALIFICATION_20260928.md) clôt la frontière
+sauvegarde/restauration du profil provisionné sur le code exact `713335d`.
+Les corrections DEFINER, maintenance, stockages et barrières sont couvertes
+par les campagnes indiquées dans cette décision. Il ne s'agit ni de l'adoption
+d'un hôte existant arbitraire, ni d'une transition de version livrée.
+
+5C3 reste à implémenter : catalogue source/cible explicite, migration réelle,
+autorisation liée aux preuves et bascule cohérente. 5C4 qualifiera les incidents
+et le rollback de cette transition ; 5D livrera le raccordement opérateur.
+Les descriptions ci-dessous conservent les contrats et états de leurs gels.
+
+## Historique du gel initial - 5C2a, puis 5C2b
 
 5C1 est publiée au commit Installer `c0dcb902663130302599635b36c7fb8deab80a47`.
 Le présent lot ajoute [5C2a](PHASE5C2_BACKUP.md), sauvegarde privée et restauration

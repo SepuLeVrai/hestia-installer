@@ -46,21 +46,23 @@ de Web et des deux anciens chemins externes. Une sauvegarde/restauration peut
 Les chemins ou services inconnus continuent à être refusés ou explicitement
 hors garantie ; aucun résultat inconnu ne devient une autorisation.
 
-Restent les gates concrets suivants :
+La [qualification globale du 28 septembre](PHASE5C2_QUALIFICATION_20260928.md)
+a passé les gates du commit `713335d` et clôt ce profil 5C2. Les sources
+runtime restent identiques dans le présent delta documentaire.
 
-1. Valider la couverture ci-dessus par les Quality globales du même arbre et
-   les recettes requises. Les résultats ciblés ne suffisent pas à promouvoir.
-2. 5C3 : brancher une vraie transition entre deux versions supportées, avec
+Restent les étapes suivantes :
+
+1. 5C3 : brancher une vraie transition entre deux versions supportées, avec
    migration du schéma et activation cohérente du code/configuration restaurés.
-3. 5C4 : qualifier les incidents, interruptions, reprise et rollback de cette
+2. 5C4 : qualifier les incidents, interruptions, reprise et rollback de cette
    transition réelle, y compris ses nouveaux points de bascule.
-4. 5D : raccorder ces opérations au wizard, aux prérequis système et à
+3. 5D : raccorder ces opérations au wizard, aux prérequis système et à
    l'activation explicite des services ; livrer les parcours opérateur.
 
 `storage_inventory_complete`, `foreign_cli_controlled`, `complete_web_backup`,
 `system_wiring_verified`, `phase5c2_complete`, `phase5_complete`, `apply_allowed`
 et `rollback_verified` restent faux. Les deux premiers sont des garanties
 génériques plus larges que ce profil ; ils ne sont pas un objectif implicite
-d'inventaire illimité de l'hôte. La fermeture formelle de 5C2 devra nommer son
-profil et ses gates, sans convertir ces champs globaux en vrais par commodité.
-Les branches actives restent inchangées jusqu'aux Quality vertes et aux docs.
+d'inventaire illimité de l'hôte. La clôture documentaire nomme son profil
+et ses gates avec `phase5c2_provisioned_profile_complete`, sans convertir les
+champs runtime globaux en vrais. Aucune branche active n'est promue par ce delta.

@@ -1,5 +1,17 @@
 # État du projet
 
+## Point actuel - profil 5C2 clos, 5C3 suivant (28 septembre 2026)
+
+La [décision de qualification globale](PHASE5C2_QUALIFICATION_20260928.md)
+clôt le profil provisionné de sauvegarde/restauration sur Installer `713335d`.
+1 077 core par Debian 12/13, 37 navigateur, 242 système, 36 paquets et 151
+recettes SQL/Web passent, en plus des 36 scénarios provisionnés du même arbre.
+Le delta courant est documentaire ; le code et les tests restent inchangés.
+La phase 5 entière reste ouverte. Prochain chantier : 5C3, transition réelle
+entre versions explicitement supportées, puis incidents/rollback 5C4 et wizard
+avec activation 5D. Les flags runtime globaux restent faux ; aucune branche
+active n'est promue ici. Les sections suivantes sont l'historique des gels.
+
 ## Réservations des chemins externes et bilan 5C2 - 28 septembre 2026
 
 Base Web qualifiée `c54ff0367d7ddf07de9b6c6a76373e642e96176d`, run `36383437417`.
