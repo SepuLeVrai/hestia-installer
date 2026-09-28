@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import socket
 import sys
 import unittest
 from unittest.mock import patch
@@ -16,18 +17,31 @@ import application_wizard_systemd as wizard
 from github_fixture import confirm
 from installer import application_activation as activation
 from installer import system_drain as drain
-from http_runtime_systemd import command
+from http_runtime_systemd import command, until
 
 
 class ActivationLive(wizard.ApplicationWizardLive):
+    def setUp(self):
+        super().setUp()
+        # Repeated actual HTTP probes leave server-side TIME_WAIT sockets on
+        # the profile's fixed port. Wait for the previous disposable case;
+        # keep the product's exclusive bind precondition unchanged.
+        def released():
+            try:
+                with socket.socket() as listener: listener.bind(('127.0.0.1', 9080))
+                return True
+            except OSError: return False
+        until(released, timeout=75)
+
     def prepared_activation(self):
         parent = self.planned()
-        self.assertEqual(self.service.execute('apply', confirm(parent))['installation']['state'], 'DONE')
+        result = self.service.execute('apply', confirm(parent))['installation']
+        self.assertEqual(result['state'], 'DONE', [(r['name'], r['state'], r['last_error_redacted']) for r in result['steps']])
         self.staged(self.service)
         document = self.service.execute('activation.plan', {'preparation_sha256': parent['plan_sha256']})['activation']['installation']
         return self.service.engine.report(), document
 
-    def runtime(self): return self.profile.http(self.saved['configuration'])
+    def http_runtime(self): return self.profile.http(self.saved['configuration'])
 
     def finished(self, service, parent):
         self.assertEqual(service.activation.state()['installation']['state'], 'DONE')
@@ -40,6 +54,8 @@ class ActivationLive(wizard.ApplicationWizardLive):
     def test_activation_browser_product_start_and_real_login(self):
         from playwright.sync_api import expect
         self.managed(); self.wizard(); parent = self.service.engine.report()
+        # Closing the first bootstrap correctly shuts down its service facade.
+        self.service = self.build_service()
         with self.browser() as page:
             page.locator('#plan-activation').click()
             expect(page.locator('#activation-state')).to_have_attribute('data-state', 'PLANNED')
@@ -52,25 +68,25 @@ class ActivationLive(wizard.ApplicationWizardLive):
             expect(page.locator('#activation-state')).to_have_attribute('data-state', 'DONE', timeout=120000)
             page.locator('#check-availability').click()
             expect(page.locator('#activation-availability')).to_contain_text('Page de connexion locale disponible')
-            pids = [drain._show(self.runtime().unit(role))['MainPID'] for role in ('php', 'apache')]
+            pids = [drain._show(self.http_runtime().unit(role))['MainPID'] for role in ('php', 'apache')]
             page.reload(); expect(page.locator('#activation-state')).to_have_attribute('data-state', 'DONE')
-            self.assertEqual(pids, [drain._show(self.runtime().unit(role))['MainPID'] for role in ('php', 'apache')])
+            self.assertEqual(pids, [drain._show(self.http_runtime().unit(role))['MainPID'] for role in ('php', 'apache')])
             page.screenshot(path='/evidence/product-activation.png', full_page=True)
-        self.finished(self.service, parent)
-        self.fixture_login(self.runtime(), already_active=True)
+        self.finished(self.build_service(), parent)
+        self.fixture_login(self.http_runtime(), already_active=True)
 
     def lost_reply(self, role):
         parent, document = self.prepared_activation()
         engine, _ = self.service.activation.engine(parent); engine._fault_hook = self.hook('web.activation.' + role)
         self.kill_child(lambda: engine.apply(document['plan_sha256']))
-        pid = None if role == 'admission' else drain._show(self.runtime().unit(role))['MainPID']
+        pid = None if role == 'admission' else drain._show(self.http_runtime().unit(role))['MainPID']
         other = self.build_service(); before = other.activation.journal.path.read_bytes()
         with patch.object(activation.h, '_command', side_effect=AssertionError('GET mutation')):
             other.wizard_state(); other.report()
         self.assertEqual(before, other.activation.journal.path.read_bytes())
         result = other.execute('activation.resume', confirm(document))['activation']['installation']
         self.assertEqual(result['state'], 'DONE', result['last_error_redacted'])
-        if pid is not None: self.assertEqual(pid, drain._show(self.runtime().unit(role))['MainPID'])
+        if pid is not None: self.assertEqual(pid, drain._show(self.http_runtime().unit(role))['MainPID'])
         self.finished(other, parent)
 
     def test_activation_lost_admission_reply_never_reopens_twice(self): self.lost_reply('admission')
@@ -89,11 +105,11 @@ class ActivationLive(wizard.ApplicationWizardLive):
         other = self.build_service()
         result = other.execute('activation.resume', confirm(document))['activation']['installation']
         self.assertEqual(result['state'], 'MANUAL_ACTION_REQUIRED')
-        self.assertEqual(drain._show(self.runtime().unit('php'))['MainPID'], '0')
+        self.assertEqual(drain._show(self.http_runtime().unit('php'))['MainPID'], '0')
         self.assertEqual(other.engine.report(), parent)
 
     def test_activation_unit_drift_before_consent_prevents_admission(self):
-        parent, document = self.prepared_activation(); runtime = self.runtime()
+        parent, document = self.prepared_activation(); runtime = self.http_runtime()
         path = drain.UNIT_ROOT / runtime.unit('php'); path.write_bytes(path.read_bytes() + b'\n# fixture drift\n')
         result = self.service.execute('activation.apply', confirm(document))['activation']['installation']
         self.assertEqual(result['state'], 'FAILED')
@@ -105,13 +121,13 @@ class ActivationLive(wizard.ApplicationWizardLive):
         parent, document = self.prepared_activation()
         result = self.service.execute('activation.apply', confirm(document))['activation']['installation']
         self.assertEqual(result['state'], 'DONE', result['last_error_redacted']); self.finished(self.service, parent)
-        before = self.service.activation.journal.path.read_bytes(); command('systemctl', 'stop', self.runtime().unit('php'))
+        before = self.service.activation.journal.path.read_bytes(); command('systemctl', 'stop', self.http_runtime().unit('php'))
         other = self.build_service()
         with patch.object(activation.Activation, 'check', side_effect=AssertionError('GET probe')):
             self.assertIsNone(other.wizard_state()['activation']['availability'])
         self.assertEqual(other.execute('activation.check', confirm(document))['activation']['availability']['state'], 'LOCAL_WEB_UNAVAILABLE')
         self.assertEqual(before, other.activation.journal.path.read_bytes())
-        self.assertEqual(drain._show(self.runtime().unit('php'))['MainPID'], '0')
+        self.assertEqual(drain._show(self.http_runtime().unit('php'))['MainPID'], '0')
 
     def test_activation_new_maintenance_after_interruption_is_not_removed(self):
         parent, document = self.prepared_activation(); engine, control = self.service.activation.engine(parent)
@@ -122,7 +138,7 @@ class ActivationLive(wizard.ApplicationWizardLive):
         result = self.build_service().execute('activation.resume', confirm(document))['activation']['installation']
         self.assertEqual(result['state'], 'MANUAL_ACTION_REQUIRED')
         self.assertEqual(scope.observe()['lease_id'], new_lease)
-        self.assertEqual(drain._show(self.runtime().unit('apache'))['MainPID'], '0')
+        self.assertEqual(drain._show(self.http_runtime().unit('apache'))['MainPID'], '0')
 
 
 if __name__ == '__main__':
