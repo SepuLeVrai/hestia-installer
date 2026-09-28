@@ -461,12 +461,14 @@
   }
   function executionForm() {
     if (!installation) { content.append(hint("Aucun chantier enregistré.")); return; }
+    const upgradeRolledBack = isUpgrade() && installation.steps.some((s) => s.name === "web.storage-upgrade" && s.state === "ROLLED_BACK");
     const completed = installation.steps.filter((s) => s.state === "DONE").length;
     const bar = element("progress"); bar.max = installation.steps.length || 1; bar.value = completed;
     bar.setAttribute("aria-label", "Étapes validées"); content.append(bar);
-    const title = installation.state === "DONE" ? (isUpgrade() ? "Web migré sous maintenance" : isApplication() ? "Web préparé sous maintenance" : installation.mode === "check" ? "Contrôles core terminés" : "Sources prêtes") : states[installation.state] || "État inconnu";
+    const title = upgradeRolledBack ? "Web revenu à la version source sous maintenance" : installation.state === "DONE" ? (isUpgrade() ? "Web migré sous maintenance" : isApplication() ? "Web préparé sous maintenance" : installation.mode === "check" ? "Contrôles core terminés" : "Sources prêtes") : states[installation.state] || "État inconnu";
     const summary = element("p", title + " - " + completed + " / " + installation.steps.length); summary.id = "execution-state";
-    summary.dataset.state = installation.state; content.append(summary);
+    summary.dataset.state = upgradeRolledBack ? "ROLLED_BACK" : installation.state; content.append(summary);
+    if (upgradeRolledBack) content.append(hint("Les données sont conservées et les services restent arrêtés. La réouverture de la version source exige une évaluation distincte."));
     if (installation.state === "DONE") content.append(hint(isApplication() ? "La préparation sous maintenance est acquise. Le plan d'activation et la vérification actuelle du Web figurent ci-dessous." : "HESTIA n'est pas encore déployé. L'installation Web, Gateway et APK appartient aux phases suivantes."));
     if (isApplication() && installation.state === "DONE") activationForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
@@ -479,7 +481,7 @@
       card.append(hint("Phase : " + record.phase + " - Tentatives : " + record.attempts));
       if (record.last_error_redacted) card.append(hint(errorMessage({code: record.last_error_redacted})));
       const row = element("div", null, "wizard-controls");
-      if (["FAILED", "MANUAL_ACTION_REQUIRED", "ROLLED_BACK"].includes(record.state)) {
+      if (["FAILED", "MANUAL_ACTION_REQUIRED", "ROLLED_BACK"].includes(record.state) && !(upgradeRolledBack && record.name === "web.storage-upgrade")) {
         row.append(button("Réessayer cette étape", () => confirmAction("retry", {name: record.name}, "Réessayer uniquement « " + (isApplication() ? spec.action : names[spec.module] || spec.name) + " » ? Les étapes validées ne sont pas rejouées."), "retry-" + record.name));
       }
       if (spec.rollback_supported && !["PLANNED", "ROLLED_BACK"].includes(record.state) && !(isUpgrade() && activation.installation?.approved_plan_sha256)) {

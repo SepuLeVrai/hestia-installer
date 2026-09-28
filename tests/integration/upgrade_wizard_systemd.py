@@ -152,6 +152,13 @@ class UpgradeWizardLive(journal.JournalMixin, journal.previous.RecoveryLive):
             page.locator('#renew-web-credentials').click(); expect(page.locator('#wizard-message')).to_contain_text('Identifiants mis à jour')
             page.locator('[id="rollback-web.storage-upgrade"]').click(); page.locator('#operation-dialog button[value="confirm"]').click()
             expect(page.locator('#execution-state')).to_have_attribute('data-state', 'ROLLED_BACK', timeout=180000)
+            expect(page.locator('#execution-state')).to_contain_text('version source sous maintenance')
+            expect(page.locator('[id="retry-web.storage-upgrade"]')).to_have_count(0)
+            # Successful source/workspace steps stay DONE: the global journal
+            # remains PLANNED while the storage boundary is ROLLED_BACK.
+            result = self.service.engine.report()
+            self.assertEqual(result['state'], 'PLANNED')
+            self.assertEqual(result['steps'][-1]['state'], 'ROLLED_BACK')
         self.assertEqual(self.before_sql, self.sql(query=f'SELECT id_user,email,password_hash,photo_profil FROM `{self.db}`.UserInfo'))
         self.http_runtime.observe(); self.collector.observe()
         self.assertEqual((self.webroot / self.legacy_relative).read_bytes(), journal.previous.base.business.png())

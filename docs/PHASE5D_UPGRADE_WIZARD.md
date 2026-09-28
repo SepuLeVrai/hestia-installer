@@ -85,6 +85,11 @@ Une activation déjà approuvée bloque le rollback dans la façade ; l'intentio
 native durable le bloque également, y compris après réponse perdue. Une simple
 prévisualisation du plan d'activation ne retire pas le rollback.
 
+Après retour arrière, la frontière storage est ROLLED_BACK et le wizard affiche
+explicitement la version source sous maintenance, sans bouton pour rejouer cette
+frontière. Le journal global reste PLANNED car les acquisitions et le dossier de
+sauvegarde restent DONE : ce contrat historique du moteur n'est pas modifié.
+
 ## Qualification et reste à faire
 
 Treize nouveaux contrats sans SQL/comptes/services et six scénarios CI jetables :
