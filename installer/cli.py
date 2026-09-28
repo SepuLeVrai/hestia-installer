@@ -103,6 +103,9 @@ def main(argv: list[str] | None = None) -> int:
             result = {"installation": engine.report()}
             packages = PackagePlan(engine).state()
             if packages['profile'] is not None: result['packages'] = packages
+            from installer.mariadb_plan import MariaDBPlan
+            mariadb = MariaDBPlan(engine, PackagePlan(engine)).state()
+            if mariadb['profile'] is not None: result['mariadb'] = mariadb
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
         if args.resume:

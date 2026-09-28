@@ -54,6 +54,7 @@
   let upgrade = {profile: null, missing_credentials: []}, useUpgrade = false;
   let activation = {installation: null, availability: null};
   let packages = {profile: null, acquisition: null, installation: null, selection: null};
+  let mariadb = {profile: null, installation: null, missing_credentials: []};
   const credentialLabels = {
     database_password: "Mot de passe du compte SQL applicatif", admin_password: "Mot de passe du premier administrateur",
     migration_user: "Compte SQL de préparation", migration_password: "Mot de passe SQL de préparation",
@@ -131,7 +132,7 @@
     if (current === 2) nextAllowed = preflight?.ok === true && github.ready === true;
     if (current === 3) nextAllowed = draft.modules.length > 0 && github.ready === true && preflight?.ok === true &&
       (!useApplication || (application.draft !== null && !applicationDirty)) && (!useUpgrade || upgrade.missing_credentials.length === 0) &&
-      (!packages.profile || packages.installation?.state === "DONE");
+      (!packages.profile || (packages.installation?.state === "DONE" && (!useApplication || mariadb.installation?.state === "DONE")));
     if (current === 4) nextAllowed = Boolean(installation) && (installation.approved_plan_sha256 !== null || confirmed);
     $("next-button").disabled = disabled || !nextAllowed;
     $("next-button-label").textContent = current === 1 && installation ? "Retour au chantier" : current === 3 ? "Préparer le plan" : current === 4 ? (installation?.approved_plan_sha256 ? "Voir le suivi" : "Acquérir les sources") : current === 5 ? "Actualiser" : "Suivant";
@@ -294,8 +295,53 @@
         packages = (await api("/api/system/packages/install/plan", {acquisition_sha256: packages.acquisition.plan_sha256})).packages;
         show(current, false); message("Versions exactes prêtes à relire. L'installation attend votre confirmation.");
       }), "plan-packages-install", true));
-      if (packages.installation?.state === "DONE") card.append(hint("Installation des paquets validée. Les services applicatifs par défaut restent masqués. MariaDB et HESTIA ne sont pas encore configurés."));
+      if (packages.installation?.state === "DONE") card.append(hint("Installation des paquets validée. Les services applicatifs par défaut restent masqués. Poursuivez avec la préparation MariaDB ci-dessous."));
       card.append(button("Télécharger le rapport", () => void run(downloadReport), "download-packages-report"));
+    }
+    content.append(card);
+    mariadbForm();
+  }
+  function mariadbAction(action, extra = {}) {
+    if (busy || serverBusy) return;
+    pendingAction = {action: "mariadb." + action, payload: {confirmation: mariadb.installation.plan_sha256, confirm: true, ...extra}};
+    $("operation-title").textContent = "Confirmer la préparation MariaDB";
+    $("operation-description").textContent = "Créer une instance MariaDB dédiée et son autorité SQL, puis l'écouter uniquement sur 127.0.0.1:3306 ? Une interruption partielle exige une inspection manuelle. Le démarrage au boot reste une étape ultérieure.";
+    $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+  }
+  function mariadbForm() {
+    if (packages.installation?.state !== "DONE") return;
+    const card = element("details", null, "wizard-card"); card.id = "mariadb-preparation"; card.open = true;
+    card.append(element("summary", "Préparer MariaDB pour HESTIA"), hint("Instance dédiée, répertoire neuf et compte système verrouillé. Le service MariaDB Debian reste masqué. Aucun répertoire SQL existant n'est repris."));
+    const document = mariadb.installation;
+    if (!document && !installation) {
+      card.append(button("Préparer le plan MariaDB", () => void run(async () => {
+        mariadb = (await api("/api/system/mariadb/plan", {packages_sha256: packages.installation.plan_sha256})).mariadb;
+        show(current, false); message("Plan MariaDB prêt à relire. Aucun compte ni service créé.");
+      }), "plan-mariadb", true));
+    } else if (document) {
+      const status = element("p", "MariaDB : " + states[document.state]); status.id = "mariadb-state"; status.dataset.state = document.state; card.append(status);
+      technical(card, "Plan MariaDB", document.plan);
+      card.append(hint("Autorité SQL : " + mariadb.authority_user + ". Ce compte administre l'instance locale ; conservez son mot de passe pour la configuration HESTIA et les opérations futures."));
+      if (document.state === "DONE") card.append(hint("Préparation MariaDB validée. Vous pouvez poursuivre la configuration Web avec ce même mot de passe d'autorité. Le boot et le TLS public restent à préparer."));
+      else if (!installation) {
+        const form = element("form"); form.autocomplete = "off";
+        const password = element("input"); password.type = "password"; password.id = "mariadb-authority-password"; password.required = true; password.minLength = 20; password.maxLength = 1024; password.autocomplete = "new-password";
+        form.append(field("Nouveau mot de passe d'autorité SQL (20 caractères minimum)", password));
+        const save = button("Garder le mot de passe pour cette session", () => {}, "save-mariadb-credentials"); save.type = "submit"; form.append(save);
+        form.addEventListener("submit", (event) => {
+          event.preventDefault(); if (busy || serverBusy || !form.reportValidity()) return;
+          let secret = password.value; password.value = "";
+          void run(async () => {
+            try { mariadb = (await api("/api/system/mariadb/credentials", {confirmation: document.plan_sha256, authority_password: secret})).mariadb;
+              show(current, false); message("Mot de passe gardé uniquement pour cette session. Confirmez le plan pour préparer MariaDB."); }
+            finally { secret = ""; }
+          });
+        });
+        card.append(form, hint(mariadb.missing_credentials.length ? "Mot de passe à renseigner avant la création du compte. Une reprise peut reconnaître une création déjà terminée sans le ressaisir." : "Mot de passe présent en mémoire pour cette session."));
+        if (document.approved_plan_sha256 === null) card.append(button("Valider et préparer MariaDB", () => mariadbAction("apply"), "apply-mariadb", true));
+        else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre MariaDB", () => mariadbAction("resume"), "resume-mariadb"));
+        for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Vérifier la reprise MariaDB", () => mariadbAction("retry", {name: record.name}), "retry-mariadb"));
+      }
     }
     content.append(card);
   }
@@ -421,6 +467,7 @@
       const option = element("option", text); option.value = value; mode.append(option);
     }
     mode.value = saved?.database.mode || "managed";
+    if (mariadb.profile) { mode.value = "managed"; mode.disabled = true; }
     mode.addEventListener("change", () => { applicationDirty = true; controls(); }); form.append(field("Base MariaDB locale (127.0.0.1:3306)", mode));
     input("database-name", "Nom de la base", saved?.database.name || "hestia", "text", true, 64);
     input("database-user", "Compte SQL applicatif", saved?.database.user || "hestia_app", "text", true, 32);
@@ -435,6 +482,11 @@
     assistant.addEventListener("change", () => { applicationDirty = true; controls(); }); form.append(field("Assistant", assistant));
     for (const [name, label] of Object.entries(credentialLabels)) {
       input(name, label, "", "password", !["openai_api_key", "authority_user", "authority_password"].includes(name), name.endsWith("_user") ? 32 : name === "admin_password" ? 72 : name === "openai_api_key" ? 500 : 1024);
+    }
+    if (mariadb.profile) {
+      for (const name of ["authority_user", "migration_user"]) { inputs[name].type = "text"; inputs[name].value = mariadb[name]; inputs[name].readOnly = true; }
+      inputs.authority_password.required = true;
+      form.append(hint("Ressaisissez le mot de passe d'autorité choisi pendant la préparation MariaDB. Le compte temporaire de préparation sera créé puis supprimé par le parcours Web."));
     }
     form.append(hint("Le compte de préparation est distinct du compte applicatif. Pour une base gérée, renseignez aussi l'autorité SQL. Les secrets restent en mémoire jusqu'à la fin du chantier ou la fermeture de session."));
     const submit = button("Enregistrer la configuration Web", () => {}, "save-web-application", true); submit.type = "submit"; form.append(submit);
@@ -644,6 +696,9 @@
       } else if (action.action.startsWith("packages.")) {
         packages = (await api("/api/system/packages/" + action.action.slice(9), action.payload)).packages;
         show(current, false); message("État des dépendances mis à jour.");
+      } else if (action.action.startsWith("mariadb.")) {
+        mariadb = (await api("/api/system/mariadb/" + action.action.slice(8), action.payload)).mariadb;
+        show(current, false); message(mariadb.installation.last_error_redacted ? errorMessage({code: mariadb.installation.last_error_redacted}) : "État de MariaDB mis à jour.");
       } else {
         installation = (await api("/api/installation/" + action.action, action.payload)).installation;
         show(5); message(installation.last_error_redacted ? errorMessage({code: installation.last_error_redacted}) : "État du chantier mis à jour.");
@@ -657,6 +712,7 @@
     application = result.application || {draft: null, missing_credentials: []};
     activation = result.activation || {installation: null, availability: null};
     packages = result.packages || {profile: null, acquisition: null, installation: null, selection: null};
+    mariadb = result.mariadb || {profile: null, installation: null, missing_credentials: []};
     upgrade = result.upgrade || {profile: null, missing_credentials: []};
     if (navigate) { draft = result.draft; draftConflict = false; }
     if (!serverBusy) {
@@ -720,12 +776,13 @@
         upgrade = result.upgrade || upgrade;
         activation = result.activation || activation;
         packages = result.packages || packages;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, packages.acquisition?.revision, packages.installation?.revision]);
+        mariadb = result.mariadb || mariadb;
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
         if (stamp !== lastRevision) {
           lastRevision = stamp;
           installation = result.installation;
           if (current === 5) show(5, false);
-          else if (packages.profile && !busy && [1, 2].includes(current)) { $("package-preparation")?.remove(); packagesForm(); }
+          else if (packages.profile && !busy && [1, 2].includes(current)) { $("package-preparation")?.remove(); $("mariadb-preparation")?.remove(); packagesForm(); }
         }
       } else if (!busy && current === 1 && ++pollCount % 4 === 0) {
         github = (await api("/api/github/status")).github; renderGitHubRows();

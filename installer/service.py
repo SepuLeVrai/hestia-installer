@@ -13,8 +13,10 @@ from installer.application_plan import ApplicationPlan
 from installer.application_activation import ActivationPlan
 from installer.upgrade_plan import UpgradePlan, UpgradeActivationPlan
 from installer.package_plan import PackagePlan
+from installer.mariadb_plan import MariaDBPlan
 
 POST_ROUTES = {
+    **{'/api/system/mariadb/' + action: 'mariadb.' + action for action in ('plan', 'credentials', 'apply', 'resume', 'retry')},
     **{'/api/system/packages/' + phase + '/' + action: 'packages.' + phase + '.' + action
        for phase in ('acquire', 'install') for action in ('plan', 'apply', 'resume', 'retry')},
     **{'/api/web/activation/' + action: 'activation.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
@@ -46,6 +48,7 @@ class TransactionService:
         self.application = ApplicationPlan(engine, github)
         self.upgrade = UpgradePlan(engine, github)
         self.packages = PackagePlan(engine)
+        self.mariadb = MariaDBPlan(engine, self.packages)
         if not self.application.restore(): self.upgrade.restore()
         self._fresh_activation = ActivationPlan(self.application)
         self._upgrade_activation = UpgradeActivationPlan(self.upgrade)
@@ -86,7 +89,7 @@ class TransactionService:
             return {"installation": self.engine.report(), "draft": self.wizard.read(),
                     "busy": self._mutation_lock.locked(), "preflight": self._preflight,
                     "application": self.application.state(), "activation": self.activation.state(), "upgrade": self.upgrade.state(),
-                    "packages": self.packages.state()}
+                    "packages": self.packages.state(), "mariadb": self.mariadb.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -98,6 +101,7 @@ class TransactionService:
             if self.github is not None:
                 self.github.access.clear()
             self.application.clear()
+            self.mariadb.secrets.clear()
 
     def report(self) -> dict:
         with self._activity():
@@ -106,10 +110,14 @@ class TransactionService:
             if activation['installation'] is not None: result['activation'] = activation
             packages = self.packages.state()
             if packages['profile'] is not None: result['packages'] = packages
+            mariadb = self.mariadb.state()
+            if mariadb['profile'] is not None: result['mariadb'] = mariadb
             return result
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('mariadb.'):
+                return {"mariadb": self.mariadb.execute(action.removeprefix('mariadb.'), payload)}
             if action.startswith('packages.'):
                 return {"packages": self.packages.execute(action.removeprefix('packages.'), payload)}
             if action in ('wizard.plan', 'github.plan', 'plan') and self.packages.profile() is not None:
@@ -119,9 +127,14 @@ class TransactionService:
             if action.startswith('activation.'):
                 return {"activation": self.activation.execute(action.removeprefix('activation.'), payload)}
             if action == "web.setup":
+                if self.packages.profile() is not None:
+                    require(payload.get('configuration', {}).get('database', {}).get('mode') == 'managed', ErrorCode.INCOMPATIBLE_STATE)
+                    self.mariadb.bind_credentials(payload.get('credentials', {}))
+                    self.mariadb.assert_ready()
                 self.application.save(payload)
                 return {"application": self.application.state()}
             if action == "web.credentials":
+                self.mariadb.bind_credentials(payload.get('credentials', {}))
                 return {"application": self.application.renew(payload)}
             if action == "web.upgrade.credentials":
                 return {"upgrade": self.upgrade.renew(payload)}
@@ -146,6 +159,7 @@ class TransactionService:
                 require(self._preflight["ok"], ErrorCode.VALIDATION_FAILED)
                 if application:
                     require(payload["modules"] == ["web"] and payload["mode"] == "fresh" and payload["refs"] == {})
+                    if self.packages.profile() is not None: self.mariadb.assert_ready()
                     return {"installation": self.application.plan(payload["application_revision"])}
                 if upgrade:
                     require(payload["modules"] == ["web"] and payload["mode"] == "upgrade" and payload["refs"] == {})
@@ -184,6 +198,9 @@ class TransactionService:
                 require(payload["confirm"] is True, ErrorCode.CONFIRMATION_REQUIRED)
                 confirmation = payload["confirmation"]
                 if not self.application.restore(): self.upgrade.restore()
+                if action in {'apply', 'resume', 'retry'} and self.application.owns(self.engine.report()) and self.packages.profile() is not None:
+                    require(confirmation == self.engine.report()['plan_sha256'], ErrorCode.CONFIRMATION_REQUIRED)
+                    self.mariadb.assert_ready()
                 if action == 'rollback' and self.upgrade.owns(self.engine.report()):
                     activation = self.activation.journal.read()
                     require(activation is None or activation['approved_plan_sha256'] is None, ErrorCode.MANUAL_ACTION_REQUIRED)
@@ -214,3 +231,4 @@ class TransactionService:
         if self.github is not None:
             self.github.access.clear()
         self.engine.secrets.clear()
+        self.mariadb.secrets.clear()
