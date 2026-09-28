@@ -161,11 +161,14 @@ class RecoveryLive(base.StorageUpgradeLive):
 
     def test_recovery_interrupted_data_reopen(self):
         self.ready(); self.assertEqual(self.execute()['state'], 'STORAGE_UPGRADE_APPLIED_GATED')
-        original = u.da.DataAccessFence.reopen
-        def reopen(fence, **kwargs):
-            original(fence, **kwargs); self.kill()
+        original = os.fchmod
+        expected = (self.http_root / 'data').stat()
+        def chmod(fd, mode):
+            original(fd, mode)
+            actual = os.fstat(fd)
+            if mode == 0o750 and (actual.st_dev, actual.st_ino) == (expected.st_dev, expected.st_ino): self.kill()
         def action():
-            with patch.object(u.da.DataAccessFence, 'reopen', reopen): self.resume()
+            with patch.object(os, 'fchmod', side_effect=chmod): self.resume()
         self.child(action)
         with self.assertRaisesRegex(u.StorageUpgradeError, 'STORAGE_RECOVERY_ACTIVITY_AUTHORIZED'): self.recover('rollback')
         self.serving()

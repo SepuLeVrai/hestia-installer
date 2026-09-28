@@ -358,7 +358,13 @@ def authorize_resume(op, backup_root, lease_id, *, confirmed):
                 require(f._json_read(fd, 'resumed-' + lease_id + '.json', account.pw_gid) == resumed)
         else:
             with scope.recover(lease_id, confirmed=True, timeout=.2) as lease:
-                quiescent(op, lease); runtime.observe(); collector.observe()
+                quiescent(op, lease)
+                # A killed reopen may have chmod'ed data but not removed its
+                # marker. Reclose that exact lease before auditing the runtime.
+                if present(slot / 'resume-intent.json') and present(scope.directory / u.da.MARKER):
+                    require(u._read(slot / 'resume-intent.json') == intent)
+                    with u.da.recover(runtime, lease, confirmed=True): pass
+                runtime.observe(); collector.observe()
                 if present(scope.directory / u.MARKER):
                     require(u.files._read(lease._directory, u.MARKER, 4096) == p._json(binding))
                 else: require(u._read(slot / 'resume-intent.json') == intent)
