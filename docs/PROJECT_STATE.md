@@ -795,3 +795,21 @@ Contrat, préconditions, tests et limites :
 La publication effective de ce lot et la réussite des nouveaux runs doivent être
 vérifiées dans le compte rendu de livraison ; ce document ne recycle pas les
 résultats 5A/5B1 comme preuve de 5B2.1. #13 et Web #135 restent transverses ouverts.
+
+## 2026-09-28 - Reprise 5D depuis le gel 5C4
+
+La base qualifiée est `042e844061d26dca875ba18382b54dcf688c39de`, arbre
+`67f361d6d8794f383f5e5b8359536d4efa5ffc1c`, 304 fichiers. 5A, 5B et 5C sont
+acquises dans leurs profils documentés, dont la transition managed 5C4 sur
+Debian 13/PHP 8.4/Ext4. Les sections précédentes sont historiques.
+
+Le lot [5D1](PHASE5D_APPLICATION_JOURNAL.md) ajoute les adaptateurs SQL fresh,
+finalisation, transition de stockages et autorisation de réouverture au contrat
+du journal. Il sépare la reconnaissance read-only de la reprise mutante et lie
+les reçus privés à l'installation approuvée. Les contrats 5C4 restent inchangés.
+
+Le wizard public termine encore par Sources prêtes. La composition publique,
+l'activation des services et la recette opérateur complète restent à livrer.
+La phase 5 et les issues #1/#3/#13/Web #135 restent ouvertes ; aucun succès global
+d'installation n'est déduit de ce raccordement transactionnel privé. Les preuves
+de qualification de ce lot sont celles de son checkpoint, pas les anciens PASS.

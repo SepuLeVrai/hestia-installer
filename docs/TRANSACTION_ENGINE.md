@@ -1,5 +1,10 @@
 # Moteur transactionnel - Phases 2 et 3 / issues #4 et #8
 
+Mise à jour 5D : les adaptateurs applicatifs privés sont décrits dans
+[PHASE5D_APPLICATION_JOURNAL.md](PHASE5D_APPLICATION_JOURNAL.md). Le moteur et le
+schéma historiques ci-dessous restent inchangés ; leur registre public ne gagne
+aucun sélecteur libre. Reconnaissance de reprise et mutation sont distinctes.
+
 ## Périmètre réellement implémenté
 
 Cette phase fournit le moteur générique, le format de plan et de journal, les
