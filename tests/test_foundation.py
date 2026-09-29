@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from installer import foundation_plan as fp, foundation_probe as probe, foundation_runtime as native
+from installer import foundation_drain as fd
 from installer.gateway_identity import _SPKI, _b64
 from installer.model import ErrorCode, InstallerError, Receipt, aggregate, canonical_bytes, require
 from installer.operations import OperationContext, RecoveryDecision
@@ -186,6 +187,64 @@ class FoundationNativeBoundaries(unittest.TestCase):
             with patch.object(native, 'listeners', return_value=[row]), patch.object(native.socket, 'socket') as socket:
                 with self.assertRaises(InstallerError): native.free_port()
                 socket.assert_not_called()
+
+
+class FoundationDrainTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.temp = tempfile.TemporaryDirectory(dir='/var/lib'); self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name); (self.root / 'control').mkdir(mode=0o700)
+        self.runtime = Mock(root=self.root, unit='hestia-' + 'a' * 32 + '-foundation.service')
+        self.runtime.web.spec.instance = 'a' * 32
+        self.runtime.web.spec.maintenance_directory = self.root / 'maintenance'
+        self.lease = Mock(lease_id='b' * 32, assert_held=Mock())
+        self.lease.scope.instance = self.runtime.web.spec.instance
+        self.lease.scope.directory = self.runtime.web.spec.maintenance_directory
+        self.value = {'ActiveState': 'active', 'MainPID': '123'}
+        self.runtime.inspect.side_effect = lambda: dict(self.value)
+        self.runtime.host.return_value.pw_gid = 1234
+        self.runtime.manifest.return_value = {'fixture': True}
+        self.records = fd.Records(self.runtime)
+        def command(argv):
+            self.assertEqual(argv[-3:], ['stop', '--', self.runtime.unit])
+            self.assertIsNotNone(self.records._read('quiesce-' + self.lease.lease_id + '.json'))
+            self.lease.assert_held.assert_called()
+            self.value.update(ActiveState='inactive', MainPID='0')
+        self.command = patch.object(fd.h, '_command', side_effect=command); self.command.start(); self.addCleanup(self.command.stop)
+
+    def test_owned_stop_intent_precedes_effect_and_no_implicit_restart(self):
+        fd.quiesce(self.runtime, self.lease)
+        self.runtime.owned.assert_called_with(serving=False)
+        self.assertIsNotNone(self.records._read('quiet-' + self.lease.lease_id + '.json'))
+        with patch.object(fd.h, '_command', side_effect=AssertionError('repeated effect')):
+            fd.quiesce(self.runtime, self.lease)
+
+    def test_lost_stop_reply_reconciles_inactive_service(self):
+        original = fd.Records._write
+        def fail(store, name, value):
+            if name.startswith('quiet-'): raise OSError('lost reply')
+            return original(store, name, value)
+        with patch.object(fd.Records, '_write', fail), self.assertRaises(OSError): fd.quiesce(self.runtime, self.lease)
+        with patch.object(fd.h, '_command', side_effect=AssertionError('repeated stop')): fd.quiesce(self.runtime, self.lease)
+        self.assertEqual(self.value['MainPID'], '0')
+
+    def test_changed_pid_after_lost_stop_is_not_adopted(self):
+        with patch.object(fd.h, '_command', side_effect=OSError('before stop')), self.assertRaises(OSError): fd.quiesce(self.runtime, self.lease)
+        self.value['MainPID'] = '456'
+        with patch.object(fd.h, '_command', side_effect=AssertionError('foreign stop')), self.assertRaises(InstallerError): fd.quiesce(self.runtime, self.lease)
+
+    def test_wrong_lease_or_unit_damage_never_stops(self):
+        self.lease.scope.instance = 'c' * 32
+        with self.assertRaises(InstallerError): fd.quiesce(self.runtime, self.lease)
+        self.lease.scope.instance = 'a' * 32
+        self.runtime.inspect.side_effect = InstallerError(ErrorCode.SOURCE_DRIFT)
+        with patch.object(fd.h, '_command', side_effect=AssertionError('drift stop')), self.assertRaises(InstallerError): fd.quiesce(self.runtime, self.lease)
+        self.assertFalse(list((self.root / 'control').iterdir()))
+
+    def test_legacy_absence_has_no_new_probe_or_filesystem_mutation(self):
+        http = Mock(); http.spec.root = self.root / 'legacy/http'
+        self.assertIsNone(fd.attached(http)); http._inspect_configuration.assert_not_called()
+        self.assertFalse((self.root / 'legacy').exists())
 
 
 class FoundationHTTPTests(unittest.TestCase):

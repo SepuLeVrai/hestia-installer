@@ -95,6 +95,7 @@ class FoundationRuntime:
         unit = f'''[Unit]
 Description=HESTIA private MAIN Foundation
 After={self.web.unit('php')}
+ConditionPathExists=!{self.web.spec.maintenance_directory}/maintenance.attempt
 [Service]
 Type=simple
 ExecStartPre=/usr/sbin/apache2 -t -f {self.root}/apache.conf
@@ -144,11 +145,13 @@ RestrictAddressFamilies=AF_UNIX AF_INET
 
     def stage(self):
         self.absent(); account = self.host(); gid = account.pw_gid
-        for path in (self.root, self.root / 'run', self.root / 'log'):
+        for path in (self.root, self.root / 'run', self.root / 'log', self.root / 'control'):
             with h.fs._directory(path.parent) as parent:
                 os.mkdir(path.name, 0o700, dir_fd=parent)
                 fd = os.open(path.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
-                try: os.fchown(fd, 0, gid); os.fchmod(fd, 0o750); os.fsync(fd)
+                try:
+                    os.fchown(fd, 0, 0 if path.name == 'control' else gid)
+                    os.fchmod(fd, 0o700 if path.name == 'control' else 0o750); os.fsync(fd)
                 finally: os.close(fd)
                 os.fsync(parent)
         for path, raw in self.files(gid).items():
@@ -163,12 +166,13 @@ RestrictAddressFamilies=AF_UNIX AF_INET
 
     def inspect(self):
         gid = self.host().pw_gid
-        for path in (self.root, self.root / 'run', self.root / 'log'):
+        for path in (self.root, self.root / 'run', self.root / 'log', self.root / 'control'):
             with h.fs._directory(path) as fd:
                 info = os.fstat(fd); h.fs._no_acl(fd)
-                require((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == (0, gid, 0o750), ErrorCode.SOURCE_DRIFT)
+                expected = (0, 0, 0o700) if path.name == 'control' else (0, gid, 0o750)
+                require((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == expected, ErrorCode.SOURCE_DRIFT)
                 if path == self.root:
-                    require(set(os.listdir(fd)) == {'run', 'log', 'apache.conf', 'main.json', 'staged.json'}, ErrorCode.SOURCE_DRIFT)
+                    require(set(os.listdir(fd)) == {'run', 'log', 'control', 'apache.conf', 'main.json', 'staged.json'}, ErrorCode.SOURCE_DRIFT)
                     require(h.f._read(fd, 'staged.json', 0, mode=0o600) == canonical_bytes(self.manifest(gid)), ErrorCode.SOURCE_DRIFT)
         for path, raw in self.files(gid).items():
             with h.fs._directory(path.parent) as fd:
@@ -187,9 +191,12 @@ RestrictAddressFamilies=AF_UNIX AF_INET
                 and value['MainPID'] == '0' and drain._empty_cgroup(self.unit), ErrorCode.MANUAL_ACTION_REQUIRED)
         free_port()
 
-    def owned(self):
-        value = self.inspect(); self.activation.serving()
-        require(self.activation.running('php'), ErrorCode.VALIDATION_FAILED)
+    def owned(self, *, serving=True):
+        require(type(serving) is bool, ErrorCode.INVALID_DATA)
+        value = self.inspect()
+        if serving:
+            self.activation.serving()
+            require(self.activation.running('php'), ErrorCode.VALIDATION_FAILED)
         require(value['ActiveState'] == 'active' and value['SubState'] == 'running'
                 and re.fullmatch(r'[1-9][0-9]*', value['MainPID']) and int(value['MainPID']) > 1
                 and value['ControlGroup'] == '/system.slice/' + self.unit, ErrorCode.VALIDATION_FAILED)

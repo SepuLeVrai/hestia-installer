@@ -156,6 +156,9 @@ class HttpDrain:
         from installer.public_tls_profile import overlay_evidence
         public = overlay_evidence(scope, bindings[0].fragment_sha256)
         if public is not None: extra['public_ingress'] = public
+        from installer import foundation_drain
+        foundation = foundation_drain.quiet_binding(self.runtime)
+        if foundation is not None: extra['foundation'] = foundation
         profile = p._json({'version': 1, 'instance': scope.instance, 'maintenance': str(scope.directory),
             'policy': 'PROVISIONED_HTTP_STOP_ONLY_V1', 'runtime_plan_sha256': f._sha(plan),
             'uid': account.pw_uid, 'gid': account.pw_gid,
@@ -165,6 +168,7 @@ class HttpDrain:
             if binding.role == 'session-cleaner' and not stopped:
                 s.audit_unit(scope, binding, running_collector=True)
             else: s.audit_unit(scope, binding, stopped=stopped)
+        # No exception for Foundation in this original identity census.
         identity_census(account.pw_uid, account.pw_gid,
                         () if stopped else tuple(self._unit(role) for role in self.roles))
         return scope, profile
@@ -182,9 +186,18 @@ class HttpDrain:
             require(confirmed is True, 'HTTP_DRAIN_CONSENT_REQUIRED')
             require(os.geteuid() == 0, 'HTTP_DRAIN_ROOT_REQUIRED')
             require(cancel is None or not cancel.is_set(), 'HTTP_DRAIN_INTERRUPTED')
+            from installer import foundation_drain
+            foundation = foundation_drain.attached(self.runtime)
+            if foundation is not None:
+                account, _, _, _ = self.runtime._inspect_configuration()
+                scope = self.runtime._scope(account)
+                lease = (scope.acquire(confirmed=True, timeout=timeout, cancel=cancel) if recover_id is None
+                         else scope.recover(recover_id, confirmed=True, timeout=timeout))
+                foundation_drain.quiesce(foundation, lease)
             scope, profile = self._audit()
-            lease = (scope.acquire(confirmed=True, timeout=timeout, cancel=cancel) if recover_id is None
-                     else scope.recover(recover_id, confirmed=True, timeout=timeout))
+            if lease is None:
+                lease = (scope.acquire(confirmed=True, timeout=timeout, cancel=cancel) if recover_id is None
+                         else scope.recover(recover_id, confirmed=True, timeout=timeout))
             with fs._directory(scope.directory, readable_by=scope.web_gid) as fd:
                 name = 'http-drain-' + lease.lease_id + '.attempt'
                 try: old = f._read(fd, name, scope.web_gid)

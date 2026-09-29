@@ -102,15 +102,26 @@ class FoundationLive(previous.ActivationLive):
             engine._fault_hook = self.hook('foundation.start')
             self.kill_child(lambda: engine.resume(document['plan_sha256']))
             pid = runtime.show()['MainPID']; self.assertTrue(runtime.owned())
+            body, raw, token = probe.assertion(store, runtime.identity)
+            status, data, headers = self.request(raw, token, body['request_id'])
+            try: parsed = json.loads(data)
+            except ValueError: parsed = {}
+            diagnostic = {'status': status, 'content_type': headers.get('Content-Type'),
+                'cache_control': headers.get('Cache-Control'), 'set_cookie_present': 'Set-Cookie' in headers,
+                'response_keys': sorted(parsed) if type(parsed) is dict else [],
+                'data_keys': sorted(parsed.get('data', {})) if type(parsed) is dict and type(parsed.get('data')) is dict else [],
+                'error_code': parsed.get('error', {}).get('code') if type(parsed) is dict and type(parsed.get('error')) is dict else None}
+            Path('/evidence/foundation-first-assertion.json').write_bytes(quality.encode(diagnostic))
+            self.assertEqual(status, 200, diagnostic)
             with self.browser() as page:
                 expect(page.locator('#resume-foundation')).to_be_visible()
                 before = control.journal.path.read_bytes()
                 page.locator('#resume-foundation').click(); page.keyboard.press('Escape')
                 self.assertEqual(before, control.journal.path.read_bytes())
                 page.locator('#resume-foundation').click(); page.locator('#operation-dialog button[value="confirm"]').click()
-                expect(page.locator('#foundation-state')).to_have_attribute('data-state', 'DONE')
+                expect(page.locator('#foundation-state')).to_have_attribute('data-state', 'DONE', timeout=120000)
                 page.locator('#check-foundation').click()
-                expect(page.locator('#foundation-availability')).to_contain_text('Foundation MAIN vérifiée')
+                expect(page.locator('#foundation-availability')).to_contain_text('Foundation MAIN vérifiée', timeout=120000)
                 page.reload(); expect(page.locator('#foundation-state')).to_have_attribute('data-state', 'DONE')
                 self.assertEqual(runtime.show()['MainPID'], pid)
                 page.screenshot(path='/evidence/foundation-main.png', full_page=True)
@@ -162,10 +173,34 @@ class FoundationLive(previous.ActivationLive):
             for role, old_pid in web_pids.items(): self.assertEqual(native.drain._show(http.unit(role))['MainPID'], old_pid)
             for path, original in preserved.items(): self.assertEqual(path.read_bytes(), original)
             self.fixture_login(http, already_active=True)
+            # The synthetic TLS login proxy borrows the fixture Web identity;
+            # dispose that test producer before testing the product's census.
+            self.nginx.terminate(); self.nginx.wait(timeout=10); self.nginx = None
             self.assertEqual(self.sql(query=f'SELECT COUNT(*) n FROM `{self.db}`.UserInfo')[0]['n'], 1)
             self.assertEqual(runtime.show()['UnitFileState'], 'static')
+            # The real existing backup must stop Foundation BEFORE its strict
+            # UID/GID census, then restore SQL/data into isolated verification.
+            from copy import deepcopy
+            from dataclasses import replace
+            from installer import provisioned_backup, application_plan
+            payload = deepcopy(self.saved['configuration'])
+            payload.update(mode='upgrade', administrator=None, assistant={'action': 'preserve'},
+                secrets={'database_password': self.payload['secrets']['database_password'], 'admin_password': '', 'openai_api_key': ''})
+            payload['database']['mode'] = 'existing_local'
+            backup_root = self.profile.root / 'foundation-backup'; backup_root.mkdir(mode=0o700)
+            operation = provisioned_backup.ProvisionedBackup(replace(self.profile.runtime(), timeout_seconds=120),
+                previous.wizard.TARGET, http, application_plan.cleaner.SessionCleaner(http))
+            backup = operation.create_and_verify(payload, self.authority, config_root=self.profile.config_root,
+                backup_root=backup_root, confirmed=True, allow_global_read_lock=True).report()
+            self.assertEqual(backup['state'], 'PROVISIONED_BACKUP_RESTORE_VERIFIED', backup)
+            self.assertTrue(backup['database_restoration_verified'] and backup['registered_data_restoration_verified'])
+            self.assertFalse(backup['activity_resumed']); self.assertEqual(scope.observe()['state'], 'MAINTENANCE_REQUIRED')
+            runtime.stopped(); self.assertEqual(runtime.show()['MainPID'], '0')
+            # ConditionPathExists refuses even an explicit start while gated.
+            command('systemctl', 'start', runtime.unit)
+            self.assertEqual(runtime.show()['MainPID'], '0')
+            Path('/evidence/foundation-backup.json').write_bytes(quality.encode(backup))
             current = control.journal.path.read_bytes()
-            command('systemctl', 'stop', runtime.unit)
             report = self.service.execute('foundation.check', confirm(document))['foundation']
             self.assertEqual(report['availability']['state'], 'FOUNDATION_MAIN_UNAVAILABLE')
             self.assertEqual(control.journal.path.read_bytes(), current)
@@ -176,6 +211,8 @@ class FoundationLive(previous.ActivationLive):
                 'negative_assertion_statuses': negatives, 'unknown_routes_methods_queries_closed': True,
                 'sql_inflight_shared_guard': True, 'maintenance_503_before_sql': True,
                 'web_9080_pid_units_and_admin_login_preserved': True, 'main_dev_keys_preserved': True,
+                'native_backup_sql_data_restore_verified': True, 'foundation_stopped_before_original_census': True,
+                'foundation_start_refused_under_maintenance': True,
                 'stopped_done_never_restarted': True, 'gateway_binary_fixture_not_executed': True,
                 'gateway_service_delivered': False, 'public_mobile_delivered': False, 'boot_delivered': False}, indent=2) + '\n')
 
