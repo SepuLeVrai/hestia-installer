@@ -95,6 +95,8 @@ class GatewayStateFence:
     def assert_held(self):
         require(not self._closed and self._pid == os.getpid(), 'GATEWAY_STATE_BARRIER_REQUIRED')
         self.barrier.assert_held()
+        fs._absent(self.barrier._lease._directory, 'gateway-state.release')
+        fs._absent(self.barrier._lease._directory, 'gateway-state.released')
         require(f._read(self.barrier._lease._directory, MARKER, 0, mode=0o600, limit=MAX_JOURNAL) == self.raw)
         account = self.runtime.account(); root = self.opened['.']
         require(set(os.listdir(root)) == {n for n in self.opened if n != '.' and '/' not in n})
@@ -130,6 +132,8 @@ def _acquire(runtime, barrier, confirmed, recovery):
     try:
         _inputs(runtime, barrier, confirmed)
         gate = barrier._lease._directory
+        fs._absent(gate, 'gateway-state.release')
+        fs._absent(gate, 'gateway-state.released')
         if not recovery: fs._absent(gate, MARKER)
         opened, records, mount = _open(runtime, stack)
         value = {'version': 1, 'lease_id': barrier._lease.lease_id,

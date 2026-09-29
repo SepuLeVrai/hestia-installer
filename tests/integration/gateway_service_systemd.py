@@ -215,6 +215,60 @@ class GatewayLive(previous.FoundationLive):
         self.assertEqual(report['availability']['state'], 'GATEWAY_MAIN_UNAVAILABLE')
         self.assertEqual(control.journal.path.read_bytes(), before)
         for path, original in preserved.items(): self.assertEqual(path.read_bytes(), original)
+        # 6B7a: explicit unseal remains subordinate to composed admission.
+        from installer import gateway_state_release as state_release
+        def release_interrupted():
+            with http_drain.HttpDrain(http, cleaner=application_plan.cleaner.SessionCleaner(http)).recover(
+                    lease_id, confirmed=True) as barrier:
+                attached = state_backup.gateway_service_drain.attached(http, state_backup.foundation_drain.attached(http))
+                with state_fence.recover(attached, barrier, confirmed=True) as fence:
+                    saved = state_backup.recover_snapshot(fence, self.profile.runtime(), backup_root, confirmed=True)
+                    with patch.object(state_fence.inf, '_flags', side_effect=cut_after_first_flag):
+                        state_release.release(saved, confirmed=True)
+        self.kill_child(release_interrupted)
+        self.assertTrue((scope.directory / state_release.RELEASE).exists())
+        self.assertTrue((scope.directory / state_fence.MARKER).exists())
+        original_unlink = os.unlink
+        def cut_after_attempt_removal(path, *args, **kwargs):
+            original_unlink(path, *args, **kwargs)
+            if path == state_fence.MARKER: os.kill(os.getpid(), signal.SIGKILL)
+        def recovery_interrupted():
+            with http_drain.HttpDrain(http, cleaner=application_plan.cleaner.SessionCleaner(http)).recover(
+                    lease_id, confirmed=True) as barrier:
+                attached = state_backup.gateway_service_drain.attached(http, state_backup.foundation_drain.attached(http))
+                with patch.object(state_release.os, 'unlink', side_effect=cut_after_attempt_removal):
+                    state_release.recover(attached, barrier, backup_root, confirmed=True)
+        self.kill_child(recovery_interrupted)
+        self.assertTrue((scope.directory / state_release.RELEASED).exists())
+        self.assertTrue((scope.directory / state_release.RELEASE).exists())
+        self.assertFalse((scope.directory / state_fence.MARKER).exists())
+        with http_drain.HttpDrain(http, cleaner=application_plan.cleaner.SessionCleaner(http)).recover(
+                lease_id, confirmed=True) as barrier:
+            attached = state_backup.gateway_service_drain.attached(http, state_backup.foundation_drain.attached(http))
+            with patch.object(state_backup, '_worker', side_effect=AssertionError('worker replay during release')):
+                released = state_release.recover(attached, barrier, backup_root, confirmed=True).report()
+                receipt = (scope.directory / state_release.RELEASED).read_bytes()
+                repeated = state_release.recover(attached, barrier, backup_root, confirmed=True).report()
+            self.assertEqual(released, repeated)
+            self.assertEqual((scope.directory / state_release.RELEASED).read_bytes(), receipt)
+            with self.assertRaises(state_fence.GatewayStateError): state_fence.recover(attached, barrier, confirmed=True)
+            with self.assertRaisesRegex(Exception, 'MAINTENANCE_DATA_ACCESS_CLOSED'): barrier._lease.resume(confirmed=True)
+        self.assertFalse((scope.directory / state_release.RELEASE).exists())
+        self.assertFalse(released['activity_resumed']); self.assertFalse(released['services_started'])
+        self.assertFalse(released['restore_to_original_allowed'])
+        self.assertEqual(logo.read_bytes(), logo_bytes)
+        for path in (runtime.profile.state, runtime.profile.state / 'gateway.db', cache, logo):
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            try: self.assertFalse(state_fence.inf._flags(fd) & state_fence.inf.IMMUTABLE)
+            finally: os.close(fd)
+        runtime.stopped(); runtime.foundation.stopped()
+        for target in (runtime, runtime.foundation):
+            command('systemctl', 'start', target.unit)
+            self.assertEqual(target.show()['MainPID'], '0')
+        self.assertEqual(self.sqlite_identity(runtime), sqlite_uuid)
+        self.assertEqual(scope.observe()['state'], 'MAINTENANCE_REQUIRED')
+        for path, original in preserved.items(): self.assertEqual(path.read_bytes(), original)
+        Path('/evidence/gateway-release.json').write_bytes(quality.encode(released))
         Path('/evidence/gateway-contract.json').write_bytes(quality.encode({'status': 'PASS',
             'gateway_commit': release()['commit'], 'package_sha256': release()['package_sha256'],
             'binary_sha256': release()['binary_sha256'], 'foreign_9083_refused_before_account': True,
@@ -225,7 +279,9 @@ class GatewayLive(previous.FoundationLive):
             'web_backup_sql_and_data_restore_verified': True, 'gateway_and_foundation_stopped': True,
             'gated_explicit_starts_refused': True, 'stopped_done_never_restarted': True,
             'gateway_sqlite_backup_qualified': True, 'gateway_editor_cache_backup_restore_and_writes_fenced': True,
-            'gateway_fence_sigkill_recovery': True,
+            'gateway_fence_sigkill_recovery': True, 'gateway_release_sigkill_recovery': True,
+            'gateway_release_receipt_precedes_old_marker_removal': True, 'gateway_release_keeps_activity_closed': True,
+            'gateway_release_completed_recovery_without_worker_or_restart': True,
             'gateway_old_fd_and_bind_alias_writes_denied': True, 'gateway_snapshot_recovery_without_replay': True, 'public_mobile_delivered': False, 'boot_delivered': False}))
 
 
@@ -236,14 +292,15 @@ if __name__ == '__main__':
     if os.environ.get('HESTIA_GATEWAY_SERVICE_TEST') != '1': raise RuntimeError('Disposable Gateway recipe opt-in required')
     previous.previous.wizard.journal.fresh.WEB = args.web; previous.previous.wizard.TARGET = args.target
     source = quality.snapshot(ROOT)
-    import test_gateway_state
+    import test_gateway_state, test_gateway_state_release
     suite = unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromModule(test_gateway_state),
+        unittest.defaultTestLoader.loadTestsFromModule(test_gateway_state_release),
         GatewayLive('test_gateway_real_credentials_recovery_main_and_coordinated_backup')])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     stable = source == quality.snapshot(ROOT)
-    report = {'suite': 'Gateway MAIN native service and backup', 'tests': result.testsRun, 'expected': 22,
+    report = {'suite': 'Gateway MAIN native service, backup and guarded release', 'tests': result.testsRun, 'expected': 36,
         'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
-        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 22 and not result.skipped and stable else 'FAIL',
+        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 36 and not result.skipped and stable else 'FAIL',
         'source_stable': stable, 'source_files': len(source), 'phase6_complete': False}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     (args.report.parent / 'GATEWAY-SOURCE-MANIFEST.json').write_bytes(quality.encode(source))
