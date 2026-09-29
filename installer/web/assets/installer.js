@@ -57,6 +57,7 @@
   let publicTLS = {installation: null, availability: null};
   let gateway = {preparation: null, profile: null};
   let foundation = {installation: null, profile: null, availability: null};
+  let gatewayService = {installation: null, profile: null, availability: null};
   let activation = {installation: null, availability: null};
   let packages = {profile: null, acquisition: null, installation: null, selection: null};
   let mariadb = {profile: null, installation: null, missing_credentials: []};
@@ -596,6 +597,7 @@
     if (isApplication() && !isUpgrade() && acmePackages.installation?.state === "DONE") publicTLSForm();
     if (isApplication() && !isUpgrade() && installation.state === "DONE") gatewayForm();
     if (isApplication() && !isUpgrade() && gateway.preparation?.state === "DONE" && activation.installation?.state === "DONE") foundationForm();
+    if (isApplication() && !isUpgrade() && foundation.installation?.state === "DONE") gatewayServiceForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
@@ -745,6 +747,47 @@
         status.id = "foundation-availability"; card.append(status);
       }
       technical(card, "Plan Foundation MAIN (non secret)", document.plan);
+    }
+    content.append(card);
+  }
+  function gatewayServiceForm() {
+    const card = element("article", null, "wizard-card"); card.id = "gatewayService-main";
+    card.append(element("h2", "Raccordement Gateway MAIN"), hint("Service local MAIN sur 127.0.0.1:9083. Son arrêt est coordonné avec la maintenance Web. DEV, accès Mobile public et démarrage automatique restent à raccorder."));
+    const document = gatewayService.installation;
+    const action = (name, extra = {}) => {
+      pendingAction = {action: "gateway-service." + name, payload: {confirmation: document.plan_sha256, confirm: true, ...extra}};
+      $("operation-title").textContent = "Raccorder Gateway MAIN ?";
+      $("operation-description").textContent = "Créer le compte privé, installer et démarrer Gateway, puis vérifier sa connexion signée à MAIN ? Le contrôle ajoute uniquement des quotas, nonces et événements techniques.";
+      $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+    };
+    if (!document) {
+      card.append(button("Préparer le plan MAIN", () => void run(async () => {
+        gatewayService = (await api("/api/gateway/service/plan", {parents: {web: installation.plan_sha256,
+          activation: activation.installation.plan_sha256, gateway: gateway.preparation.plan_sha256, foundation: foundation.installation.plan_sha256}})).gateway_service;
+        show(5);
+      }), "plan-gatewayService"));
+    } else {
+      const status = element("p", "Raccordement MAIN : " + states[document.state]); status.id = "gatewayService-state"; status.dataset.state = document.state;
+      card.append(status);
+      for (const spec of document.plan.steps) card.append(hint(spec.action));
+      if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
+      if (document.state === "DONE") {
+        card.append(hint("Le contrôle de disponibilité est explicite et vaut pour cet instant."));
+        card.append(button("Vérifier Gateway MAIN", () => void run(async () => {
+          gatewayService = (await api("/api/gateway/service/check", {confirmation: document.plan_sha256, confirm: true})).gateway_service;
+          show(5);
+        }), "check-gatewayService"));
+      } else {
+        if (document.approved_plan_sha256 === null) card.append(button("Raccorder MAIN", () => action("apply"), "apply-gatewayService", true));
+        else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre MAIN", () => action("resume"), "resume-gatewayService"));
+        for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Réessayer : " + record.name, () => action("retry", {name: record.name}), "retry-" + record.name));
+      }
+      if (gatewayService.availability) {
+        const available = gatewayService.availability.state === "GATEWAY_MAIN_VERIFIED";
+        const status = element("p", available ? "Gateway MAIN vérifiée : connexion signée active, origine incorrecte et en-têtes de transfert refusés." : "Gateway MAIN indisponible. Aucun service n'a été redémarré.");
+        status.id = "gatewayService-availability"; card.append(status);
+      }
+      technical(card, "Plan Gateway MAIN (non secret)", document.plan);
     }
     content.append(card);
   }
@@ -945,6 +988,9 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action.startsWith("gateway-service.")) {
+        gatewayService = (await api("/api/gateway/service/" + action.action.slice(16), action.payload)).gateway_service;
+        show(5);
       } else if (action.action.startsWith("foundation.")) {
         foundation = (await api("/api/gateway/foundation/" + action.action.slice(11), action.payload)).foundation;
         show(5);
@@ -989,6 +1035,7 @@
     publicTLS = result.public_tls || {installation: null, availability: null};
     gateway = result.gateway || {preparation: null, profile: null};
     foundation = result.foundation || {installation: null, profile: null, availability: null};
+    gatewayService = result.gateway_service || {installation: null, profile: null, availability: null};
     packages = result.packages || {profile: null, acquisition: null, installation: null, selection: null};
     mariadb = result.mariadb || {profile: null, installation: null, missing_credentials: []};
     upgrade = result.upgrade || {profile: null, missing_credentials: []};
@@ -1058,9 +1105,10 @@
         publicTLS = result.public_tls || publicTLS;
         gateway = result.gateway || gateway;
         foundation = result.foundation || foundation;
+        gatewayService = result.gateway_service || gatewayService;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, gateway.preparation?.revision, foundation.installation?.revision, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, gateway.preparation?.revision, foundation.installation?.revision, gatewayService.installation?.revision, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
         if (stamp !== lastRevision) {
           lastRevision = stamp;
           installation = result.installation;

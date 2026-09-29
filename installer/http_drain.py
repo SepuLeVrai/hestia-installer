@@ -159,6 +159,9 @@ class HttpDrain:
         from installer import foundation_drain
         foundation = foundation_drain.quiet_binding(self.runtime)
         if foundation is not None: extra['foundation'] = foundation
+        from installer import gateway_service_drain
+        gateway = gateway_service_drain.quiet_binding(self.runtime, foundation_drain.attached(self.runtime))
+        if gateway is not None: extra['gateway_service'] = gateway
         profile = p._json({'version': 1, 'instance': scope.instance, 'maintenance': str(scope.directory),
             'policy': 'PROVISIONED_HTTP_STOP_ONLY_V1', 'runtime_plan_sha256': f._sha(plan),
             'uid': account.pw_uid, 'gid': account.pw_gid,
@@ -188,12 +191,15 @@ class HttpDrain:
             require(cancel is None or not cancel.is_set(), 'HTTP_DRAIN_INTERRUPTED')
             from installer import foundation_drain
             foundation = foundation_drain.attached(self.runtime)
-            if foundation is not None:
+            from installer import gateway_service_drain
+            gateway = gateway_service_drain.attached(self.runtime, foundation)
+            if foundation is not None or gateway is not None:
                 account, _, _, _ = self.runtime._inspect_configuration()
                 scope = self.runtime._scope(account)
                 lease = (scope.acquire(confirmed=True, timeout=timeout, cancel=cancel) if recover_id is None
                          else scope.recover(recover_id, confirmed=True, timeout=timeout))
-                foundation_drain.quiesce(foundation, lease)
+                if gateway is not None: gateway_service_drain.quiesce(gateway, lease)
+                if foundation is not None: foundation_drain.quiesce(foundation, lease)
             scope, profile = self._audit()
             if lease is None:
                 lease = (scope.acquire(confirmed=True, timeout=timeout, cancel=cancel) if recover_id is None

@@ -1,3 +1,11 @@
+## 29 septembre 2026 - candidat 6B5
+
+[Service Gateway MAIN natif](PHASE6B5_GATEWAY_SERVICE.md) sur la base 6B4 qualifiée :
+plan séparé, compte dédié, credential systemd privé, listener 9083, sonde signée
+via Foundation et arrêt coordonné avant sauvegarde Web. Les acquis et références
+Web/Gateway sont conservés. Qualification native et Quality du candidat à obtenir ;
+la phase 6 reste ouverte et aucune promotion n'est demandée.
+
 ## 29 septembre 2026 - candidat 6B3
 
 ## 2026-09-29 — candidat 6B4 Foundation MAIN
