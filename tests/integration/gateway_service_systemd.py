@@ -135,6 +135,7 @@ class GatewayLive(previous.FoundationLive):
             previous.previous.wizard.TARGET, http, application_plan.cleaner.SessionCleaner(http))
         backup = operation.create_and_verify(payload, self.authority, config_root=self.profile.config_root,
             backup_root=backup_root, confirmed=True, allow_global_read_lock=True).report()
+        Path('/evidence/gateway-backup.json').write_bytes(quality.encode(backup))
         self.assertEqual(backup['state'], 'PROVISIONED_BACKUP_RESTORE_VERIFIED', backup)
         self.assertTrue(backup['database_restoration_verified'] and backup['registered_data_restoration_verified'])
         self.assertFalse(backup['activity_resumed'])
@@ -150,7 +151,6 @@ class GatewayLive(previous.FoundationLive):
         self.assertEqual(report['availability']['state'], 'GATEWAY_MAIN_UNAVAILABLE')
         self.assertEqual(control.journal.path.read_bytes(), before)
         for path, original in preserved.items(): self.assertEqual(path.read_bytes(), original)
-        Path('/evidence/gateway-backup.json').write_bytes(quality.encode(backup))
         Path('/evidence/gateway-contract.json').write_bytes(quality.encode({'status': 'PASS',
             'gateway_commit': release()['commit'], 'package_sha256': release()['package_sha256'],
             'binary_sha256': release()['binary_sha256'], 'foreign_9083_refused_before_account': True,

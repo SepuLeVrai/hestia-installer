@@ -333,6 +333,7 @@
       "test_gateway_service.GatewayServiceProbeTests.test_health_alone_redirect_auth_error_or_ready_never_proves_connection",
       "test_gateway_service.GatewayServiceProbeTests.test_real_http_signed_result_and_closed_origin_forwarding_contract",
       "test_gateway_service.GatewayServiceProfileTests.test_closed_main_9083_credential_and_distinct_locked_account",
+      "test_gateway_service.GatewayServiceProfileTests.test_distinct_names_never_allow_reused_web_uid_or_gid",
       "test_gateway_service.GatewayServiceProfileTests.test_systemd_interpolation_and_unsafe_paths_refused_before_render",
       "test_gateway_service.GatewayServiceTests.test_check_unavailable_preserves_done_and_never_restarts",
       "test_gateway_service.GatewayServiceTests.test_damaged_package_refuses_every_native_effect",

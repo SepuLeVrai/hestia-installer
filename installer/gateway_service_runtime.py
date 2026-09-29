@@ -64,7 +64,11 @@ class GatewayServiceRuntime:
         free_port()
 
     def account(self):
-        account = self.profile.account.account(); web = self.foundation.host()
+        # Identity separation needs the current NSS identity, not another full
+        # Foundation/Web audit. inspect()/preflight() validate that dependency;
+        # recursively repeating it for every state file exhausts the bounded
+        # SQL backup window without adding an independent observation boundary.
+        account = self.profile.account.account(); web = h._identity(self.web.spec.service_user)
         require(account.pw_uid != web.pw_uid and account.pw_gid != web.pw_gid,
                 ErrorCode.INCOMPATIBLE_STATE)
         return account

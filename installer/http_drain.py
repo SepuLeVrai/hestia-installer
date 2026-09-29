@@ -157,10 +157,12 @@ class HttpDrain:
         public = overlay_evidence(scope, bindings[0].fragment_sha256)
         if public is not None: extra['public_ingress'] = public
         from installer import foundation_drain
-        foundation = foundation_drain.quiet_binding(self.runtime)
-        if foundation is not None: extra['foundation'] = foundation
+        foundation = foundation_drain.attached(self.runtime)
+        if foundation is not None:
+            foundation.stopped()
+            extra['foundation'] = foundation_drain.binding(foundation)
         from installer import gateway_service_drain
-        gateway = gateway_service_drain.quiet_binding(self.runtime, foundation_drain.attached(self.runtime))
+        gateway = gateway_service_drain.quiet_binding(self.runtime, foundation)
         if gateway is not None: extra['gateway_service'] = gateway
         profile = p._json({'version': 1, 'instance': scope.instance, 'maintenance': str(scope.directory),
             'policy': 'PROVISIONED_HTTP_STOP_ONLY_V1', 'runtime_plan_sha256': f._sha(plan),
