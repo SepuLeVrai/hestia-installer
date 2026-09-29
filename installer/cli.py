@@ -114,6 +114,9 @@ def main(argv: list[str] | None = None) -> int:
             from installer.public_tls_plan import PublicTLSPlan
             public = PublicTLSPlan(engine, None, None).state()
             if public['installation'] is not None: result['public_tls'] = public
+            from installer.gateway_plan import GatewayPlan
+            gateway = GatewayPlan(engine).state()
+            if gateway['profile'] is not None: result['gateway'] = gateway
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
         if args.resume:

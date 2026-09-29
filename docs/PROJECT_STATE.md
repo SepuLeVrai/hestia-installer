@@ -1,3 +1,12 @@
+## 29 septembre 2026 - candidat 6B2
+
+Acquisition binaire Gateway épinglée et préparation des identités accessibles
+depuis le wizard, avec journal séparé et reprise. Voir
+[PHASE6B2_GATEWAY_ACQUISITION.md](PHASE6B2_GATEWAY_ACQUISITION.md).
+La qualification complète de ce candidat reste à obtenir ; aucun déploiement
+Gateway/Foundation ni phase 6 terminé n’est revendiqué. Les références et acquis
+6B1 ci-dessous restent le socle.
+
 > Suite 6B1 : [préparation privée des identités P-256](PHASE6B_PRIVATE_IDENTITIES.md).
 > Gateway devient configurable (origine HTTPS, MAIN seul). Composition native et
 > recette intégrée 6B/6C encore à terminer ; acquis phase 5/6A conservés.

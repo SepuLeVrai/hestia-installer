@@ -10,7 +10,7 @@
     BUSY: "Une autre action ou un autre onglet utilise le chantier. Actualisez son état avant de réessayer.",
     SECRET_REQUIRED: "Un identifiant temporaire doit être saisi à nouveau. Consultez les champs requis dans le suivi du chantier.",
     SECRET_REJECTED: "Une valeur sensible ou invalide a été refusée. Vérifiez les champs.",
-    GITHUB_ACCESS_DENIED: "Accès refusé. Vérifiez les trois dépôts et les permissions Metadata et Contents en lecture.",
+    GITHUB_ACCESS_DENIED: "Accès refusé. Vérifiez les trois dépôts et les permissions Metadata et Contents en lecture, ainsi que Actions en lecture pour le paquet Gateway.",
     GITHUB_RATE_LIMITED: "La limite de requêtes GitHub est atteinte. Réessayez après sa réinitialisation.",
     GITHUB_UNAVAILABLE: "GitHub est indisponible. Vérifiez la connexion sortante du serveur.",
     GITHUB_INVALID_RESPONSE: "La réponse GitHub n'a pas pu être validée.",
@@ -55,6 +55,7 @@
   let boot = {installation: null, availability: null};
   let acmePackages = {profile: null, acquisition: null, installation: null, selection: null};
   let publicTLS = {installation: null, availability: null};
+  let gateway = {preparation: null, profile: null};
   let activation = {installation: null, availability: null};
   let packages = {profile: null, acquisition: null, installation: null, selection: null};
   let mariadb = {profile: null, installation: null, missing_credentials: []};
@@ -194,7 +195,7 @@
     input.id = "github-credential"; input.type = "password"; input.autocomplete = "off";
     input.required = true; input.maxLength = 255; input.spellcheck = false;
     input.setAttribute("autocapitalize", "none"); input.setAttribute("aria-describedby", "credential-hint");
-    const note = hint("Fine-grained PAT : Metadata Read et Contents Read, limité aux trois dépôts HESTIA. Aucun mot de passe GitHub. Le jeton n'est jamais enregistré dans le navigateur.");
+    const note = hint("Fine-grained PAT : Metadata Read et Contents Read, limité aux trois dépôts HESTIA. Pour le paquet Gateway : Actions Read également. Aucun mot de passe GitHub. Le jeton n'est jamais enregistré dans le navigateur.");
     note.id = "credential-hint";
     form.append(field("Jeton GitHub en lecture seule", input), note);
     const submit = button("Valider l'accès", () => {}, "validate-github", true); submit.type = "submit";
@@ -591,6 +592,7 @@
     if (isApplication() && !isUpgrade() && activation.installation?.state === "DONE" && mariadb.installation?.state === "DONE") bootForm();
     if (isApplication() && !isUpgrade() && boot.installation?.state === "DONE") acmePackagesForm();
     if (isApplication() && !isUpgrade() && acmePackages.installation?.state === "DONE") publicTLSForm();
+    if (isApplication() && !isUpgrade() && installation.state === "DONE") gatewayForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
@@ -616,6 +618,54 @@
     if (installation.state !== "DONE") row.append(button("Ressaisir le jeton", () => show(1), "renew-credential"));
     row.append(button("Télécharger le rapport", () => void run(downloadReport), "download-report"));
     content.append(row); technical(content, "Journal technique (non secret)", installation);
+  }
+  function gatewayAction(action, extra = {}) {
+    pendingAction = {action: "gateway." + action, payload: {confirmation: gateway.preparation.plan_sha256, confirm: true, ...extra}};
+    $("operation-title").textContent = "Préparer Mobile Gateway ?";
+    $("operation-description").textContent = "Acquérir le paquet qualifié et préparer les identités privées du plan affiché ? Le raccordement aux services aura son propre plan.";
+    $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+  }
+  function gatewayForm() {
+    const card = element("article", null, "wizard-card"); card.id = "gateway-preparation";
+    card.append(element("h2", "Préparation Mobile Gateway"));
+    const document = gateway.preparation;
+    if (!document) {
+      const form = element("form"); form.id = "gateway-form";
+      const origin = element("input"); origin.id = "gateway-origin"; origin.type = "url"; origin.required = true;
+      origin.maxLength = 261;
+      const dev = element("input"); dev.id = "gateway-dev"; dev.type = "checkbox";
+      form.append(field("Origine HTTPS publique Mobile", origin), field("Préparer aussi une identité DEV distincte", dev));
+      const submit = element("button", "Préparer le plan Gateway"); submit.id = "plan-gateway"; submit.type = "submit"; form.append(submit);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault(); if (!form.reportValidity() || busy || serverBusy) return;
+        void run(async () => {
+          gateway = (await api("/api/gateway/preparation/plan", {web_plan_sha256: installation.plan_sha256,
+            public_origin: origin.value, dev_enabled: dev.checked})).gateway; show(5);
+        });
+      }); card.append(form);
+    } else {
+      const status = element("p", "Préparation : " + states[document.state]); status.id = "gateway-state"; status.dataset.state = document.state;
+      card.append(status, hint(gateway.profile.identity.public_origin + (gateway.profile.identity.dev_enabled ? " - MAIN et DEV" : " - MAIN uniquement")));
+      for (const spec of document.plan.steps) card.append(hint(spec.action));
+      if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
+      if (document.state !== "DONE") {
+        card.append(hint("Le téléchargement requiert un jeton GitHub avec Actions Read. Ressaisissez-le après une interruption si nécessaire."));
+        card.append(button("Ressaisir le jeton pour Gateway", () => show(1), "gateway-credential"));
+        if (document.approved_plan_sha256 === null) card.append(button("Valider la préparation Gateway", () => gatewayAction("apply"), "apply-gateway", true));
+        else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre Gateway", () => gatewayAction("resume"), "resume-gateway"));
+        for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Réessayer : " + record.name, () => gatewayAction("retry", {name: record.name}), "retry-" + record.name));
+      } else {
+        card.append(hint("Paquet et identités préparés. Le raccordement Foundation, le service Gateway et l'accès HTTPS Mobile restent à installer."));
+        card.append(button("Vérifier le paquet et les identités", () => void run(async () => {
+          gateway = (await api("/api/gateway/preparation/check", {confirmation: document.plan_sha256, confirm: true})).gateway;
+          show(5); message("Paquet et identités vérifiés.");
+        }), "check-gateway"));
+      }
+      technical(card, "Plan Gateway (non secret)", document.plan);
+    }
+    if (gateway.release) card.append(hint("Gateway " + gateway.release.version + " - " + gateway.release.architecture + " - SQLite " + gateway.release.sqlite_schema),
+      hint("Artefact CI disponible jusqu'au " + gateway.release.expires_at + ". Aucune autre version n'est choisie automatiquement."));
+    content.append(card);
   }
   function activationAction(action, extra = {}) {
     pendingAction = {action: "activation." + action, payload: {confirmation: activation.installation.plan_sha256, confirm: true, ...extra}};
@@ -820,6 +870,9 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action.startsWith("gateway.")) {
+        gateway = (await api("/api/gateway/preparation/" + action.action.slice(8), action.payload)).gateway;
+        show(5);
       } else if (action.action.startsWith("public-tls.")) {
         publicTLS = (await api("/api/web/public-tls/" + action.action.slice(11), action.payload)).public_tls;
         show(5);
@@ -853,6 +906,7 @@
     boot = result.boot || {installation: null, availability: null};
     acmePackages = result.acme_packages || {profile: null, acquisition: null, installation: null, selection: null};
     publicTLS = result.public_tls || {installation: null, availability: null};
+    gateway = result.gateway || {preparation: null, profile: null};
     packages = result.packages || {profile: null, acquisition: null, installation: null, selection: null};
     mariadb = result.mariadb || {profile: null, installation: null, missing_credentials: []};
     upgrade = result.upgrade || {profile: null, missing_credentials: []};
@@ -920,9 +974,10 @@
         boot = result.boot || boot;
         acmePackages = result.acme_packages || acmePackages;
         publicTLS = result.public_tls || publicTLS;
+        gateway = result.gateway || gateway;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, gateway.preparation?.revision, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
         if (stamp !== lastRevision) {
           lastRevision = stamp;
           installation = result.installation;

@@ -233,3 +233,38 @@ class NativeBrowserTests(legacy.BrowserWizardTests):
         expect(self.page.locator("#module-web")).not_to_be_checked()
         expect(self.page.locator("#installation-mode")).to_have_value("upgrade")
 
+
+    def test_gateway_preparation_real_https_confirmation_refresh_and_private_keys(self):
+        from gateway_fixture import ArtifactResponses, complete_web
+        responses = ArtifactResponses(); self.fake.override = responses
+        catalogue = patch('installer.gateway_release._RELEASE', responses.selected); catalogue.start(); self.addCleanup(catalogue.stop)
+        complete_web(self.service)
+        before = self.service.engine.journal.path.read_bytes()
+        self.refresh(); self.step(5)
+        self.page.locator('#gateway-origin').fill('https://mobile.customer.example')
+        self.page.locator('#gateway-dev').check()
+        self.page.locator('#plan-gateway').click()
+        expect(self.page.locator('#gateway-state')).to_have_attribute('data-state', 'PLANNED')
+        self.assertEqual(responses.downloads, 0)
+        self.page.locator('#apply-gateway').click()
+        expect(self.page.locator('#operation-dialog')).to_be_visible()
+        self.page.keyboard.press('Escape')
+        self.assertEqual(responses.downloads, 0)
+        self.page.locator('#apply-gateway').click()
+        self.page.locator('#operation-dialog button[value="confirm"]').click()
+        expect(self.page.locator('#gateway-state')).to_have_attribute('data-state', 'DONE')
+        expect(self.page.locator('#gateway-preparation')).to_contain_text('restent à installer')
+        root = self.service.gateway.identities.root
+        keys = {name: (root / (name + '.pem')).read_bytes() for name in ('main', 'dev')}
+        self.assertNotEqual(keys['main'], keys['dev'])
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#gateway-state')).to_have_attribute('data-state', 'DONE')
+        self.page.locator('#check-gateway').click()
+        expect(self.page.locator('#wizard-message')).to_contain_text('Paquet et identités vérifiés')
+        self.assertEqual(responses.downloads, 1)
+        self.assertEqual(before, self.service.engine.journal.path.read_bytes())
+        self.assertEqual(keys, {name: (root / (name + '.pem')).read_bytes() for name in keys})
+        self.assertNotIn('PRIVATE KEY', self.page.content()); self.assertNotIn(DUMMY, self.page.content())
+        self.assertEqual(self.page.evaluate('localStorage.length + sessionStorage.length'), 0)
+        directory = os.environ.get('HESTIA_QC_SCREENSHOTS')
+        if directory: self.page.locator('#gateway-preparation').screenshot(path=str(Path(directory) / 'native-gateway-preparation.png'))
