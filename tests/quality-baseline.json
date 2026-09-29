@@ -282,6 +282,7 @@
       "test_foundation.FoundationNativeBoundaries.test_foreign_ipv4_ipv6_listener_refused_before_bind",
       "test_foundation.FoundationNativeBoundaries.test_noncanonical_zero_negative_oversized_and_trailing_der_rejected",
       "test_foundation.FoundationNativeBoundaries.test_systemd_absence_exit_one_cannot_authorize_failed_loaded_unit",
+      "test_foundation.FoundationProbeContract.test_missing_authorization_is_distinct_from_malformed_jws_and_fail_open",
       "test_foundation.FoundationTests.test_closed_payload_wrong_confirmation_and_parent_mismatch_before_effects",
       "test_foundation.FoundationTests.test_current_failure_does_not_rewrite_done_or_restart",
       "test_foundation.FoundationTests.test_foreign_resource_refused_and_damaged_gateway_blocks_native_effects",

@@ -64,9 +64,10 @@ def assertion(store, identity):
 def request(body, request_id, token):
     connection = http.client.HTTPConnection('127.0.0.1', 9082, timeout=5)
     try:
-        connection.request('POST', PATH, body=body, headers={'Host': 'hestia-internal-mobile.local',
-            'Content-Type': 'application/json', 'X-Request-ID': request_id, 'Authorization': 'Bearer ' + token,
-            'Connection': 'close'})
+        headers = {'Host': 'hestia-internal-mobile.local', 'Content-Type': 'application/json',
+                   'X-Request-ID': request_id, 'Connection': 'close'}
+        if token is not None: headers['Authorization'] = 'Bearer ' + token
+        connection.request('POST', PATH, body=body, headers=headers)
         response = connection.getresponse(); raw = response.read(65537)
         require(len(raw) <= 65536 and response.getheader('Cache-Control') == 'no-store'
                 and response.getheader('Set-Cookie') is None and response.getheader('Content-Type', '').startswith('application/json'),
@@ -90,7 +91,7 @@ def check(store, identity):
     require(status == 401 and type(reply) is dict and type(reply.get('error')) is dict
             and reply['error'].get('code') == 'authentication_failed', ErrorCode.VALIDATION_FAILED)
     # An unsigned caller on the same loopback still has no authority.
-    status, reply = request(raw, body['request_id'], 'invalid.invalid.invalid')
+    status, reply = request(raw, body['request_id'], None)
     require(status == 401 and type(reply) is dict and type(reply.get('error')) is dict
             and reply['error'].get('code') == 'authentication_failed', ErrorCode.VALIDATION_FAILED)
     return dict(RESULT)

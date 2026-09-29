@@ -12,6 +12,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import threading
@@ -41,6 +42,12 @@ class FoundationLive(previous.ActivationLive):
                 Path('/evidence/foundation-configtest.txt').write_bytes(diagnostic.stderr[:16384])
             error_log = self.profile.root / 'foundation/log/error.log'
             if error_log.exists(): Path('/evidence/foundation-apache-errors.txt').write_bytes(error_log.read_bytes()[-16384:])
+            if hasattr(self, 'service'):
+                document = self.service.foundation.journal.read()
+                if document is not None:
+                    diagnostic = {'state': document['state'], 'error_code': document['last_error_redacted'],
+                        'steps': [{k: row[k] for k in ('name', 'state', 'phase', 'last_error_redacted')} for row in document['steps']]}
+                    Path('/evidence/foundation-transaction.json').write_bytes(quality.encode(diagnostic))
             command('systemctl', 'stop', unit, check=False)
             command('systemctl', 'reset-failed', unit, check=False)
             (native.drain.UNIT_ROOT / unit).unlink(missing_ok=True)
@@ -119,7 +126,9 @@ class FoundationLive(previous.ActivationLive):
                 page.locator('#resume-foundation').click(); page.keyboard.press('Escape')
                 self.assertEqual(before, control.journal.path.read_bytes())
                 page.locator('#resume-foundation').click(); page.locator('#operation-dialog button[value="confirm"]').click()
-                expect(page.locator('#foundation-state')).to_have_attribute('data-state', 'DONE', timeout=120000)
+                expect(page.locator('#foundation-state')).to_have_attribute('data-state', re.compile('DONE|FAILED|MANUAL_ACTION_REQUIRED'), timeout=120000)
+                completed = control.journal.read()
+                self.assertEqual(completed['state'], 'DONE', [(r['name'], r['phase'], r['last_error_redacted']) for r in completed['steps']])
                 page.locator('#check-foundation').click()
                 expect(page.locator('#foundation-availability')).to_contain_text('Foundation MAIN vérifiée', timeout=120000)
                 page.reload(); expect(page.locator('#foundation-state')).to_have_attribute('data-state', 'DONE')

@@ -148,6 +148,46 @@ class FoundationTests(unittest.TestCase):
         with self.assertRaises(InstallerError): probe.assertion(store, store.report()['receipt']['identities']['dev'])
 
 
+class FoundationProbeContract(unittest.TestCase):
+    def test_missing_authorization_is_distinct_from_malformed_jws_and_fail_open(self):
+        # Pinned Web returns invalid_request/400 for malformed JWS, but an
+        # absent credential is authentication_failed/401. Exercise real HTTP.
+        import http.client
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        import threading
+        body = {'request_id': 'r', 'mobile_subject_uuid': 's', 'device_id': 'd', 'environment': 'main'}
+        raw = canonical_bytes(body); token = 'fixture.signed.assertion'; seen = []; fail_open = False
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args): pass
+            def do_POST(self):
+                self.rfile.read(int(self.headers['Content-Length']))
+                auth = self.headers.get('Authorization'); seen.append(auth)
+                status = 401; value = {'error': {'code': 'authentication_failed'}}
+                if len(seen) == 1 or (auth is None and fail_open):
+                    status = 200; value = {'request_id': body['request_id'], 'data': {**body,
+                        'mobile_enabled': True, 'account_active': False, 'device_active': False, 'environment_allowed': False}}
+                elif auth is not None and auth != 'Bearer ' + token:
+                    status = 400; value = {'error': {'code': 'invalid_request'}}
+                encoded = canonical_bytes(value)
+                self.send_response(status); self.send_header('Content-Type', 'application/json')
+                self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', str(len(encoded)))
+                self.end_headers(); self.wfile.write(encoded)
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        connection = http.client.HTTPConnection
+        def local(host, port, **kwargs):
+            self.assertEqual((host, port), ('127.0.0.1', 9082))
+            return connection(host, server.server_port, **kwargs)
+        try:
+            with patch.object(probe, 'assertion', return_value=(body, raw, token)), patch.object(probe.http.client, 'HTTPConnection', side_effect=local):
+                self.assertEqual(probe.check(None, None), probe.RESULT)
+                self.assertEqual(seen, ['Bearer ' + token, 'Bearer ' + token, None])
+                seen.clear(); fail_open = True
+                with self.assertRaises(InstallerError): probe.check(None, None)
+        finally:
+            server.shutdown(); thread.join(timeout=5); server.server_close()
+
+
 class FoundationNativeBoundaries(unittest.TestCase):
     def test_systemd_absence_exit_one_cannot_authorize_failed_loaded_unit(self):
         runtime = object.__new__(native.FoundationRuntime); runtime.unit = 'hestia-' + 'a' * 32 + '-foundation.service'
