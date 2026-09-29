@@ -143,9 +143,9 @@ class GatewayLive(previous.FoundationLive):
         self.assertEqual(self.sqlite_identity(runtime), sqlite_uuid)
         scope, _ = runtime.foundation.activation.configuration()
         self.assertEqual(scope.observe()['state'], 'MAINTENANCE_REQUIRED')
-        for unit in (runtime.unit, runtime.foundation.unit):
-            command('systemctl', 'start', unit)
-            self.assertEqual(native.drain._show(unit)['MainPID'], '0')
+        for target in (runtime, runtime.foundation):
+            command('systemctl', 'start', target.unit)
+            self.assertEqual(target.show()['MainPID'], '0')
         before = control.journal.path.read_bytes()
         report = self.service.execute('gateway-service.check', confirm(document))['gateway_service']
         self.assertEqual(report['availability']['state'], 'GATEWAY_MAIN_UNAVAILABLE')
