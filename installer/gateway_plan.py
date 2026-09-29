@@ -1,6 +1,7 @@
 """Separate, resumable preparation journal. No native deployment is claimed."""
 import os
 import secrets
+import time
 
 from installer.application_plan import ApplicationPlan
 from installer.engine import TransactionEngine
@@ -143,6 +144,60 @@ class IdentityPreparation(Operation):
         except Exception: return Recovery(RecoveryDecision.MANUAL)
 
 
+class BinaryImport(BinaryAcquisition):
+    """The approved engine drives the upload, including its pre-effect journal.
+
+    A request stream is process-local input, never a path or persisted callback.
+    The old acquisition adapter and its StepSpec remain unchanged.
+    """
+    def __init__(self, root, selected, binding, stream=None, length=None):
+        super().__init__(root, selected, None, binding)
+        self.stream, self.length = stream, length
+        self.spec = StepSpec(
+            name='gateway.binary', operation='gateway.binary.import', module='gateway', boundary='gateway-binary',
+            action='Importer et vérifier le paquet binaire Gateway qualifié', resources=self.spec.resources,
+            source=self.spec.source, warnings=(
+                'Profil immuable : ' + binding, 'Paquet SHA-256 : ' + selected['package_sha256'],
+                'ZIP binaire qualifié uniquement ; aucun accès GitHub requis pour cet import.',
+                'Aucun binaire ni script du paquet exécuté pendant cette préparation.'))
+
+    def apply(self, context):
+        # Reconcile the durable proof before asking for a new request body.
+        try:
+            with _private_directory(self.root, create=False) as fd: proof = self._proof(fd, context)
+        except FileNotFoundError:
+            require(not self.root.exists(), ErrorCode.SOURCE_DRIFT); proof = None
+        if proof is not None: return self._receipt(proof)
+        require(self.stream is not None and type(self.length) is int
+                and self.length == self.selected['package_bytes'], ErrorCode.DEPENDENCY_BLOCKED)
+        with _private_directory(self.root.parent, create=True) as parent_fd:
+            created = False
+            try:
+                os.mkdir(self.root.name, 0o700, dir_fd=parent_fd); os.fsync(parent_fd); created = True
+            except FileExistsError: pass
+        with _private_directory(self.root, create=False) as fd:
+            if created: _write_json(fd, 'owner.json', self._owner(context))
+            require(self._proof(fd, context) is None, ErrorCode.INCOMPATIBLE_STATE)
+            for name in set(os.listdir(fd)) - {'owner.json'}: os.unlink(name, dir_fd=fd)
+            os.fsync(fd)
+            handle = os.open('package.part', os.O_RDWR | os.O_CREAT | os.O_EXCL | _FILE_FLAGS, 0o600, dir_fd=fd)
+            with os.fdopen(handle, 'w+b') as package:
+                remaining = self.length; deadline = time.monotonic() + 120
+                reader = getattr(self.stream, 'read1', self.stream.read)
+                while remaining:
+                    require(time.monotonic() < deadline, ErrorCode.SOURCE_LIMIT)
+                    chunk = reader(min(65536, remaining))
+                    require(time.monotonic() < deadline, ErrorCode.SOURCE_LIMIT)
+                    require(type(chunk) is bytes and 0 < len(chunk) <= remaining, ErrorCode.SOURCE_DRIFT)
+                    package.write(chunk); remaining -= len(chunk)
+                package.flush(); os.fsync(package.fileno())
+                verified = verify_package(package, self.selected)
+            os.rename('package.part', 'package.zip', src_dir_fd=fd, dst_dir_fd=fd); os.fsync(fd)
+            proof = {'owner': self._owner(context), 'verified': verified}
+            context.secrets.reject_in(proof); _write_json(fd, 'receipt.json', proof)
+            return self._receipt(proof)
+
+
 class GatewayPlan:
     _read, _write = PackagePlan._read, PackagePlan._write
 
@@ -155,7 +210,8 @@ class GatewayPlan:
     def profile(self):
         value = self._read('profile.json')
         if value is not None:
-            exact_keys(value, {'identity', 'release', 'web_plan_sha256'})
+            exact_keys(value, {'identity', 'release', 'web_plan_sha256'} | ({'acquisition'} if 'acquisition' in value else set()))
+            require(value.get('acquisition', 'github') in ('github', 'package'), ErrorCode.INVALID_STATE)
             identity_profile(value['identity'])
             require(value['release'] == release(), ErrorCode.INCOMPATIBLE_STATE)
             require(type(value['web_plan_sha256']) is str and len(value['web_plan_sha256']) == 64
@@ -176,10 +232,13 @@ class GatewayPlan:
                 ErrorCode.INCOMPATIBLE_STATE)
         return document['plan_sha256']
 
-    def engine(self):
+    def engine(self, *, stream=None, length=None):
         value = self.profile(); require(value is not None, ErrorCode.NOT_PLANNED)
         binding = sha(canonical_bytes(value))
-        operations = (BinaryAcquisition(self.root / 'binary', value['release'], self.access, binding),
+        binary = (BinaryImport(self.root / 'binary', value['release'], binding, stream, length)
+                  if value.get('acquisition') == 'package' else
+                  BinaryAcquisition(self.root / 'binary', value['release'], self.access, binding))
+        operations = (binary,
                       IdentityPreparation(self.identities, value['identity'], binding))
         engine = TransactionEngine(self.journal, OperationRegistry(operations), secrets=self.parent.secrets)
         document = engine.report()
@@ -188,12 +247,14 @@ class GatewayPlan:
             engine.registry.validate_document(document)
         return engine
 
-    def execute(self, action, payload):
-        require(action in ('plan', 'apply', 'resume', 'retry', 'check'))
+    def execute(self, action, payload, *, stream=None, length=None):
+        require(action in ('plan', 'apply', 'resume', 'retry', 'check', 'import'))
         with self.parent.journal.locked(create=False) as locked:
             parent_sha = self._parent(locked.read())
             if action == 'plan':
-                exact_keys(payload, {'web_plan_sha256', 'public_origin', 'dev_enabled'})
+                exact_keys(payload, {'web_plan_sha256', 'public_origin', 'dev_enabled'} |
+                           ({'acquisition'} if 'acquisition' in payload else set()))
+                require(payload.get('acquisition', 'github') in ('github', 'package'))
                 require(payload['web_plan_sha256'] == parent_sha, ErrorCode.CONFIRMATION_REQUIRED)
                 identity = identity_profile({'version': 1, 'instance': secrets.token_hex(16),
                                              'public_origin': payload['public_origin'], 'dev_enabled': payload['dev_enabled']})
@@ -201,9 +262,11 @@ class GatewayPlan:
                 if value is None:
                     require(self.journal.read() is None and self.identities.report() is None, ErrorCode.INVALID_STATE)
                     value = {'identity': identity, 'release': release(), 'web_plan_sha256': parent_sha}
+                    if 'acquisition' in payload: value['acquisition'] = payload['acquisition']
                     self.parent.secrets.reject_in(value)
                     self._write('profile.json', value)
-                require(value['web_plan_sha256'] == parent_sha and all(value['identity'][k] == payload[k]
+                require(value.get('acquisition', 'github') == payload.get('acquisition', 'github')
+                        and value['web_plan_sha256'] == parent_sha and all(value['identity'][k] == payload[k]
                         for k in ('public_origin', 'dev_enabled')), ErrorCode.PLAN_EXISTS)
                 self.engine().plan(mode='fresh')
             else:
@@ -211,7 +274,10 @@ class GatewayPlan:
                 require(payload['confirm'] is True, ErrorCode.CONFIRMATION_REQUIRED)
                 value = self.profile(); require(value is not None, ErrorCode.NOT_PLANNED)
                 require(value['web_plan_sha256'] == parent_sha, ErrorCode.INCOMPATIBLE_STATE)
-                engine = self.engine(); document = engine.report()
+                if action == 'import':
+                    require(value.get('acquisition') == 'package' and stream is not None, ErrorCode.INCOMPATIBLE_STATE)
+                    require(type(length) is int and length == value['release']['package_bytes'], ErrorCode.SOURCE_LIMIT)
+                engine = self.engine(stream=stream, length=length); document = engine.report()
                 require(document is not None and payload['confirmation'] == document['plan_sha256'], ErrorCode.CONFIRMATION_REQUIRED)
                 # Explicit mutations verify completed resources without changing
                 # the old journal on damage. GET does not perform these checks.
@@ -223,7 +289,16 @@ class GatewayPlan:
                     require(document['state'] == 'DONE', ErrorCode.DEPENDENCY_BLOCKED)
                     return {**self.state(), 'verification': {'state': 'PREPARATION_VERIFIED', 'checked_at': now()}}
                 try:
-                    if action == 'retry': engine.retry(payload['name'], payload['confirmation'])
+                    if action == 'import':
+                        record = document['steps'][0]
+                        require(record['state'] != 'DONE', ErrorCode.INCOMPATIBLE_STATE)
+                        require(document['steps'][1]['state'] == 'PLANNED', ErrorCode.INCOMPATIBLE_STATE)
+                        if record['state'] in ('FAILED', 'MANUAL_ACTION_REQUIRED'):
+                            retried = engine.retry('gateway.binary', payload['confirmation'])
+                            if retried['steps'][0]['state'] == 'DONE': engine.resume(payload['confirmation'])
+                        elif record['state'] == 'RUNNING': engine.resume(payload['confirmation'])
+                        else: engine.apply(payload['confirmation'])
+                    elif action == 'retry': engine.retry(payload['name'], payload['confirmation'])
                     else: getattr(engine, action)(payload['confirmation'])
                 finally:
                     if self.access is not None: self.access.clear()

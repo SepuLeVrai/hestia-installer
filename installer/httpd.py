@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import json
 import mimetypes
+import re
 import ssl
 import sys
 from http import HTTPStatus
@@ -15,7 +16,7 @@ from urllib.parse import urlsplit
 from installer.constants import BOOTSTRAP_SESSION_TTL_SECONDS, MAX_REQUEST_BODY_BYTES, SESSION_COOKIE_NAME
 from installer.network import PortReservation
 from installer.model import ErrorCode, InstallerError, strict_json_loads
-from installer.service import GET_ROUTES, POST_ROUTES, TransactionService
+from installer.service import GET_ROUTES, POST_ROUTES, GATEWAY_PACKAGE_ROUTE, TransactionService
 from installer.security import BootstrapToken, Session, SessionStore
 
 
@@ -99,6 +100,7 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
     def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
         # Only fixed route names are logged, never user-controlled path segments.
         allowed = GET_ROUTES | set(POST_ROUTES) | {
+            GATEWAY_PACKAGE_ROUTE,
             "/", "/index.html", "/bootstrap", "/bootstrap.html",
             "/api/bootstrap/status", "/api/bootstrap/unlock", "/api/session", "/api/logout",
         }
@@ -174,7 +176,7 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _reject_if_bad_host_or_query(self) -> bool:
-        for name in ("Host", "Origin", "Content-Length", "Content-Type", "Transfer-Encoding", "Cookie", "X-Hestia-CSRF"):
+        for name in ("Host", "Origin", "Content-Length", "Content-Type", "Transfer-Encoding", "Cookie", "X-Hestia-CSRF", "X-Hestia-Plan", "Content-Encoding"):
             if len(self.headers.get_all(name, [])) > 1:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "En-têtes ambigus"}, close_connection=True)
                 return True
@@ -379,6 +381,12 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             return
         path = urlsplit(self.path).path
 
+        if path == GATEWAY_PACKAGE_ROUTE:
+            session = self._require_session()
+            if session is None or not self._require_csrf(session): return
+            self._gateway_package_request()
+            return
+
         if path in POST_ROUTES:
             session = self._require_session()
             if session is None:
@@ -438,6 +446,41 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             return
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Route inconnue"}, close_connection=True)
+
+    def _gateway_package_request(self):
+        # Always close: rejected or already committed imports may leave unread
+        # bytes. No body buffering, multipart filename, user path or redirect.
+        self.close_connection = True
+        length = self.headers.get('Content-Length', '')
+        confirmation = self.headers.get('X-Hestia-Plan', '')
+        if (self.headers.get('Transfer-Encoding') is not None
+                or self.headers.get('Content-Encoding', 'identity') != 'identity'
+                or self.headers.get('Content-Type') != 'application/zip'
+                or not re.fullmatch('[0-9]{1,9}', length)
+                or not re.fullmatch('[a-f0-9]{64}', confirmation)):
+            self._send_json(HTTPStatus.BAD_REQUEST, {'error': ErrorCode.INVALID_DATA.value}, close_connection=True)
+            return
+        if not 0 < int(length) <= 128 * 1024 * 1024:
+            self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {'error': ErrorCode.SOURCE_LIMIT.value}, close_connection=True)
+            return
+        service = self.app.transaction_service
+        if service is None:
+            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {'error': 'TRANSACTION_SERVICE_UNAVAILABLE'}, close_connection=True)
+            return
+        try:
+            result = service.import_gateway_package(confirmation, self.rfile, int(length))
+        except InstallerError as error:
+            status = HTTPStatus.BAD_REQUEST if error.code in (ErrorCode.INVALID_DATA, ErrorCode.CONFIRMATION_REQUIRED) else HTTPStatus.CONFLICT
+            self._send_json(status, {'error': error.code.value}, close_connection=True)
+            return
+        except FileNotFoundError:
+            self._send_json(HTTPStatus.CONFLICT, {'error': ErrorCode.NOT_PLANNED.value}, close_connection=True)
+            return
+        except Exception:
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {'error': 'TRANSACTION_UNAVAILABLE'}, close_connection=True)
+            return
+        try: self._send_json(HTTPStatus.OK, result, close_connection=True)
+        except OSError: self.close_connection = True
 
     def _transaction_request(self, action: str | None = None, payload: dict | None = None) -> None:
         service = self.app.transaction_service

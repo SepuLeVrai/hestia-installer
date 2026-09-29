@@ -47,6 +47,7 @@ POST_ROUTES = {
     "/api/github/clear": "github.clear",
 }
 GET_ROUTES = frozenset({"/api/wizard/state", "/api/installation/state", "/api/installation/report", "/api/github/status"})
+GATEWAY_PACKAGE_ROUTE = '/api/gateway/preparation/import'
 
 
 class TransactionService:
@@ -140,6 +141,7 @@ class TransactionService:
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
             if action.startswith('gateway.'):
+                require(action != 'gateway.import', ErrorCode.INVALID_DATA)
                 return {"gateway": self.gateway.execute(action.removeprefix('gateway.'), payload)}
             if action.startswith('public-tls.'):
                 return {"public_tls": self.public_tls.execute(action.removeprefix('public-tls.'), payload)}
@@ -252,6 +254,11 @@ class TransactionService:
             if action in {"apply", "resume", "retry", "rollback"} and document["state"] == "DONE":
                 self.application.clear()
             return {"installation": document}
+
+    def import_gateway_package(self, confirmation, stream, length):
+        with self._activity(), self._mutation():
+            return {'gateway': self.gateway.execute('import', {'confirmation': confirmation, 'confirm': True},
+                                                     stream=stream, length=length)}
 
     def close(self) -> None:
         # Browser disconnection never cancels a mutation. Graceful bootstrap

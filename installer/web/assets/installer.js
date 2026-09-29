@@ -98,11 +98,12 @@
   function confirmation() { return {confirm: true, confirmation: installation.plan_sha256}; }
   function failed(code) { const err = new Error("HESTIA request failed"); err.code = code; return err; }
 
-  async function api(path, payload) {
+  async function api(path, payload, binaryPlan) {
     const options = {method: payload === undefined ? "GET" : "POST", cache: "no-store", credentials: "same-origin"};
     if (payload !== undefined) {
-      options.headers = {"Content-Type": "application/json", "X-Hestia-CSRF": csrf};
-      options.body = JSON.stringify(payload);
+      options.headers = {"Content-Type": binaryPlan ? "application/zip" : "application/json", "X-Hestia-CSRF": csrf};
+      if (binaryPlan) options.headers["X-Hestia-Plan"] = binaryPlan;
+      options.body = binaryPlan ? payload : JSON.stringify(payload);
     }
     let response;
     try { response = await fetch(path, options); } catch (_) { throw failed("NETWORK"); }
@@ -619,10 +620,11 @@
     row.append(button("Télécharger le rapport", () => void run(downloadReport), "download-report"));
     content.append(row); technical(content, "Journal technique (non secret)", installation);
   }
-  function gatewayAction(action, extra = {}) {
+  function gatewayAction(action, extra = {}, file = null) {
     pendingAction = {action: "gateway." + action, payload: {confirmation: gateway.preparation.plan_sha256, confirm: true, ...extra}};
+    if (file) pendingAction.file = file;
     $("operation-title").textContent = "Préparer Mobile Gateway ?";
-    $("operation-description").textContent = "Acquérir le paquet qualifié et préparer les identités privées du plan affiché ? Le raccordement aux services aura son propre plan.";
+    $("operation-description").textContent = action === "import" ? "Transmettre le ZIP sélectionné, vérifier le paquet qualifié et préparer les identités privées du plan affiché ? Le raccordement aux services aura son propre plan." : "Acquérir le paquet qualifié et préparer les identités privées du plan affiché ? Le raccordement aux services aura son propre plan.";
     $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
   }
   function gatewayForm() {
@@ -634,13 +636,18 @@
       const origin = element("input"); origin.id = "gateway-origin"; origin.type = "url"; origin.required = true;
       origin.maxLength = 261;
       const dev = element("input"); dev.id = "gateway-dev"; dev.type = "checkbox";
-      form.append(field("Origine HTTPS publique Mobile", origin), field("Préparer aussi une identité DEV distincte", dev));
+      const acquisition = element("select"); acquisition.id = "gateway-acquisition";
+      for (const [value, label] of [["github", "Télécharger depuis GitHub Actions"], ["package", "Importer le ZIP binaire qualifié"]]) {
+        const option = element("option", label); option.value = value; acquisition.append(option);
+      }
+      form.append(field("Origine HTTPS publique Mobile", origin), field("Préparer aussi une identité DEV distincte", dev), field("Obtenir le paquet Gateway", acquisition));
       const submit = element("button", "Préparer le plan Gateway"); submit.id = "plan-gateway"; submit.type = "submit"; form.append(submit);
       form.addEventListener("submit", (event) => {
         event.preventDefault(); if (!form.reportValidity() || busy || serverBusy) return;
         void run(async () => {
           gateway = (await api("/api/gateway/preparation/plan", {web_plan_sha256: installation.plan_sha256,
-            public_origin: origin.value, dev_enabled: dev.checked})).gateway; show(5);
+            public_origin: origin.value, dev_enabled: dev.checked,
+            ...(acquisition.value === "package" ? {acquisition: "package"} : {})})).gateway; show(5);
         });
       }); card.append(form);
     } else {
@@ -649,11 +656,33 @@
       for (const spec of document.plan.steps) card.append(hint(spec.action));
       if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
       if (document.state !== "DONE") {
-        card.append(hint("Le téléchargement requiert un jeton GitHub avec Actions Read. Ressaisissez-le après une interruption si nécessaire."));
-        card.append(button("Ressaisir le jeton pour Gateway", () => show(1), "gateway-credential"));
-        if (document.approved_plan_sha256 === null) card.append(button("Valider la préparation Gateway", () => gatewayAction("apply"), "apply-gateway", true));
-        else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre Gateway", () => gatewayAction("resume"), "resume-gateway"));
-        for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Réessayer : " + record.name, () => gatewayAction("retry", {name: record.name}), "retry-" + record.name));
+        const packagePending = gateway.profile.acquisition === "package" && document.steps[0].state !== "DONE";
+        if (packagePending) {
+          const form = element("form"); form.id = "gateway-import-form";
+          const file = element("input"); file.id = "gateway-package"; file.type = "file"; file.accept = ".zip,application/zip"; file.required = true;
+          form.append(field("ZIP binaire Gateway qualifié", file), hint("Taille attendue : " + gateway.release.package_bytes + " octets. Après interruption, sélectionnez de nouveau le même ZIP."));
+          const submit = element("button", "Importer et préparer Gateway"); submit.id = "import-gateway"; submit.type = "submit"; form.append(submit);
+          form.addEventListener("submit", (event) => {
+            event.preventDefault(); if (!form.reportValidity() || busy || serverBusy) return;
+            const selected = file.files[0];
+            if (!selected || selected.size !== gateway.release.package_bytes) { message("La taille du ZIP ne correspond pas au paquet qualifié.", true); return; }
+            file.value = ""; gatewayAction("import", {}, selected);
+          }); card.append(form);
+          card.append(hint("Aucun jeton GitHub requis pour cet import. Le serveur vérifie la taille, le SHA-256 et le contenu du ZIP avant de préparer les identités."));
+          if (document.approved_plan_sha256 !== null) {
+            const retry = ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(document.steps[0].state);
+            card.append(button("Reprendre sans renvoyer le ZIP", () => gatewayAction(retry ? "retry" : "resume", retry ? {name: "gateway.binary"} : {}), "recover-gateway-package"));
+            card.append(hint("Cette reprise utilise un reçu déjà écrit. Si l'envoi était incomplet, réimportez le ZIP."));
+          }
+        } else {
+          if (gateway.profile.acquisition !== "package") {
+            card.append(hint("Le téléchargement requiert un jeton GitHub avec Actions Read. Ressaisissez-le après une interruption si nécessaire."));
+            card.append(button("Ressaisir le jeton pour Gateway", () => show(1), "gateway-credential"));
+          }
+          if (document.approved_plan_sha256 === null) card.append(button("Valider la préparation Gateway", () => gatewayAction("apply"), "apply-gateway", true));
+          else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre Gateway", () => gatewayAction("resume"), "resume-gateway"));
+          for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Réessayer : " + record.name, () => gatewayAction("retry", {name: record.name}), "retry-" + record.name));
+        }
       } else {
         card.append(hint("Paquet et identités préparés. Le raccordement Foundation, le service Gateway et l'accès HTTPS Mobile restent à installer."));
         card.append(button("Vérifier le paquet et les identités", () => void run(async () => {
@@ -663,8 +692,11 @@
       }
       technical(card, "Plan Gateway (non secret)", document.plan);
     }
-    if (gateway.release) card.append(hint("Gateway " + gateway.release.version + " - " + gateway.release.architecture + " - SQLite " + gateway.release.sqlite_schema),
-      hint("Artefact CI disponible jusqu'au " + gateway.release.expires_at + ". Aucune autre version n'est choisie automatiquement."));
+    if (gateway.release) {
+      card.append(hint("Gateway " + gateway.release.version + " - " + gateway.release.architecture + " - SQLite " + gateway.release.sqlite_schema));
+      card.append(hint(gateway.profile?.acquisition === "package" ? "L'import du ZIP conservé reste possible après expiration de l'artefact CI. Aucune autre version n'est choisie automatiquement." : "Artefact CI disponible jusqu'au " + gateway.release.expires_at + ". L'import du ZIP conservé se choisit lors de la création du plan."));
+      technical(card, "Référence du paquet qualifié", {sha256: gateway.release.package_sha256, bytes: gateway.release.package_bytes});
+    }
     content.append(card);
   }
   function activationAction(action, extra = {}) {
@@ -870,6 +902,9 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action === "gateway.import") {
+        gateway = (await api("/api/gateway/preparation/import", action.file, action.payload.confirmation)).gateway;
+        show(5);
       } else if (action.action.startsWith("gateway.")) {
         gateway = (await api("/api/gateway/preparation/" + action.action.slice(8), action.payload)).gateway;
         show(5);

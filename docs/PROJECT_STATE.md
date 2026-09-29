@@ -1,3 +1,12 @@
+## 29 septembre 2026 - candidat 6B3
+
+Import du ZIP binaire Gateway qualifié depuis le wizard, confirmation et journal
+avant lecture du corps, reprise sans rotation des clés. Les profils et StepSpecs
+6B2 restent inchangés. Qualification complète en attente sur le candidat.
+Contrat et prérequis natifs vérifiés :
+[PHASE6B3_GATEWAY_IMPORT.md](PHASE6B3_GATEWAY_IMPORT.md).
+Aucune promotion main/dev-Bastien, évolution Web/APK ou installation native.
+
 ## 29 septembre 2026 - candidat 6B2
 
 Acquisition binaire Gateway épinglée et préparation des identités accessibles
