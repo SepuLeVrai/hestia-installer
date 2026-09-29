@@ -1,0 +1,36 @@
+# Template only: define HESTIA_INTERNAL_MOBILE_PORT, HESTIA_WEB_ROOT,
+# HESTIA_MOBILE_CONFIG and HESTIA_PHP_FPM_SOCKET with validated local values.
+# Never include these Directory permissions in a public Web vhost.
+Listen 127.0.0.1:${HESTIA_INTERNAL_MOBILE_PORT}
+<VirtualHost 127.0.0.1:${HESTIA_INTERNAL_MOBILE_PORT}>
+    ServerName hestia-internal-mobile.local
+    DocumentRoot "${HESTIA_WEB_ROOT}/internal/mobile/v1"
+    ProxyTimeout 3
+    Timeout 3
+    LimitRequestBody 16384
+    AllowEncodedSlashes Off
+    <Directory "${HESTIA_WEB_ROOT}">
+        AllowOverride None
+        Require all denied
+    </Directory>
+    <Directory "${HESTIA_WEB_ROOT}/internal/mobile/v1">
+        AllowOverride None
+        Options -Indexes -MultiViews
+        Require local
+        <Files "index.php">
+            SetHandler "proxy:unix:${HESTIA_PHP_FPM_SOCKET}|fcgi://localhost"
+        </Files>
+    </Directory>
+
+    <LocationMatch "^/internal/mobile/v1/business/(profile-get|profile-update|dashboard-get|activities-list|activity-get|cockpit-get|workload-get|workload-update|pipeline-get|pipeline-update|express-clients|express-create|todos-list|todo-update|roadmaps-list|roadmap-get|roadmap-create|roadmap-update|roadmap-clients|roadmap-axis-create|roadmap-axis-update|photos-list|photo-delete|photo-get|photo-upload|profile-photo-get|profile-photo-upload|tickets-list|ticket-update|ticket-create|references-list|reference-get|news-list|notifications-list|notification-read|admin-users-list|admin-user-update|organisation-list|referentials-list|referential-update|templates-list|template-update)$">
+        LimitRequestBody 1048576
+    </LocationMatch>
+    SetEnv HESTIA_INTERNAL_MOBILE 1
+    SetEnv HESTIA_MOBILE_FOUNDATION_CONFIG "${HESTIA_MOBILE_CONFIG}"
+    SetEnvIf Authorization "^(.*)$" HTTP_AUTHORIZATION=$1
+    RewriteEngine On
+    RewriteRule !^/?internal/mobile/v1/(access/check|enrollment/(reserve|activate|result)|device/(lookup|revoke)|environment/list|auth/(lookup|authorize|check)|context/(lookup|authorize|check|push-check|permission)|project-push/(claim|ack|resolve)|app-update/(check|download)|bootstrap/(check|download)|business/me|business/(profile-get|profile-update|dashboard-get|activities-list|activity-get|cockpit-get|workload-get|workload-update|pipeline-get|pipeline-update|express-clients|express-create|todos-list|todo-update|roadmaps-list|roadmap-get|roadmap-create|roadmap-update|roadmap-clients|roadmap-axis-create|roadmap-axis-update|photos-list|photo-delete|photo-get|photo-upload|profile-photo-get|profile-photo-upload|tickets-list|ticket-update|ticket-create|references-list|reference-get|news-list|notifications-list|notification-read|admin-users-list|admin-user-update|organisation-list|referentials-list|referential-update|templates-list|template-update))$ - [R=404,L]
+    RewriteRule ^/?internal/mobile/v1/ "${HESTIA_WEB_ROOT}/internal/mobile/v1/index.php" [END]
+    LogFormat "%t %>s %{X-Request-ID}o" hestia_internal_mobile
+    CustomLog "${APACHE_LOG_DIR}/hestia-internal-mobile-access.log" hestia_internal_mobile
+</VirtualHost>

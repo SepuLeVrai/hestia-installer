@@ -1,5 +1,9 @@
 ## 29 septembre 2026 - candidat 6B3
 
+## 2026-09-29 — candidat 6B4 Foundation MAIN
+
+Raccordement privé MAIN sur 9082, journal séparé et pool PHP Web existant. Qualification native en attente ; le gel qualifié 6B3 reste la référence précédente. Voir [le contrat 6B4](PHASE6B4_FOUNDATION_MAIN.md). Gateway, accès Mobile public et boot restent à raccorder.
+
 Import du ZIP binaire Gateway qualifié depuis le wizard, confirmation et journal
 avant lecture du corps, reprise sans rotation des clés. Les profils et StepSpecs
 6B2 restent inchangés. Qualification complète en attente sur le candidat.

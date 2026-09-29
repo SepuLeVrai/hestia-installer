@@ -18,8 +18,10 @@ from installer.boot_plan import BootPlan
 from installer.acme_packages import AcmePackagePlan
 from installer.public_tls_plan import PublicTLSPlan
 from installer.gateway_plan import GatewayPlan
+from installer.foundation_plan import FoundationPlan
 
 POST_ROUTES = {
+    **{'/api/gateway/foundation/' + action: 'foundation.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/gateway/preparation/' + action: 'gateway.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/web/public-tls/' + action: 'public-tls.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/system/acme-packages/' + phase + '/' + action: 'acme-packages.' + phase + '.' + action
@@ -66,6 +68,7 @@ class TransactionService:
         self.acme_packages = AcmePackagePlan(engine, self.packages, self.boot)
         self.public_tls = PublicTLSPlan(engine, self.boot, self.acme_packages)
         self.gateway = GatewayPlan(engine, github.access if github is not None else None)
+        self.foundation = FoundationPlan(self.application, self._fresh_activation, self.gateway)
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
@@ -105,7 +108,7 @@ class TransactionService:
                     "application": self.application.state(), "activation": self.activation.state(), "upgrade": self.upgrade.state(),
                     "packages": self.packages.state(), "mariadb": self.mariadb.state(), "boot": self.boot.state(),
                     "acme_packages": self.acme_packages.state(), "public_tls": self.public_tls.state(),
-                    "gateway": self.gateway.state()}
+                    "gateway": self.gateway.state(), "foundation": self.foundation.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -136,10 +139,14 @@ class TransactionService:
             if public['installation'] is not None: result['public_tls'] = public
             gateway = self.gateway.state()
             if gateway['profile'] is not None: result['gateway'] = gateway
+            foundation = self.foundation.state()
+            if foundation['profile'] is not None: result['foundation'] = foundation
             return result
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('foundation.'):
+                return {"foundation": self.foundation.execute(action.removeprefix('foundation.'), payload)}
             if action.startswith('gateway.'):
                 require(action != 'gateway.import', ErrorCode.INVALID_DATA)
                 return {"gateway": self.gateway.execute(action.removeprefix('gateway.'), payload)}

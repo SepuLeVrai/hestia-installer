@@ -2,7 +2,7 @@ name: Installer Quality
 
 on:
   push:
-    branches: [main, 'quality/**', 'work/phase6b-private-identities-20260929', 'work/phase6b2-gateway-acquisition-20260929', 'work/phase6b3-package-import-20260929']
+    branches: [main, 'quality/**', 'work/phase6b-private-identities-20260929', 'work/phase6b2-gateway-acquisition-20260929', 'work/phase6b3-package-import-20260929', 'work/phase6b4-foundation-main-20260929']
   pull_request:
     branches: [main]
   workflow_dispatch:
