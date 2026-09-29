@@ -98,7 +98,7 @@ class GatewayLive(previous.FoundationLive):
         # A service may use its systemd credential, never read the source PEM.
         inaccessible = command('runuser', '-u', account.pw_name, '--', 'test', '-r', str(store.root / 'main.pem'), check=False)
         self.assertNotEqual(inaccessible.returncode, 0)
-        nonce_before = self.sql(query=f'SELECT COUNT(*) n FROM `{self.db}`.Sec_Mobile_Service_Nonce')[0]['n']
+        nonce_before = {row['jti'] for row in self.sql(query=f'SELECT jti FROM `{self.db}`.Sec_Mobile_Service_Nonce')}
         with self.browser() as page:
             expect(page.locator('#resume-gatewayService')).to_be_visible()
             before = control.journal.path.read_bytes()
@@ -113,8 +113,10 @@ class GatewayLive(previous.FoundationLive):
             page.reload(); expect(page.locator('#gatewayService-state')).to_have_attribute('data-state', 'DONE')
             page.locator('#gatewayService-main').screenshot(path='/evidence/gateway-service.png')
         self.assertEqual(runtime.show()['MainPID'], pid); self.assertEqual(self.sqlite_identity(runtime), sqlite_uuid)
-        nonce_after = self.sql(query=f'SELECT COUNT(*) n FROM `{self.db}`.Sec_Mobile_Service_Nonce')[0]['n']
-        self.assertGreaterEqual(int(nonce_after), int(nonce_before) + 2)
+        nonce_after = {row['jti'] for row in self.sql(query=f'SELECT jti FROM `{self.db}`.Sec_Mobile_Service_Nonce')}
+        # Each signed request also purges expired nonces; compare new identities,
+        # not the total population, which can shrink during native setup.
+        self.assertGreaterEqual(len(nonce_after - nonce_before), 2)
         self.assertEqual(int(self.sql(query=f'SELECT COUNT(*) n FROM `{self.db}`.Sec_Mobile_Enrollment')[0]['n']), 0)
         for path, original in preserved.items(): self.assertEqual(path.read_bytes(), original)
         for role, old_pid in web_pids.items(): self.assertEqual(native.drain._show(http.unit(role))['MainPID'], old_pid)
