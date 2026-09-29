@@ -133,14 +133,63 @@ class GatewayLive(previous.FoundationLive):
         backup_root = self.profile.root / 'gateway-backup'; backup_root.mkdir(mode=0o700)
         operation = provisioned_backup.ProvisionedBackup(replace(self.profile.runtime(), timeout_seconds=120),
             previous.previous.wizard.TARGET, http, application_plan.cleaner.SessionCleaner(http))
+        from installer import gateway_state_fence as state_fence, gateway_state_backup as state_backup
+        from unittest.mock import patch
+        import signal
+        old_fd = os.open(runtime.profile.state / 'gateway.db', os.O_RDWR)
+        self.addCleanup(os.close, old_fd)
+        original_flags = state_fence.inf._flags
+        def cut_after_first_flag(fd, value=None):
+            result = original_flags(fd, value)
+            if value is not None: os.kill(os.getpid(), signal.SIGKILL)
+            return result
+        def interrupted_backup():
+            with patch.object(state_fence.inf, '_flags', side_effect=cut_after_first_flag):
+                operation.create_and_verify(payload, self.authority, config_root=self.profile.config_root,
+                    backup_root=backup_root, confirmed=True, allow_global_read_lock=True)
+        self.kill_child(interrupted_backup)
+        scope, _ = runtime.foundation.activation.configuration()
+        lease_id = scope.observe()['lease_id']
+        self.assertTrue((scope.directory / state_fence.MARKER).exists())
+        self.assertFalse(any(backup_root.iterdir()))
         backup = operation.create_and_verify(payload, self.authority, config_root=self.profile.config_root,
-            backup_root=backup_root, confirmed=True, allow_global_read_lock=True).report()
+            backup_root=backup_root, confirmed=True, allow_global_read_lock=True,
+            recover_lease_id=lease_id).report()
         Path('/evidence/gateway-backup.json').write_bytes(quality.encode(backup))
-        self.assertEqual(backup['state'], 'PROVISIONED_BACKUP_RESTORE_VERIFIED', backup)
+        self.assertEqual(backup['state'], 'MOBILE_BACKUP_RESTORE_VERIFIED', backup)
         self.assertTrue(backup['database_restoration_verified'] and backup['registered_data_restoration_verified'])
         self.assertFalse(backup['activity_resumed'])
         runtime.stopped(); runtime.foundation.stopped()
-        self.assertEqual(self.sqlite_identity(runtime), sqlite_uuid)
+        self.assertTrue(backup['gateway_sqlite_restoration_verified'])
+        snapshot_slot = backup_root / backup['gateway_snapshot_id']
+        snapshot = json.loads((snapshot_slot / 'snapshot.json').read_bytes())
+        self.assertEqual(snapshot['sqlite']['installation_uuid_sha256'], sha(sqlite_uuid.encode()))
+        self.assertTrue(snapshot['isolated_restore_verified'])
+        # Immutable inodes protect writes even through a descriptor opened while
+        # Gateway was active. A bind alias cannot evade that protection either.
+        with self.assertRaises(PermissionError): os.write(old_fd, b'forbidden')
+        alias = self.profile.root / 'gateway-alias'; alias.mkdir()
+        command('mount', '--bind', str(runtime.profile.state), str(alias))
+        try:
+            for path in (runtime.profile.state / 'gateway.db', alias / 'gateway.db'):
+                with self.assertRaises(PermissionError): path.write_bytes(b'forbidden')
+                with self.assertRaises(PermissionError): path.unlink()
+            with self.assertRaises(PermissionError): (alias / 'unknown').write_bytes(b'forbidden')
+        finally: command('umount', str(alias))
+        from installer import http_drain
+        before_snapshot = (snapshot_slot / 'snapshot.json').read_bytes()
+        with http_drain.HttpDrain(http, cleaner=application_plan.cleaner.SessionCleaner(http)).recover(
+                lease_id, confirmed=True) as barrier:
+            recovered_runtime = state_backup.gateway_service_drain.attached(http,
+                state_backup.foundation_drain.attached(http))
+            with state_fence.recover(recovered_runtime, barrier, confirmed=True) as recovered:
+                with patch.object(state_backup, '_worker', side_effect=AssertionError('snapshot replay')):
+                    saved = state_backup.recover_snapshot(recovered, self.profile.runtime(), backup_root, confirmed=True)
+                    self.assertEqual(saved.raw, before_snapshot)
+                # The low-level reopen boundary also refuses the new durable marker.
+                with self.assertRaisesRegex(Exception, 'MAINTENANCE_DATA_ACCESS_CLOSED'):
+                    barrier._lease.resume(confirmed=True)
+        Path('/evidence/gateway-sqlite-snapshot.json').write_bytes(quality.encode(snapshot))
         scope, _ = runtime.foundation.activation.configuration()
         self.assertEqual(scope.observe()['state'], 'MAINTENANCE_REQUIRED')
         for target in (runtime, runtime.foundation):
@@ -160,7 +209,8 @@ class GatewayLive(previous.FoundationLive):
             'web_pids_units_login_and_parent_journals_preserved': True, 'main_dev_keys_preserved': True,
             'web_backup_sql_and_data_restore_verified': True, 'gateway_and_foundation_stopped': True,
             'gated_explicit_starts_refused': True, 'stopped_done_never_restarted': True,
-            'gateway_sqlite_backup_qualified': False, 'public_mobile_delivered': False, 'boot_delivered': False}))
+            'gateway_sqlite_backup_qualified': True, 'gateway_fence_sigkill_recovery': True,
+            'gateway_old_fd_and_bind_alias_writes_denied': True, 'gateway_snapshot_recovery_without_replay': True, 'public_mobile_delivered': False, 'boot_delivered': False}))
 
 
 if __name__ == '__main__':
@@ -170,12 +220,14 @@ if __name__ == '__main__':
     if os.environ.get('HESTIA_GATEWAY_SERVICE_TEST') != '1': raise RuntimeError('Disposable Gateway recipe opt-in required')
     previous.previous.wizard.journal.fresh.WEB = args.web; previous.previous.wizard.TARGET = args.target
     source = quality.snapshot(ROOT)
-    result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([GatewayLive(
-        'test_gateway_real_credentials_recovery_main_and_coordinated_backup')]))
+    import test_gateway_state
+    suite = unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromModule(test_gateway_state),
+        GatewayLive('test_gateway_real_credentials_recovery_main_and_coordinated_backup')])
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
     stable = source == quality.snapshot(ROOT)
-    report = {'suite': 'Gateway MAIN native service and backup', 'tests': result.testsRun, 'expected': 1,
+    report = {'suite': 'Gateway MAIN native service and backup', 'tests': result.testsRun, 'expected': 18,
         'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
-        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 1 and not result.skipped and stable else 'FAIL',
+        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 18 and not result.skipped and stable else 'FAIL',
         'source_stable': stable, 'source_files': len(source), 'phase6_complete': False}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     (args.report.parent / 'GATEWAY-SOURCE-MANIFEST.json').write_bytes(quality.encode(source))

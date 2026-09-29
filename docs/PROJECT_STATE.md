@@ -1,3 +1,7 @@
+## Candidat 6B6 — 29 septembre 2026
+
+Le [contrat de sauvegarde SQLite Gateway](PHASE6B6_GATEWAY_BACKUP.md) ajoute une barrière durable, une restauration isolée et un reçu composé Web/Gateway. Qualification en cours. La réouverture et le boot restent fermés.
+
 ## 29 septembre 2026 - candidat 6B5
 
 [Service Gateway MAIN natif](PHASE6B5_GATEWAY_SERVICE.md) sur la base 6B4 qualifiée :
