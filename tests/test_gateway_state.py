@@ -25,6 +25,7 @@ class FenceTests(unittest.TestCase):
         (self.state / 'gateway.db').write_bytes(b'fixture-sqlite-bytes')
         (self.state / 'gateway.lock').write_bytes(b'')
         for path in self.state.iterdir(): path.chmod(0o600)
+        self.cache = self.state / g.CACHE; self.cache.mkdir(mode=0o700)
         gate = self.root / 'maintenance'; gate.mkdir(mode=0o700)
         self.gate = os.open(gate, os.O_RDONLY | os.O_DIRECTORY); self.addCleanup(os.close, self.gate)
         self.runtime = object.__new__(GatewayServiceRuntime)
@@ -52,6 +53,7 @@ class FenceTests(unittest.TestCase):
         self.addCleanup(fence.close); return fence
 
     def test_freeze_holds_real_lock_and_close_preserves_durable_barrier(self):
+        self.cache.rmdir()  # Legacy state without an initialized optional cache.
         fence = self.acquire(); fence.assert_held()
         with (self.state / 'gateway.lock').open('rb') as foreign:
             with self.assertRaises(BlockingIOError): fcntl.flock(foreign, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -114,6 +116,29 @@ class FenceTests(unittest.TestCase):
         self.flags_call(handle, g.inf.IMMUTABLE)
         (self.state / 'gateway.db').write_bytes(b'changed')
         with self.assertRaises(g.GatewayStateError): fence.assert_held()
+
+    def test_editor_cache_directory_and_named_inode_are_frozen_and_reobserved(self):
+        logo = self.cache / ('a' * 64 + '.logo'); logo.write_bytes(b'a' * 66); logo.chmod(0o600)
+        fence = self.acquire(); fence.assert_held()
+        self.assertEqual(set(fence.opened), {'.', 'gateway.db', 'gateway.lock', g.CACHE, g.CACHE + '/' + logo.name})
+        self.assertTrue(self.flags_call(fence.opened[g.CACHE]) & g.inf.IMMUTABLE)
+        self.assertTrue(self.flags_call(fence.opened[g.CACHE + '/' + logo.name]) & g.inf.IMMUTABLE)
+        logo.write_bytes(b'b' * 66)
+        with self.assertRaises(g.GatewayStateError): fence.assert_held()
+
+    def test_cache_unknown_symlink_hardlink_and_oversize_refuse_before_marker(self):
+        logo = self.cache / ('a' * 64 + '.logo'); other = self.root / 'foreign-logo'
+        other.write_bytes(b'a' * 66); other.chmod(0o600)
+        for kind in ('unknown', 'symlink', 'hardlink', 'oversize'):
+            target = self.cache / 'logo-incomplete.tmp' if kind == 'unknown' else logo
+            with self.subTest(kind=kind):
+                if kind == 'symlink': target.symlink_to(other)
+                elif kind == 'hardlink': os.link(other, target)
+                else: target.write_bytes(b'a' * (65602 if kind == 'oversize' else 66)); target.chmod(0o600)
+                try:
+                    with self.assertRaises(g.GatewayStateError): self.acquire()
+                    self.assertFalse((self.root / 'maintenance' / g.MARKER).exists())
+                finally: target.unlink()
 
 
 class SnapshotTests(unittest.TestCase):
@@ -178,6 +203,30 @@ class SnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(g.GatewayStateError, 'INTERRUPTED'):
             b.capture(fence, self.worker, self.backups, confirmed=True, cancel=cancelled)
         self.assertEqual(list(self.backups.iterdir()), [])
+
+    def test_cache_restore_and_large_manifest_recovery_reject_changed_saved_logo(self):
+        for number in range(100):
+            logo = self.cache / (format(number, '064x') + '.logo')
+            logo.write_bytes(b'a' * 66); logo.chmod(0o600)
+        saved = self.snapshot(); self.assertGreater(len(saved.raw), 16384)
+        self.assertTrue(saved.manifest['editor_cache'])
+        self.worker_call.side_effect = AssertionError('replayed worker')
+        recovered = b.recover_snapshot(saved.fence, self.worker, self.backups, confirmed=True)
+        self.assertEqual(recovered.raw, saved.raw)
+        target = saved.slot / 'source' / g.CACHE / ('0' * 64 + '.logo')
+        self.assertEqual(target.read_bytes(), b'a' * 66)
+        target.write_bytes(b'changed')
+        with self.assertRaisesRegex(g.GatewayStateError, 'BACKUP_CHANGED'): saved.verify()
+
+    def test_copy_refuses_low_space_before_creating_destination(self):
+        source = os.open(self.state / 'gateway.db', os.O_RDONLY)
+        parent = os.open(self.backups, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            with patch.object(b.os, 'fstatvfs', return_value=SimpleNamespace(f_bavail=1, f_frsize=4096)):
+                with self.assertRaisesRegex(g.GatewayStateError, 'FREE_SPACE_REQUIRED'):
+                    b._copy(source, parent, 'database.sqlite')
+            self.assertEqual(list(self.backups.iterdir()), [])
+        finally: os.close(source); os.close(parent)
 
 
 class SQLiteVerifierTests(unittest.TestCase):

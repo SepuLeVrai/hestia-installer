@@ -2,6 +2,7 @@
 """Exact Gateway binary + real Foundation/Web/SQL/systemd, disposable CI only."""
 import argparse
 from copy import deepcopy
+from contextlib import closing
 from dataclasses import replace
 import io
 import json
@@ -41,7 +42,7 @@ class GatewayLive(previous.FoundationLive):
         super().dispose_profile()
 
     def sqlite_identity(self, runtime):
-        with sqlite3.connect(runtime.profile.state.as_uri() + '/gateway.db?mode=ro', uri=True) as database:
+        with closing(sqlite3.connect(runtime.profile.state.as_uri() + '/gateway.db?mode=ro', uri=True)) as database:
             database.execute('PRAGMA query_only=ON')
             self.assertEqual(database.execute('PRAGMA quick_check').fetchall(), [('ok',)])
             self.assertEqual(database.execute('SELECT version FROM schema_migrations ORDER BY version').fetchall(),
@@ -136,6 +137,12 @@ class GatewayLive(previous.FoundationLive):
         from installer import gateway_state_fence as state_fence, gateway_state_backup as state_backup
         from unittest.mock import patch
         import signal
+        cache = runtime.profile.state / state_fence.CACHE
+        logo = cache / ('a' * 64 + '.logo')
+        import base64
+        png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=')
+        logo_bytes = sha(png).encode() + b'\n' + png
+        logo.write_bytes(logo_bytes); logo.chmod(0o600); os.chown(logo, account.pw_uid, account.pw_gid)
         old_fd = os.open(runtime.profile.state / 'gateway.db', os.O_RDWR)
         self.addCleanup(os.close, old_fd)
         original_flags = state_fence.inf._flags
@@ -165,16 +172,24 @@ class GatewayLive(previous.FoundationLive):
         snapshot = json.loads((snapshot_slot / 'snapshot.json').read_bytes())
         self.assertEqual(snapshot['sqlite']['installation_uuid_sha256'], sha(sqlite_uuid.encode()))
         self.assertTrue(snapshot['isolated_restore_verified'])
+        self.assertTrue(backup['gateway_editor_cache_restoration_verified'])
+        self.assertTrue(snapshot['editor_cache'])
+        self.assertEqual(snapshot['files'][state_fence.CACHE + '/' + logo.name],
+                         {'bytes': len(logo_bytes), 'sha256': sha(logo_bytes)})
+        self.assertEqual((snapshot_slot / 'source' / state_fence.CACHE / logo.name).read_bytes(), logo_bytes)
+        self.assertEqual(logo.read_bytes(), logo_bytes)
+        with self.assertRaises(PermissionError): logo.write_bytes(b'forbidden')
         # Immutable inodes protect writes even through a descriptor opened while
         # Gateway was active. A bind alias cannot evade that protection either.
         with self.assertRaises(PermissionError): os.write(old_fd, b'forbidden')
         alias = self.profile.root / 'gateway-alias'; alias.mkdir()
         command('mount', '--bind', str(runtime.profile.state), str(alias))
         try:
-            for path in (runtime.profile.state / 'gateway.db', alias / 'gateway.db'):
+            for path in (runtime.profile.state / 'gateway.db', alias / 'gateway.db', alias / state_fence.CACHE / logo.name):
                 with self.assertRaises(PermissionError): path.write_bytes(b'forbidden')
                 with self.assertRaises(PermissionError): path.unlink()
             with self.assertRaises(PermissionError): (alias / 'unknown').write_bytes(b'forbidden')
+            with self.assertRaises(PermissionError): (alias / state_fence.CACHE / ('b' * 64 + '.logo')).write_bytes(b'forbidden')
         finally: command('umount', str(alias))
         from installer import http_drain
         before_snapshot = (snapshot_slot / 'snapshot.json').read_bytes()
@@ -209,7 +224,8 @@ class GatewayLive(previous.FoundationLive):
             'web_pids_units_login_and_parent_journals_preserved': True, 'main_dev_keys_preserved': True,
             'web_backup_sql_and_data_restore_verified': True, 'gateway_and_foundation_stopped': True,
             'gated_explicit_starts_refused': True, 'stopped_done_never_restarted': True,
-            'gateway_sqlite_backup_qualified': True, 'gateway_fence_sigkill_recovery': True,
+            'gateway_sqlite_backup_qualified': True, 'gateway_editor_cache_backup_restore_and_writes_fenced': True,
+            'gateway_fence_sigkill_recovery': True,
             'gateway_old_fd_and_bind_alias_writes_denied': True, 'gateway_snapshot_recovery_without_replay': True, 'public_mobile_delivered': False, 'boot_delivered': False}))
 
 
@@ -225,9 +241,9 @@ if __name__ == '__main__':
         GatewayLive('test_gateway_real_credentials_recovery_main_and_coordinated_backup')])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     stable = source == quality.snapshot(ROOT)
-    report = {'suite': 'Gateway MAIN native service and backup', 'tests': result.testsRun, 'expected': 18,
+    report = {'suite': 'Gateway MAIN native service and backup', 'tests': result.testsRun, 'expected': 22,
         'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
-        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 18 and not result.skipped and stable else 'FAIL',
+        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 22 and not result.skipped and stable else 'FAIL',
         'source_stable': stable, 'source_files': len(source), 'phase6_complete': False}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     (args.report.parent / 'GATEWAY-SOURCE-MANIFEST.json').write_bytes(quality.encode(source))

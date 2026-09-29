@@ -36,9 +36,12 @@ def _cancel(cancel, deadline):
 
 
 def _copy(source, parent, name, *, uid=0, gid=0, cancel=None):
-    require(name in (*gf.NAMES, 'database.sqlite'), 'GATEWAY_BACKUP_NAME_REJECTED')
+    require(name in (*gf.NAMES, 'database.sqlite') or gf.CACHE_NAME.fullmatch(name), 'GATEWAY_BACKUP_NAME_REJECTED')
     info = os.fstat(source); require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1
         and 0 <= info.st_size <= gf.MAX_BYTES, 'GATEWAY_BACKUP_FILE_REJECTED')
+    disk = os.fstatvfs(parent)
+    require(disk.f_bavail * disk.f_frsize >= info.st_size + files.MIN_FREE_BYTES,
+            'GATEWAY_BACKUP_FREE_SPACE_REQUIRED')
     target = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=parent)
     digest = hashlib.sha256(); total = 0; deadline = time.monotonic() + 60
     try:
@@ -73,6 +76,8 @@ def _worker(worker, runtime, input_fd, names, output_fd, cancel):
             'GATEWAY_BACKUP_WORKER_SEPARATION_REQUIRED')
     for path in ('/usr/bin/python3', '/usr/bin/unshare'):
         p._safe_path(Path(path).resolve(), directory=False, system=True)
+    require(shutil.disk_usage(worker.run_root).free >= 2 * 1024 * 1024 * 1024,
+            'GATEWAY_BACKUP_FREE_SPACE_REQUIRED')
     with tempfile.TemporaryDirectory(prefix='gateway-verify-', dir=worker.run_root) as temporary:
         stage = Path(temporary)
         with fs._directory(stage) as fd:
@@ -126,7 +131,7 @@ class GatewayBackup:
     def verify(self, *, cancel=None):
         self.fence.assert_held()
         require(set(self.manifest) == {'version', 'lease_id', 'fence_sha256', 'binding', 'files',
-            'sqlite', 'isolated_restore_verified', 'activity_resumed', 'restore_to_original_allowed'}
+            'sqlite', 'isolated_restore_verified', 'activity_resumed', 'restore_to_original_allowed', 'editor_cache'}
             and self.manifest['version'] == 1 and type(self.manifest['version']) is int
             and self.manifest['lease_id'] == self.fence.barrier._lease.lease_id
             and self.manifest['fence_sha256'] == f._sha(self.fence.raw)
@@ -134,14 +139,25 @@ class GatewayBackup:
             and self.manifest['isolated_restore_verified'] is True
             and self.manifest['activity_resumed'] is False and self.manifest['restore_to_original_allowed'] is False
             and type(self.manifest['files']) is dict
-            and {'gateway.db', 'gateway.lock'} <= set(self.manifest['files']) <= gf.NAMES,
+            and type(self.manifest['editor_cache']) is bool
+            and self.manifest['editor_cache'] == (gf.CACHE in self.fence.opened)
+            and set(self.manifest['files']) == set(self.fence.opened) - {'.', gf.CACHE}
+            and {'gateway.db', 'gateway.lock'} <= set(self.manifest['files'])
+            and all(name in gf.NAMES or name.startswith(gf.CACHE + '/')
+                and gf.CACHE_NAME.fullmatch(name.split('/', 1)[1]) for name in self.manifest['files']),
             'GATEWAY_BACKUP_CHANGED')
         with fs._directory(self.slot) as fd:
-            require(f._read(fd, 'snapshot.json', 0, mode=0o600) == self.raw, 'GATEWAY_BACKUP_CHANGED')
+            require(f._read(fd, 'snapshot.json', 0, mode=0o600, limit=gf.MAX_JOURNAL) == self.raw, 'GATEWAY_BACKUP_CHANGED')
+            with fs._directory(self.slot / 'source') as source:
+                require(set(os.listdir(source)) == {n for n in self.manifest['files'] if '/' not in n}
+                    | ({gf.CACHE} if self.manifest['editor_cache'] else set()), 'GATEWAY_BACKUP_CHANGED')
+                if self.manifest['editor_cache']:
+                    with fs._directory(self.slot / 'source' / gf.CACHE) as cache:
+                        require(set(os.listdir(cache)) == {n.split('/', 1)[1] for n in self.manifest['files']
+                            if n.startswith(gf.CACHE + '/')}, 'GATEWAY_BACKUP_CHANGED')
             for name, expected in self.manifest['files'].items():
-                with fs._directory(self.slot / 'source') as source:
-                    require(set(os.listdir(source)) == set(self.manifest['files']), 'GATEWAY_BACKUP_CHANGED')
-                    handle = _opened(source, name)
+                with fs._directory(self.slot / 'source' / (gf.CACHE if '/' in name else '')) as source:
+                    handle = _opened(source, name.rsplit('/', 1)[-1])
                     try:
                         digest = hashlib.sha256(); total = 0; deadline = time.monotonic() + 60
                         while True:
@@ -179,7 +195,7 @@ class GatewayBackup:
             'gateway_sqlite_restoration_verified': True, 'gateway_installation_uuid_preserved': True,
             'gateway_source_inode_writes_fenced': True, 'gateway_fence_sha256': f._sha(self.fence.raw),
             'gateway_snapshot_sha256': f._sha(self.raw), 'gateway_snapshot_id': self.slot.name,
-            'gateway_sqlite_schema': 6, 'public_mobile_delivered': False, 'boot_delivered': False,
+            'gateway_sqlite_schema': 6, 'gateway_editor_cache_restoration_verified': True, 'public_mobile_delivered': False, 'boot_delivered': False,
             'restore_to_original_allowed': False, 'activity_resumed': False}
         with fs._directory(self.slot) as fd:
             _receipt(fd, 'composed.json', canonical_bytes({'gateway_snapshot': self.manifest, 'web': value,
@@ -210,8 +226,12 @@ def capture(fence, worker, backup_root, *, confirmed, cancel=None):
             'fence_sha256': f._sha(fence.raw), 'lease_id': fence.barrier._lease.lease_id}), 0, mode=0o600)
         os.mkdir('source', 0o700, dir_fd=fd); os.fsync(fd)
         with fs._directory(slot / 'source') as source:
-            saved = {name: _copy(handle, source, name, cancel=cancel)
-                     for name, handle in fence.opened.items() if name != '.'}
+            saved = {}
+            if gf.CACHE in fence.opened: os.mkdir(gf.CACHE, 0o700, dir_fd=source)
+            for name, handle in fence.opened.items():
+                if name in ('.', gf.CACHE): continue
+                with fs._directory(slot / 'source' / (gf.CACHE if '/' in name else '')) as parent:
+                    saved[name] = _copy(handle, parent, name.rsplit('/', 1)[-1], cancel=cancel)
             fence.assert_held()
             normalized = _worker(worker, runtime, source, set(saved), fd, cancel)
         # Restore the stored normalized image into another exclusive private
@@ -221,6 +241,16 @@ def capture(fence, worker, backup_root, *, confirmed, cancel=None):
             handle = _opened(fd, 'database.sqlite')
             try: _copy(handle, proof, 'gateway.db', cancel=cancel)
             finally: os.close(handle)
+            if gf.CACHE in fence.opened:
+                os.mkdir(gf.CACHE, 0o700, dir_fd=proof)
+                with fs._directory(slot / 'source' / gf.CACHE) as source_cache, \
+                     fs._directory(slot / 'restore-proof' / gf.CACHE) as restored_cache:
+                    for name, expected in saved.items():
+                        if not name.startswith(gf.CACHE + '/'): continue
+                        handle = _opened(source_cache, name.split('/', 1)[1])
+                        try: restored_file = _copy(handle, restored_cache, name.split('/', 1)[1], cancel=cancel)
+                        finally: os.close(handle)
+                        require(restored_file == expected, 'GATEWAY_BACKUP_RESTORE_MISMATCH')
             os.mkdir('result', 0o700, dir_fd=proof)
             with fs._directory(slot / 'restore-proof/result') as result:
                 restored = _worker(worker, runtime, proof, {'gateway.db'}, result, cancel)
@@ -230,9 +260,10 @@ def capture(fence, worker, backup_root, *, confirmed, cancel=None):
         shutil.rmtree(slot / 'restore-proof'); fence.assert_held()
         raw = canonical_bytes({'version': 1, 'lease_id': fence.barrier._lease.lease_id,
             'fence_sha256': f._sha(fence.raw), 'binding': fence.value['binding'], 'files': saved,
-            'sqlite': normalized, 'isolated_restore_verified': True, 'activity_resumed': False,
+            'sqlite': normalized, 'editor_cache': gf.CACHE in fence.opened, 'isolated_restore_verified': True, 'activity_resumed': False,
             'restore_to_original_allowed': False})
-        f._write(fd, 'snapshot.json', raw, 0, mode=0o600)
+        require(len(raw) <= gf.MAX_JOURNAL, 'GATEWAY_BACKUP_SIZE_REJECTED')
+        files._new(fd, 'snapshot.json', raw)
     result = GatewayBackup(fence, worker, slot, raw); result.verify(cancel=cancel); return result
 
 
@@ -258,9 +289,10 @@ def prepare(http, barrier, worker, backup_root, stack, *, confirmed, cancel=None
 
 
 def _receipt(fd, name, raw):
-    try: f._write(fd, name, raw, 0, mode=0o600)
+    require(len(raw) <= gf.MAX_JOURNAL, 'GATEWAY_BACKUP_SIZE_REJECTED')
+    try: files._new(fd, name, raw)
     except FileExistsError:
-        require(f._read(fd, name, 0, mode=0o600) == raw, 'GATEWAY_BACKUP_RECOVERY_MISMATCH')
+        require(f._read(fd, name, 0, mode=0o600, limit=gf.MAX_JOURNAL) == raw, 'GATEWAY_BACKUP_RECOVERY_MISMATCH')
 
 
 @closed
@@ -274,5 +306,5 @@ def recover_snapshot(fence, worker, backup_root, *, confirmed, cancel=None):
         expected = canonical_bytes({'state': 'GATEWAY_BACKUP_STARTED', 'fence_sha256': f._sha(fence.raw),
                                     'lease_id': fence.barrier._lease.lease_id})
         require(f._read(fd, 'attempt.json', 0, mode=0o600) == expected, 'GATEWAY_BACKUP_RECOVERY_MISMATCH')
-        raw = f._read(fd, 'snapshot.json', 0, mode=0o600)
+        raw = f._read(fd, 'snapshot.json', 0, mode=0o600, limit=gf.MAX_JOURNAL)
     result = GatewayBackup(fence, worker, slot, raw); result.verify(cancel=cancel); return result

@@ -2,15 +2,19 @@
 from contextlib import ExitStack
 import fcntl
 import os
+import re
 import stat
 from installer import http_drain as hd, inode_fence as inf
-from installer import gateway_service_drain as gd
+from installer import gateway_service_drain as gd, backup_files as files
 from installer.gateway_service_runtime import GatewayServiceRuntime
 from installer.model import canonical_bytes, strict_json_loads
 
 fs, f = hd.fs, hd.f
 MARKER = 'gateway-state.attempt'
 NAMES = {'gateway.db', 'gateway.lock', 'gateway.db-wal', 'gateway.db-shm'}
+CACHE = 'editor-logos-v1'
+CACHE_NAME = re.compile(r'[a-f0-9]{64}\.logo')
+MAX_JOURNAL = 1024 * 1024
 MAX_BYTES = 512 * 1024 * 1024
 
 
@@ -33,7 +37,7 @@ def _inputs(runtime, barrier, confirmed):
 
 
 def _record(fd, name, account, mount):
-    info = os.fstat(fd); directory = name == '.'
+    info = os.fstat(fd); directory = name in ('.', CACHE)
     fs._no_acl(fd)
     require((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) ==
             (account.pw_uid, account.pw_gid, 0o700 if directory else 0o600))
@@ -44,6 +48,8 @@ def _record(fd, name, account, mount):
     if not directory:
         require(0 <= info.st_size <= MAX_BYTES, 'GATEWAY_STATE_SIZE_REJECTED')
         if name == 'gateway.lock': require(info.st_size == 0)
+        if name.startswith(CACHE + '/'):
+            require(66 <= info.st_size <= 65536 + 65, 'GATEWAY_CACHE_SIZE_REJECTED')
     return {'name': name, 'device': info.st_dev, 'inode': info.st_ino,
             'uid': info.st_uid, 'gid': info.st_gid, 'mode': stat.S_IMODE(info.st_mode),
             'size': 0 if directory else info.st_size,
@@ -53,12 +59,22 @@ def _record(fd, name, account, mount):
 def _open(runtime, stack):
     account = runtime.account(); root = runtime.state_directory(); stack.callback(os.close, root)
     mount = inf._ext4(root); names = set(os.listdir(root))
-    require({'gateway.db', 'gateway.lock'} <= names <= NAMES, 'GATEWAY_STATE_FILES_REJECTED')
+    require({'gateway.db', 'gateway.lock'} <= names <= NAMES | {CACHE}, 'GATEWAY_STATE_FILES_REJECTED')
     opened = {'.': root}
     for name in sorted(names):
-        fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=root)
+        flags = os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC
+        fd = os.open(name, flags | (os.O_DIRECTORY if name == CACHE else 0), dir_fd=root)
         stack.callback(os.close, fd); opened[name] = fd
+        if name == CACHE:
+            children = sorted(os.listdir(fd))
+            require(len(children) <= 1024 and all(CACHE_NAME.fullmatch(n) for n in children),
+                    'GATEWAY_CACHE_FILES_REJECTED')
+            for child in children:
+                item = os.open(child, flags, dir_fd=fd); stack.callback(os.close, item)
+                opened[CACHE + '/' + child] = item
     records = [_record(fd, name, account, mount) for name, fd in opened.items()]
+    require(sum(r['size'] for r in records if r['name'].startswith(CACHE + '/')) <= 16 * 1024 * 1024,
+            'GATEWAY_CACHE_SIZE_REJECTED')
     require(sum(row['size'] for row in records) <= MAX_BYTES, 'GATEWAY_STATE_SIZE_REJECTED')
     require(len({(r['device'], r['inode']) for r in records}) == len(records), 'GATEWAY_STATE_ALIAS_REJECTED')
     try: fcntl.flock(opened['gateway.lock'], fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -79,9 +95,12 @@ class GatewayStateFence:
     def assert_held(self):
         require(not self._closed and self._pid == os.getpid(), 'GATEWAY_STATE_BARRIER_REQUIRED')
         self.barrier.assert_held()
-        require(f._read(self.barrier._lease._directory, MARKER, 0, mode=0o600) == self.raw)
+        require(f._read(self.barrier._lease._directory, MARKER, 0, mode=0o600, limit=MAX_JOURNAL) == self.raw)
         account = self.runtime.account(); root = self.opened['.']
-        require(set(os.listdir(root)) == set(self.opened) - {'.'})
+        require(set(os.listdir(root)) == {n for n in self.opened if n != '.' and '/' not in n})
+        if CACHE in self.opened:
+            require(set(os.listdir(self.opened[CACHE])) ==
+                    {n.split('/', 1)[1] for n in self.opened if n.startswith(CACHE + '/')})
         current = self.runtime.state_directory()
         try: require(os.path.samestat(os.fstat(root), os.fstat(current)))
         finally: os.close(current)
@@ -90,7 +109,8 @@ class GatewayStateFence:
             require(_record(fd, row['name'], account, self.mount) == row)
             require(inf._flags(fd) == row['flags'] | inf.IMMUTABLE)
             if row['name'] != '.':
-                named = os.stat(row['name'], dir_fd=root, follow_symlinks=False)
+                parent = self.opened[CACHE] if row['name'].startswith(CACHE + '/') else root
+                named = os.stat(row['name'].rsplit('/', 1)[-1], dir_fd=parent, follow_symlinks=False)
                 require((named.st_dev, named.st_ino) == (row['device'], row['inode']))
         fcntl.flock(self.opened['gateway.lock'], fcntl.LOCK_EX | fcntl.LOCK_NB)
         self.barrier._lease.assert_held()
@@ -117,11 +137,12 @@ def _acquire(runtime, barrier, confirmed, recovery):
                  'barrier_sha256': f._sha(barrier._profile), 'entries': records}
         raw = canonical_bytes(value)
         if recovery:
-            require(f._read(gate, MARKER, 0, mode=0o600) == raw, 'GATEWAY_STATE_RECOVERY_MISMATCH')
+            require(f._read(gate, MARKER, 0, mode=0o600, limit=MAX_JOURNAL) == raw, 'GATEWAY_STATE_RECOVERY_MISMATCH')
         else:
             require(all(not inf._flags(fd) & inf.IMMUTABLE for fd in opened.values()),
                     'GATEWAY_STATE_FOREIGN_FENCE')
-            f._write(gate, MARKER, raw, 0, mode=0o600)
+            require(len(raw) <= MAX_JOURNAL, 'GATEWAY_STATE_SIZE_REJECTED')
+            files._new(gate, MARKER, raw)
         # Freeze the directory first, then existing inodes (including WAL/SHM).
         # Intent precedes every flag change; no SQL library ever opens live state.
         for row in records:

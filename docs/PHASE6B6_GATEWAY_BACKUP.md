@@ -13,7 +13,10 @@ Elle refuse tout fichier inattendu, lien symbolique, hardlink, montage imbriqué
 dérive de métadonnées ou drapeau immutable sans journal possédé.
 
 Une intention durable `gateway-state.attempt` précède le gel du répertoire et des fichiers
-`gateway.db`, `gateway.lock`, et des éventuels `gateway.db-wal` / `gateway.db-shm`.
+`gateway.db`, `gateway.lock`, des éventuels `gateway.db-wal` / `gateway.db-shm`,
+et du cache privé `editor-logos-v1` créé par la Gateway qualifiée. Ce cache accepte
+uniquement les noms de 64 caractères hexadécimaux suivis de `.logo`, au plus 1024 fichiers
+de 66 à 65601 octets, pour 16 MiB au total. Les fichiers temporaires inconnus sont refusés.
 Le verrou applicatif est détenu pendant la capture et la sauvegarde Web.
 Les drapeaux immutable protègent aussi les écritures ordinaires root, anciens descripteurs
 et alias de montage. L'administration qui retire ces drapeaux, modifie les montages ou
@@ -44,6 +47,9 @@ Gateway qualifié et l'identité UUID v4. Un digest logique typé couvre le sch�
 L'API backup SQLite produit une image autonome privée. Une seconde restauration isolée relit
 l'image sauvegardée et vérifie le même contenu logique et le même UUID.
 Le code Installer n'exécute aucune migration Gateway et n'invente aucun UUID.
+Le cache est également restauré dans la cible isolée et vérifié octet pour octet.
+Chaque copie exige sa taille plus 64 MiB libres ; le worker exige 2 GiB libres
+dans son espace temporaire avant de démarrer. Les journaux sont bornés à 1 MiB.
 
 Le snapshot est lié au bail, au profil Gateway, au gel des inodes et aux empreintes des fichiers.
 Le reçu composé exige également le reçu Web exact et son manifeste vérifié sur disque.
