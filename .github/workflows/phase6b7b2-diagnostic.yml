@@ -1,0 +1,45 @@
+name: Phase6B7b2 disposable file-release diagnostic
+on:
+  push:
+    branches: ['diagnostic/phase6b7b2-files-20260930']
+permissions:
+  contents: read
+jobs:
+  files:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        debian: ['12', '13']
+    container:
+      image: debian:${{ matrix.debian }}-slim
+      options: --privileged
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Prepare disposable Ext4
+        run: |
+          set -Eeuo pipefail
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ca-certificates git python3 e2fsprogs util-linux
+          install -d -m 0755 /var/lib/hestia-inode-tests
+          truncate -s 256M /var/lib/hestia-files.img
+          mkfs.ext4 -q -F /var/lib/hestia-files.img
+          mount -o loop,nodev,nosuid /var/lib/hestia-files.img /var/lib/hestia-inode-tests
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Actual new file-release fault scenarios
+        run: |
+          set -Eeuo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git clone --quiet --no-hardlinks --no-local "$GITHUB_WORKSPACE" /var/lib/hestia-source
+          cd /var/lib/hestia-source
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          PYTHONPATH=.:tests python3 -m unittest -v test_mobile_reopen_files
+      - name: Unmount fixture
+        if: always()
+        run: |
+          if mountpoint -q /var/lib/hestia-inode-tests; then umount /var/lib/hestia-inode-tests; fi
