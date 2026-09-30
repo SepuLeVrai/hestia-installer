@@ -1,0 +1,50 @@
+name: Diagnostic draft refresh
+on:
+  push:
+    branches: ['diagnostic/phase6b7b1-draft-20260930']
+permissions:
+  contents: read
+jobs:
+  browser:
+    name: Browser / bridge and native HTTPS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: debian:13-slim
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install test-only tools in disposable Debian
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -Eeuo pipefail
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ca-certificates git python3 python3-venv nodejs chromium openssl iproute2
+          python3 -m venv /opt/quality-venv
+          echo /opt/quality-venv/bin >> "$GITHUB_PATH"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned browser test libraries
+        run: python3 -m pip install --disable-pip-version-check -r requirements-quality.txt
+      - name: Historical bridge and native browser, original assets
+        env:
+          HESTIA_QC_SCREENSHOTS: quality-results/screenshots
+        run: |
+          set -Eeuo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir -p quality-results
+          python3 --version > quality-results/environment.txt
+          chromium --version >> quality-results/environment.txt
+          node --version >> quality-results/environment.txt
+          python3 -m pip freeze >> quality-results/environment.txt
+          PYTHONPATH=tests:. python3 tests/diagnostic_draft_refresh.py 2>&1 | tee quality-results/browser.log
+      - name: Preserve non-secret evidence and original-asset screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: installer-quality-browser
+          path: quality-results/
+          if-no-files-found: error
+          retention-days: 7
