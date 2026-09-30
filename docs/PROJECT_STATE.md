@@ -1,5 +1,19 @@
 ## Reprise du 30 septembre 2026 - phase 6B7b1
 
+## Point de travail 6B7b3 - 30 septembre 2026
+
+Base 6B7b2 qualifiée : `d407c530a14763a849f6a1381d634191c4e090de`.
+La recette native Gateway/MAIN reprend maintenant le sous-plan de libération
+avec les vrais lecteurs systemd, archives, comptes et Ext4. Trois SIGKILL couvrent
+le retrait d'un flag données, du journal configuration RELEASE et du marqueur Web.
+Le check DONE, la dérive Web, les bloqueurs et la conservation des parents sont
+contrôlés dans la même installation jetable.
+
+Voir [PHASE6B7B3_NATIVE_FILE_RELEASE.md](PHASE6B7B3_NATIVE_FILE_RELEASE.md).
+Les SHA et résultats exacts sont joints à la livraison, après gel de ce document.
+Aucune admission SQL actuelle ni réouverture de service n'est livrée ici.
+La phase 6 reste ouverte ; la suite est admission puis libérations externe/données.
+
 ## Point de travail 6B7b2 - 30 septembre 2026
 
 Base qualifiée 6B7b1 : `b7a9845441138996d116bb06a773996a554b5c20`.

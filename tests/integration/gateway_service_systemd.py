@@ -269,6 +269,10 @@ class GatewayLive(previous.FoundationLive):
         self.assertEqual(scope.observe()['state'], 'MAINTENANCE_REQUIRED')
         for path, original in preserved.items(): self.assertEqual(path.read_bytes(), original)
         Path('/evidence/gateway-release.json').write_bytes(quality.encode(released))
+        # 6B7b3: execute the qualified file subplan through real native readers.
+        from mobile_reopen_files_systemd import exercise
+        file_release = exercise(self, http, runtime, scope, lease_id, backup_root, preserved)
+        self.assertEqual(self.sqlite_identity(runtime), sqlite_uuid)
         Path('/evidence/gateway-contract.json').write_bytes(quality.encode({'status': 'PASS',
             'gateway_commit': release()['commit'], 'package_sha256': release()['package_sha256'],
             'binary_sha256': release()['binary_sha256'], 'foreign_9083_refused_before_account': True,
@@ -282,6 +286,7 @@ class GatewayLive(previous.FoundationLive):
             'gateway_fence_sigkill_recovery': True, 'gateway_release_sigkill_recovery': True,
             'gateway_release_receipt_precedes_old_marker_removal': True, 'gateway_release_keeps_activity_closed': True,
             'gateway_release_completed_recovery_without_worker_or_restart': True,
+            'mobile_file_release_native': file_release,
             'gateway_old_fd_and_bind_alias_writes_denied': True, 'gateway_snapshot_recovery_without_replay': True, 'public_mobile_delivered': False, 'boot_delivered': False}))
 
 
@@ -298,7 +303,7 @@ if __name__ == '__main__':
         GatewayLive('test_gateway_real_credentials_recovery_main_and_coordinated_backup')])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     stable = source == quality.snapshot(ROOT)
-    report = {'suite': 'Gateway MAIN native service, backup and guarded release', 'tests': result.testsRun, 'expected': 36,
+    report = {'suite': 'Gateway MAIN native service, backup and guarded file release', 'tests': result.testsRun, 'expected': 36,
         'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
         'status': 'PASS' if result.wasSuccessful() and result.testsRun == 36 and not result.skipped and stable else 'FAIL',
         'source_stable': stable, 'source_files': len(source), 'phase6_complete': False}
