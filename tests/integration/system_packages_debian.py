@@ -46,7 +46,15 @@ class Acquisition(unittest.TestCase):
         cls.hook_marker = Path('/var/lib/hestia-forbidden-apt-hook')
         cls.host_hook = Path('/etc/apt/apt.conf.d/99hestia-fixture')
         cls.host_hook.write_text('DPkg::Pre-Invoke { "touch ' + str(cls.hook_marker) + '"; };\n')
-        cls.report = cls.packages.acquire(confirmed=True)
+        original_simulation = s.simulation
+        def recorded_simulation(raw, before):
+            (EVIDENCE / 'apt-simulation.txt').write_bytes(raw)
+            print('APT_DIAGNOSTIC_START', flush=True)
+            print(raw.decode('utf-8', errors='replace'), flush=True)
+            print('APT_DIAGNOSTIC_END', flush=True)
+            return original_simulation(raw, before)
+        with patch.object(s, 'simulation', side_effect=recorded_simulation):
+            cls.report = cls.packages.acquire(confirmed=True)
         (EVIDENCE / 'ready-report.json').write_text(json.dumps(cls.report, indent=2) + '\n')
         (EVIDENCE / 'acquired-plan.json').write_bytes((cls.packages.directory / 'ready.json').read_bytes())
 

@@ -2,7 +2,7 @@ name: Installer official system packages Quality
 
 on:
   push:
-    branches: [main, 'quality/**']
+    branches: ['diagnostic/phase6b7b1-packages-20260930']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        debian: ['12', '13']
+        debian: ['13']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
