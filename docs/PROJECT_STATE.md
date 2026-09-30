@@ -1,5 +1,18 @@
 ## Reprise du 30 septembre 2026 - phase 6B7b1
 
+## Point de travail 6B7b4 - 30 septembre 2026
+
+Base 6B7b3 qualifiée : `e0f90297323de102368380a4f12c64ac32e75324`.
+La fenêtre privée d'admission revalide les archives, fichiers vivants et SQL
+courant sous le read fence qualifié de 180 secondes. Chaque demande refait un
+export ; les observations persistées ne sont pas des autorisations réutilisables.
+Les changements de journaux sont vérifiés un par un, sans ignorer la maintenance.
+
+Voir [PHASE6B7B4_LIVE_ADMISSION.md](PHASE6B7B4_LIVE_ADMISSION.md).
+Les preuves natives, résultats et identités exactes accompagnent le point d'arrêt.
+Les libérations externe/données et les starts restent hors de cette tranche.
+Les StepSpecs acquis sont conservés. La phase 6 reste ouverte.
+
 ## Point de travail 6B7b3 - 30 septembre 2026
 
 Base 6B7b2 qualifiée : `d407c530a14763a849f6a1381d634191c4e090de`.
