@@ -522,6 +522,8 @@
       "test_mobile_reopen_admission.AdmissionPolicyTests.test_blob_number_changes_do_not_weaken_content_comparison",
       "test_mobile_reopen_admission.AdmissionPolicyTests.test_closed_window_does_not_reuse_its_historical_report",
       "test_mobile_reopen_admission.AdmissionPolicyTests.test_consent_and_types_refuse_before_any_live_effect",
+      "test_mobile_reopen_admission.AdmissionPolicyTests.test_data_blob_rejection_does_not_bypass_archive_exit_lease_check",
+      "test_mobile_reopen_admission.AdmissionPolicyTests.test_data_blob_rejection_survives_legacy_archive_context_exit",
       "test_mobile_reopen_admission.AdmissionPolicyTests.test_duplicate_archive_path_is_rejected",
       "test_mobile_reopen_admission.AdmissionPolicyTests.test_file_drift_after_export_revokes_window",
       "test_mobile_reopen_admission.AdmissionPolicyTests.test_live_report_is_defensive_and_reobserves_all_guards",

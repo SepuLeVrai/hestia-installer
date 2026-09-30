@@ -90,6 +90,16 @@ def _index(records):
     return result
 
 
+def _data_blobs(snapshot, lease, cancel):
+    # The qualified legacy reader normalizes exceptions from its consumer.
+    # Let its exit-time lease check finish, then propagate our fixed rejection.
+    rejected = None
+    with snapshot._open(lease) as (_, saved):
+        try: _blobs(snapshot._slot / 'blobs', saved['records'], 6, files.MAX_FILE_BYTES, cancel)
+        except AdmissionError as error: rejected = error
+    if rejected is not None: raise rejected from None
+
+
 def _private_record(name, raw=None):
     row = {'scope': 'configuration', 'path': 'maintenance/' + name,
            'kind': 'directory' if raw is None else 'file', 'uid': 0, 'gid': 0,
@@ -189,8 +199,7 @@ class _Archives:
             require(f._read(fd, self.manifest['fresh_attempt_name'], 0, mode=0o600) == journal,
                     'MOBILE_ADMISSION_PARENT_CHANGED')
         require(self.data.report(lease) == self.coordinated['data_snapshot'])
-        with self.data._open(lease) as (_, saved):
-            _blobs(self.data._slot / 'blobs', saved['records'], 6, files.MAX_FILE_BYTES, self.cancel)
+        _data_blobs(self.data, lease, self.cancel)
         self.data.verify_sources(lease, cancel=self.cancel)
         actual = sql._scan({'web': self.control.data._runtime.spec.webroot,
                            'configuration': lease.scope.directory.parent}, cancel=self.cancel)

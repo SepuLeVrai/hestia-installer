@@ -18,6 +18,12 @@ la reprise SIGKILL. Une relance instrumente les contrôles d'altération pour
 conserver la cause masquée, sans changer les contrôles de production. Les trois
 campagnes Installer initiales sont vertes ; le lot 6B7b4 reste non qualifié.
 
+La relance `36742929083` identifie la normalisation du refus de blob par le
+contexte historique `FileSnapshot._open`. Le nouveau module propage désormais
+ce refus après le contrôle du bail en sortie, sans modifier l'ancien lecteur.
+Deux régressions reproduisent le défaut et vérifient la priorité d'un bail perdu.
+Le candidat corrigé doit encore obtenir ses quatre verdicts et preuves exacts.
+
 ## Point de travail 6B7b3 - 30 septembre 2026
 
 Base 6B7b2 qualifiée : `d407c530a14763a849f6a1381d634191c4e090de`.

@@ -1,5 +1,6 @@
 """Admission policy negatives; actual SQL/systemd/files remain native CI gates."""
 from copy import deepcopy
+from contextlib import contextmanager, nullcontext
 import os
 from pathlib import Path
 import pickle
@@ -65,6 +66,33 @@ class AdmissionPolicyTests(unittest.TestCase):
         self.assertEqual(a._id('a' * 32), 'a' * 32)
         for value in ('../escape', '/absolute', 'A' * 32, 'a' * 31, True, None):
             with self.subTest(value=value), self.assertRaises(a.AdmissionError): a._id(value)
+
+    @contextmanager
+    def archive_reader(self):
+        # Use the actual legacy context/error boundary with in-memory I/O.
+        # Native hashing, ownership and lease qualification stay in native CI.
+        raw = a.p._json({'version': 1, 'instance': 'main', 'lease_id': 'a' * 32, 'records': []})
+        snapshot = a.files.FileSnapshot(Path('/unused'), a.f._sha(raw), 'main', 'a' * 32, 1000)
+        with patch.object(a.files, '_bound') as bound, \
+                patch.object(a.fs, '_directory', return_value=nullcontext(17)), \
+                patch.object(a.files, '_private'), patch.object(a.files, '_read', return_value=raw):
+            yield snapshot, bound
+
+    def test_data_blob_rejection_survives_legacy_archive_context_exit(self):
+        rejected = a.AdmissionError('MOBILE_ADMISSION_ARCHIVE_CHANGED')
+        with self.archive_reader() as (snapshot, bound), patch.object(a, '_blobs', side_effect=rejected):
+            with self.assertRaisesRegex(a.AdmissionError, '^MOBILE_ADMISSION_ARCHIVE_CHANGED$') as result:
+                a._data_blobs(snapshot, object(), None)
+            self.assertIs(result.exception, rejected)
+            self.assertEqual(bound.call_count, 2)
+
+    def test_data_blob_rejection_does_not_bypass_archive_exit_lease_check(self):
+        with self.archive_reader() as (snapshot, bound), patch.object(a, '_blobs',
+                side_effect=a.AdmissionError('MOBILE_ADMISSION_ARCHIVE_CHANGED')):
+            bound.side_effect = [None, a.files.FileSnapshotError('FILES_MAINTENANCE_REQUIRED')]
+            with self.assertRaisesRegex(a.files.FileSnapshotError, '^FILES_MAINTENANCE_REQUIRED$'):
+                a._data_blobs(snapshot, object(), None)
+            self.assertEqual(bound.call_count, 2)
 
     def window(self):
         return a.AdmissionWindow(Mock(), Mock(spec=['assert_held']), Mock(spec=['assert_held']), Mock(), Mock(), Path('/unused'),

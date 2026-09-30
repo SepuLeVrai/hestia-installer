@@ -74,11 +74,24 @@ sans skip. La coupure après export et la nouvelle acquisition ont été franchi
 une assertion des contrôles d'altération reste masquée par le diagnostic fermé.
 La relance ajoute seulement des étapes fixes, codes et positions de pile dans
 les preuves natives. Aucun message libre, contenu ou credential n'est enregistré.
-Les contrôles de production restent inchangés ; le lot n'est pas encore qualifié.
+Les contrôles de production restaient inchangés sur cette relance de diagnostic.
 
-Seize nouveaux contrats de politique couvrent les transitions exactes, les fichiers
+La relance `36742929083`, sur Installer `10c5ed605048802972c240cffd1667a856b859ec`,
+a identifié la cause au stade `saved-blob-drift` : le hash détecte correctement
+l'altération et lève `MOBILE_ADMISSION_ARCHIVE_CHANGED`, mais le contexte historique
+`FileSnapshot._open` normalise cette exception du consommateur en
+`FILES_ARCHIVE_REJECTED`, puis la fenêtre la transforme en erreur générique.
+Le nouveau module diffère donc sa propre exception jusqu'à la sortie du contexte,
+après le contrôle du bail. Le lecteur historique reste inchangé ; si le bail est
+perdu en sortie, son refus reste prioritaire. Deux régressions échouent avec la
+composition initiale et passent avec la correction. L'assertion native exacte,
+les contrôles de blobs et les autres gardes sont conservés. Qualification finale
+du candidat corrigé encore à obtenir ; aucun succès natif n'est présumé.
+
+Dix-huit nouveaux contrats de politique couvrent les transitions exactes, les fichiers
 de maintenance étrangers, les parents altérés, les chemins d'archive, la fermeture,
-le changement de processus, la perte du verrou et la confidentialité des erreurs.
+le changement de processus, la perte du verrou, la confidentialité des erreurs et
+la propagation du refus de blob après contrôle du bail en sortie du lecteur.
 Ils complètent le socle obligatoire sur Debian 12 et 13 ; ils ne remplacent pas
 la recette native composée.
 
