@@ -1,5 +1,20 @@
 ## Reprise du 30 septembre 2026 - phase 6B7b1
 
+## Point de travail 6B7b2 - 30 septembre 2026
+
+Base qualifiée 6B7b1 : `b7a9845441138996d116bb06a773996a554b5c20`.
+Le lot 6B7b2 ajoute un nouveau plan privé à trois étapes pour retirer les flags
+immutable des données, de la configuration et du Web avec reprise journalisée.
+Les cinq journaux originaux, le bail, les bloqueurs mobile/Gateway, le mode 0700
+et les réservations externes sont conservés. Aucun service n'est démarré.
+
+Le contrat détaillé et ses limites sont dans
+[PHASE6B7B2_FILE_RELEASE_PLAN.md](PHASE6B7B2_FILE_RELEASE_PLAN.md).
+La qualification exacte accompagne la livraison ; ce texte est gelé avant la CI.
+Les 16 nouveaux tests Ext4 ne constituent pas la recette native mobile composée.
+Admission SQL actuelle, libération externe/accès données, consommation des
+bloqueurs et starts dédupliqués restent les prochaines frontières. Phase 6 ouverte.
+
 La phase 5 est clôturée. Les lots 6A à 6B7a sont qualifiés ; dernière base
 Installer `75ee3fc967d2018e4dd4484748e4a56af30c6fa9`. Les preuves 6B7a et les
 392 fichiers source exacts ont été revérifiés à la reprise. `main` reste à
