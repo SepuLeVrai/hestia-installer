@@ -34,7 +34,7 @@ class ReopenFilesTests(unittest.TestCase):
         self.addCleanup(lambda: inode_fixture.fixture_clear(self.data))
         self.config = self.scope.directory.parent
         self.addCleanup(lambda: inode_fixture.fixture_clear(self.config))
-        self.stack = ExitStack(); self.addCleanup(lambda: self.stack.close())
+        self.stack = ExitStack()
         self.conf = self.stack.enter_context(r.fs._directory(self.config))
         r.f._write(self.conf, 'assistant.json', b'fixture-only', self.account.pw_gid, mode=0o660)
         r.f._write(self.conf, 'database.json', b'fixture-only', self.account.pw_gid)
@@ -79,6 +79,10 @@ class ReopenFilesTests(unittest.TestCase):
         audit = patch.object(r.gateway, 'recover', side_effect=audited)
         self.gateway_audit = audit.start(); self.addCleanup(audit.stop)
         self.control = self.controller()
+        self.addCleanup(self.close_handles)
+
+    def close_handles(self):
+        self.stack.close(); self.access.close(); self.lease.close()
 
     @staticmethod
     def write(path, raw): path.write_bytes(raw); path.chmod(0o600)
@@ -263,7 +267,7 @@ class ReopenFilesTests(unittest.TestCase):
         lease_id = self.lease.lease_id; external_raw = self.external._raw
         self.stack.close(); self.access.close(); self.lease.close()
         self.lease = self.scope.recover(lease_id, confirmed=True)
-        self.addCleanup(lambda: self.lease.close())
+        self.addCleanup(self.close_handles)
         self.barrier._lease = self.lease
         self.access = r.da.recover(self.runtime, self.lease, confirmed=True); self.addCleanup(self.access.close)
         self.external = r.ef.ExternalFence(self.lease, external_raw)

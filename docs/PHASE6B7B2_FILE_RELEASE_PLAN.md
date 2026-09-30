@@ -80,6 +80,13 @@ résultats finaux et l'identité exacte des sources sont joints à la livraison.
 L'intermittence historique du refresh natif APK reste suivie sans correction
 revendiquée ni assertion assouplie.
 
+La première Quality 36710658968 a détecté un attribut du nouvel adaptateur qui
+masquait Operation.plan(), puis un ordre de nettoyage incorrect de la fixture.
+L'attribut a été renommé et les contextes d'admission sont fermés avant le
+nettoyage des réservations de test. Le diagnostic 36711256818, sur branche séparée,
+exécute ensuite les 16 scénarios avec succès sur les deux Debian, sans affaiblir
+les assertions. Le workflow diagnostique n'appartient pas aux sources livrées.
+
 ## Suite après ce point d'arrêt
 
 Raccorder le sous-plan dans une recette native composée MAIN local, puis fournir

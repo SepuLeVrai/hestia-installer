@@ -31,7 +31,7 @@ def _optional(fd, name, limit):
 
 class FileRelease(Operation):
     def __init__(self, plan, role, previous):
-        self.plan, self.role = plan, role
+        self.controller, self.role = plan, role
         self.binding = f._sha(canonical_bytes(plan.profile()))
         super().__init__(StepSpec(name='mobile-reopen-files.' + role,
             operation='mobile-reopen-files.' + role, module='gateway',
@@ -48,7 +48,7 @@ class FileRelease(Operation):
                 'spec_sha256': f._sha(canonical_bytes(context.spec))}
 
     def intent(self, context):
-        value = self.plan._read(self.role + '-intent.json', 4096)
+        value = self.controller._read(self.role + '-intent.json', 4096)
         if value is None: return False
         require(value == canonical_bytes(self.owner(context)), ErrorCode.INCOMPATIBLE_STATE)
         return True
@@ -57,28 +57,28 @@ class FileRelease(Operation):
         return Receipt(hashes_non_secret=(('file-release-owner', f._sha(canonical_bytes(self.owner(context)))),))
 
     def prepare(self, context):
-        self.plan._live()
+        self.controller._live()
         require(not self.intent(context), ErrorCode.MANUAL_ACTION_REQUIRED)
-        self.plan._observe(self.role, closed=True, markers=True)
+        self.controller._observe(self.role, closed=True, markers=True)
 
     def apply(self, context):
         self.prepare(context)
-        self.plan._save(self.role + '-intent.json', canonical_bytes(self.owner(context)))
+        self.controller._save(self.role + '-intent.json', canonical_bytes(self.owner(context)))
         self.finish(context)
         return self.receipt(context)
 
     def finish(self, context):
-        self.plan._live()
+        self.controller._live()
         require(self.intent(context), ErrorCode.MANUAL_ACTION_REQUIRED)
-        self.plan._release(self.role)
-        self.plan._save(self.role + '-released.json', canonical_bytes(self.owner(context)))
+        self.controller._release(self.role)
+        self.controller._save(self.role + '-released.json', canonical_bytes(self.owner(context)))
         require(self.current(context), ErrorCode.VALIDATION_FAILED)
 
     def current(self, context):
-        self.plan._live()
-        require(self.intent(context) and self.plan._read(self.role + '-released.json', 4096)
+        self.controller._live()
+        require(self.intent(context) and self.controller._read(self.role + '-released.json', 4096)
                 == canonical_bytes(self.owner(context)), ErrorCode.SOURCE_DRIFT)
-        self.plan._observe(self.role, closed=False, markers=False)
+        self.controller._observe(self.role, closed=False, markers=False)
         return True
 
     def validate(self, context):
