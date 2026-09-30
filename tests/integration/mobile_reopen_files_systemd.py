@@ -9,12 +9,32 @@ import json
 import os
 from pathlib import Path
 import signal
+import time
 import traceback
 from unittest.mock import patch
 
 from installer import mobile_reopen_files as r
 from installer import gateway_service_drain as gd, foundation_drain as fd
 from installer.session_cleaner import SessionCleaner
+
+
+def killed_at_boundary(test, action):
+    """Bound the composed native recovery without changing historical helpers."""
+    pid = os.fork()
+    if pid == 0:
+        try: action()
+        except BaseException: os._exit(98)
+        os._exit(97)
+    deadline = time.monotonic() + 900
+    while time.monotonic() < deadline:
+        found, status = os.waitpid(pid, os.WNOHANG)
+        if found: break
+        time.sleep(.1)
+    else:
+        os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0)
+        test.fail('Native file-release child timeout')
+    test.assertTrue(os.WIFSIGNALED(status), status)
+    test.assertEqual(os.WTERMSIG(status), signal.SIGKILL)
 
 
 @contextmanager
@@ -102,7 +122,7 @@ def exercise(test, http, runtime, scope, lease_id, backups, preserved):
     cuts = (('data', 'apply', 'flag'), ('configuration', 'resume', r.cf.RELEASE),
             ('web', 'resume', r.wf.MARKER))
     for role, action, boundary in cuts:
-        test.kill_child(lambda: child(role, action, boundary))
+        killed_at_boundary(test, lambda: child(role, action, boundary))
         closed()
         with opened(http, scope, lease_id, backups) as control:
             state = control.journal.read()

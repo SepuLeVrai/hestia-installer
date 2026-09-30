@@ -265,13 +265,14 @@ class GatewayLive(previous.FoundationLive):
         for target in (runtime, runtime.foundation):
             command('systemctl', 'start', target.unit)
             self.assertEqual(target.show()['MainPID'], '0')
-        self.assertEqual(self.sqlite_identity(runtime), sqlite_uuid)
         self.assertEqual(scope.observe()['state'], 'MAINTENANCE_REQUIRED')
         for path, original in preserved.items(): self.assertEqual(path.read_bytes(), original)
         Path('/evidence/gateway-release.json').write_bytes(quality.encode(released))
         # 6B7b3: execute the qualified file subplan through real native readers.
         from mobile_reopen_files_systemd import exercise
         file_release = exercise(self, http, runtime, scope, lease_id, backup_root, preserved)
+        # SQLite mode=ro may still create/remove WAL sidecars. Keep this native
+        # identity oracle after all exact Gateway file-fence observations.
         self.assertEqual(self.sqlite_identity(runtime), sqlite_uuid)
         Path('/evidence/gateway-contract.json').write_bytes(quality.encode({'status': 'PASS',
             'gateway_commit': release()['commit'], 'package_sha256': release()['package_sha256'],

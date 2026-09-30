@@ -40,6 +40,16 @@ par cette vérification. Les journaux parents, unités Web, clés MAIN/DEV et UU
 restent inchangés. Les protections d'accès données et réservations externes sont
 toujours présentes. Le reçu mobile n'est jamais consommé.
 
+La lecture SQLite d'identité intervient après le dernier contrôle exact des
+fichiers Gateway : une connexion SQLite mode=ro peut créer ou retirer des fichiers
+WAL auxiliaires. La vérification d'identité reste native et complète. Les lecteurs
+de production et leur détection de dérive ne sont pas assouplis.
+
+Chaque enfant composé est borné à 900 secondes, avec échec explicite si la
+coupure n'est pas atteinte. Cela couvre les audits natifs répétés de plusieurs
+étapes ; les helpers et budgets historiques restent inchangés. La recette entière
+est bornée à 55 minutes, dans un job de 60 minutes incluant collecte et nettoyage.
+
 ## Sources et preuves
 
 Les sources Web exécutées restent épinglées à
