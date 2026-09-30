@@ -1,3 +1,15 @@
+## Point de travail 6B7b5a - 30 septembre 2026
+
+Base 6B7b4 qualifiée : `68f7ed5a0bd1e0368dbd0768f2eed31ad24a0eea`.
+Primitive privée de libération externe récupérable : intention avant effet,
+reprise après disparition du dernier RELEASE, verrous exclusifs de configuration,
+parents inchangés et accès données 0700 maintenu. Aucun service démarré.
+Voir [PHASE6B7B5A_EXTERNAL_RELEASE.md](PHASE6B7B5A_EXTERNAL_RELEASE.md).
+18 tests Ext4 et 4 contrats purs ajoutés sans retirer de test acquis. Les trois
+campagnes Installer doivent qualifier ce gel ; leurs verdicts seront consignés
+avec les SHA dans les issues et la livraison. La composition avec l'admission SQL
+vivante et la réouverture données restent les prochaines étapes. Phase 6 ouverte.
+
 ## Reprise du 30 septembre 2026 - phase 6B7b1
 
 ## Point de travail 6B7b4 - 30 septembre 2026
