@@ -70,6 +70,31 @@ Dans Work, les opérations de changement de GID vers 65534 sont indisponibles
 dans le namespace courant. Les tests réels de maintenance sont donc exécutés
 dans la CI Debian jetable, sans assouplir les propriétaires attendus.
 
+La première campagne paquets a détecté une image Debian 13 de base moins récente
+que son dépôt de sécurité : APT demandait `libpcre2-8-0` de `10.46-1~deb13u2`
+vers `10.46-1~deb13u3`, puis 139 installations nouvelles. Le diagnostic isolé
+`27063b3a2054225c5b9b41270c90451557c65a55` a enregistré la simulation exacte.
+Le refus `SYSTEM_PACKAGES_UPGRADE_REFUSED` est correct et reste inchangé.
+
+Le Dockerfile de recette actualise désormais les seuls paquets de son image
+jetable avant d'installer les outils de test et avant l'inventaire initial.
+Cette préparation CI ne modifie pas le provisionneur et n'installe aucune
+dépendance HESTIA. La recette conserve acquisition sans mutation, installation
+hors réseau et refus après interruption. Sur une vraie cible, mettre le système
+à jour reste un préalable explicite ; l'installer ne s'autorise aucun upgrade
+implicite. La branche diagnostique ne fait pas partie du candidat livré.
+
+Le premier run Quality `36684965380` a aussi échoué dans l'ancien scénario
+navigateur `test_draft_refresh_empty_selection_and_advanced_ref` : case APK
+non cochée après refresh. Les 1 379 core par Debian, 20 bridge et 26 autres
+scénarios natifs étaient verts. Le diagnostic isolé `36685710696`, commit
+`de706c3e023134af440c335b2554bad8f599ebc7`, a rejoué le scénario exact 12 fois
+avec fixtures indépendantes et trace des brouillons : 12 PASS, choix persistés
+et rendus correctement. La cause de cette intermittence n'est pas établie.
+Ni le scénario, ni ses assertions, ni le JavaScript produit n'ont été modifiés.
+La campagne finale complète reste exigée ; ce diagnostic n'est pas un substitut
+au gate et le premier échec reste conservé dans les preuves.
+
 ## Suite bornée
 
 1. Construire le nouveau plan/journal et conserver les journaux complets des

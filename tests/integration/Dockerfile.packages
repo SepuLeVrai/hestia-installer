@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive container=docker
 RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d \
     && chmod 0755 /usr/sbin/policy-rc.d \
     && apt-get update -qq \
+    && apt-get upgrade -y --no-remove --no-install-recommends \
     && apt-get install -y --no-install-recommends systemd-sysv python3 passwd util-linux ca-certificates \
     && if [ "${DEBIAN}" = 12 ]; then apt-get install -y --no-install-recommends dbus; fi \
     && rm -rf /var/lib/apt/lists/* \
