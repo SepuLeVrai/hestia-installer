@@ -1,3 +1,22 @@
+## Reprise du 30 septembre 2026 - phase 6B7b1
+
+La phase 5 est clôturée. Les lots 6A à 6B7a sont qualifiés ; dernière base
+Installer `75ee3fc967d2018e4dd4484748e4a56af30c6fa9`. Les preuves 6B7a et les
+392 fichiers source exacts ont été revérifiés à la reprise. `main` reste à
+`c0dcb902663130302599635b36c7fb8deab80a47` ; les travaux qualifiés récents sont
+sur les branches techniques et ne doivent pas être reconstruits depuis main.
+
+Le [lot 6B7b1](PHASE6B7B1_REOPEN_GUARD.md) ajoute le verrou durable de composition
+et son refus dans la réouverture bas niveau. Candidat soumis aux Quality du
+même arbre ; résultats finaux dans le checkpoint. Ce sous-lot ne livre pas
+le coordinateur, l'admission SQL ou les redémarrages. Aucun jalon global clos.
+
+Suite : plan/journal de reprise, libérations récupérables, admission et starts
+sans duplication ; puis boot/restauration originale, DEV/FCM et recette 6C.
+Les phases 7 réseau complet, 8 APK, 9 import et 10 clôture restent ouvertes.
+Les mentions « candidat » ci-dessous décrivent leurs gels historiques ; elles
+ne remplacent pas le statut qualifié enregistré dans les checkpoints suivants.
+
 ## Candidat 6B6 — 29 septembre 2026
 
 Le [contrat de sauvegarde SQLite Gateway](PHASE6B6_GATEWAY_BACKUP.md) ajoute une barrière durable, une restauration isolée et un reçu composé Web/Gateway. Qualification en cours. La réouverture et le boot restent fermés.
