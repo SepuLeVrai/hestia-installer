@@ -68,6 +68,14 @@ de l'hôte ou une synchronisation après sa fermeture.
 
 ## Qualification attendue
 
+Le premier essai natif `36738627670`, sur Installer
+`088c6a04518aa3985c4ed1231eceab32a355a9b7`, a exécuté 36 tests avec une erreur,
+sans skip. La coupure après export et la nouvelle acquisition ont été franchies ;
+une assertion des contrôles d'altération reste masquée par le diagnostic fermé.
+La relance ajoute seulement des étapes fixes, codes et positions de pile dans
+les preuves natives. Aucun message libre, contenu ou credential n'est enregistré.
+Les contrôles de production restent inchangés ; le lot n'est pas encore qualifié.
+
 Seize nouveaux contrats de politique couvrent les transitions exactes, les fichiers
 de maintenance étrangers, les parents altérés, les chemins d'archive, la fermeture,
 le changement de processus, la perte du verrou et la confidentialité des erreurs.

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import signal
 import traceback
+import re
 from unittest.mock import patch
 
 from installer import mobile_reopen_admission as a
@@ -12,13 +13,33 @@ from mobile_reopen_files_systemd import opened, killed_at_boundary
 
 
 def exercise(test, http, runtime, scope, lease_id, backups, worker, source, payload, authority, preserved):
+    stage = 'initial-acquisition'
+    def failure(error, name):
+        # Native-only evidence: fixed stage, codes and frame locations; no
+        # exception message, local variables, file contents or credentials.
+        chain = []; current = error
+        while current is not None and len(chain) < 6:
+            value = str(current)
+            chain.append({'type': type(current).__name__,
+                'code': value if re.fullmatch('[A-Z][A-Z0-9_]{1,80}', value) else 'REDACTED',
+                'diagnostic_codes': sorted(set(re.findall(
+                    r'\b(?:MOBILE_ADMISSION|FILES|SQL_FENCE)_[A-Z_]{1,70}\b', value))),
+                'frames': [{'file': Path(x.filename).name, 'line': x.lineno, 'function': x.name}
+                           for x in traceback.extract_tb(current.__traceback__)]})
+            current = current.__context__
+        Path('/evidence/' + name).write_text(json.dumps({'stage': stage, 'chain': chain}, indent=2) + '\n')
+
     @contextmanager
     def admitted():
-        with opened(http, scope, lease_id, backups) as control:
-            document = control.journal.read()
-            with a.acquire(control, worker, source, payload, authority, document['plan_sha256'],
-                           confirmed=True, allow_global_read_lock=True) as window:
-                yield window
+        try:
+            with opened(http, scope, lease_id, backups) as control:
+                document = control.journal.read()
+                with a.acquire(control, worker, source, payload, authority, document['plan_sha256'],
+                               confirmed=True, allow_global_read_lock=True) as window:
+                    yield window
+        except BaseException as error:
+            failure(error, 'mobile-admission-error.json')
+            raise
 
     def observations(): return set(backups.glob('admission-*'))
 
@@ -41,16 +62,7 @@ def exercise(test, http, runtime, scope, lease_id, backups, worker, source, payl
             with patch.object(a.c, '_recheck', side_effect=cut):
                 with admitted(): test.fail('SIGKILL boundary missed')
         except BaseException as error:
-            import re
-            chain = []; current = error
-            while current is not None and len(chain) < 4:
-                value = str(current)
-                chain.append({'type': type(current).__name__,
-                    'code': value if re.fullmatch('[A-Z][A-Z0-9_]{1,80}', value) else 'REDACTED',
-                    'frames': [{'file': Path(x.filename).name, 'line': x.lineno, 'function': x.name}
-                               for x in traceback.extract_tb(current.__traceback__)]})
-                current = current.__context__
-            Path('/evidence/mobile-admission-child-error.json').write_text(json.dumps(chain, indent=2) + '\n')
+            failure(error, 'mobile-admission-child-error.json')
             raise
     killed_at_boundary(test, interrupted)
     interrupted_slots = observations() - before
@@ -60,7 +72,9 @@ def exercise(test, http, runtime, scope, lease_id, backups, worker, source, payl
     test.assertFalse((interrupted_slot / 'observed.json').exists())
     interrupted_bytes = {p.name: p.read_bytes() for p in interrupted_slot.iterdir()}
     closed()
+    stage = 'fresh-acquisition-after-sigkill'
     with admitted() as window:
+        stage = 'fresh-report'
         result = window.report()
         test.assertNotEqual(window._slot, interrupted_slot)
         # Revocation even with an existing observation and an actual held lock.
@@ -74,6 +88,7 @@ def exercise(test, http, runtime, scope, lease_id, backups, worker, source, payl
             with os.fdopen(fd, 'rb', closefd=False) as stream: raw = stream.read()
         finally: os.close(fd)
         try:
+            stage = 'current-data-drift'
             path.write_bytes(raw + b'changed current data')
             with test.assertRaises(a.AdmissionError): window.assert_held()
         finally:
@@ -81,6 +96,7 @@ def exercise(test, http, runtime, scope, lease_id, backups, worker, source, payl
         # Stored blobs are rehashed too, independently of unchanged live data.
         blob = state._slot / 'blobs' / row['blob']; saved_blob = blob.read_bytes()
         try:
+            stage = 'saved-blob-drift'
             blob.write_bytes(saved_blob + b'changed saved data')
             with test.assertRaisesRegex(a.AdmissionError, 'MOBILE_ADMISSION_ARCHIVE_CHANGED'):
                 window.assert_held()
@@ -89,11 +105,13 @@ def exercise(test, http, runtime, scope, lease_id, backups, worker, source, payl
         foreign = scope.directory / 'foreign-admission.json'
         foreign.write_bytes(b'{}'); foreign.chmod(0o600)
         try:
+            stage = 'unknown-maintenance-journal'
             with test.assertRaisesRegex(a.AdmissionError, 'MOBILE_ADMISSION_ENVELOPE_CHANGED'):
                 window.assert_held()
         finally: foreign.unlink()
         # Closed/lost SQL lock invalidates the typed object despite saved bytes.
         saved_observation = (window._slot / 'observed.json').read_bytes()
+        stage = 'normal-window-exit'
     with test.assertRaisesRegex(a.AdmissionError, 'MOBILE_ADMISSION_WINDOW_CLOSED'): window.report()
     test.assertEqual((window._slot / 'observed.json').read_bytes(), saved_observation)
     test.assertEqual({p.name: p.read_bytes() for p in interrupted_slot.iterdir()}, interrupted_bytes)
@@ -103,6 +121,7 @@ def exercise(test, http, runtime, scope, lease_id, backups, worker, source, payl
     test.sql([f'CREATE TABLE `{test.db}`.Hestia_Admission_Drift (id INT PRIMARY KEY)'])
     before = observations()
     try:
+        stage = 'current-sql-drift'
         with test.assertRaises(a.AdmissionError):
             with admitted(): test.fail('Changed SQL admitted')
     finally: test.sql([f'DROP TABLE `{test.db}`.Hestia_Admission_Drift'])

@@ -13,6 +13,11 @@ Les preuves natives, résultats et identités exactes accompagnent le point d'ar
 Les libérations externe/données et les starts restent hors de cette tranche.
 Les StepSpecs acquis sont conservés. La phase 6 reste ouverte.
 
+Le premier essai natif 6B7b4 (`36738627670`) a échoué après le nouvel export et
+la reprise SIGKILL. Une relance instrumente les contrôles d'altération pour
+conserver la cause masquée, sans changer les contrôles de production. Les trois
+campagnes Installer initiales sont vertes ; le lot 6B7b4 reste non qualifié.
+
 ## Point de travail 6B7b3 - 30 septembre 2026
 
 Base 6B7b2 qualifiée : `d407c530a14763a849f6a1381d634191c4e090de`.
