@@ -172,6 +172,16 @@ class MaintenanceLease:
 
     def resume(self, *, confirmed: bool) -> None:
         """Explicit activity boundary. Rollback callers must refuse after this receipt."""
+        self._release_marker(confirmed=confirmed)
+        self.close()
+
+    def _release_marker(self, *, confirmed: bool) -> None:
+        """Private handoff: retain the actual exclusive activity lock for activation.
+
+        This object ceases to be a valid maintenance lease after the unlink.
+        Its caller must then validate the serving receipt and finally close it.
+        All existing blocker and confirmation checks remain mandatory.
+        """
         require(confirmed is True,'MAINTENANCE_CONSENT_REQUIRED');self.assert_held()
         for marker in ('mobile-activation.attempt','mobile-reopen.attempt','gateway-state.attempt','gateway-state.release','gateway-state.released','upgrade.attempt','data-access.attempt','inode-fence.attempt','inode-fence.release',
                        'configuration-inodes.attempt','configuration-inodes.release','web-inodes.attempt','web-inodes.release',
@@ -189,7 +199,6 @@ class MaintenanceLease:
                 os.unlink(name,dir_fd=self._directory);os.fsync(self._directory)
                 f._write(self._directory,name,receipt,self.scope.web_gid)
         os.unlink('maintenance.attempt',dir_fd=self._directory);os.fsync(self._directory)
-        self.close()
 
     def close(self) -> None:
         if not self._closed:

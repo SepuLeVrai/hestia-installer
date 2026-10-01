@@ -76,6 +76,15 @@ def identity_census(uid, gid, allowed_units):
             and type(allowed_units) is tuple and all(type(unit) is str and re.fullmatch(
                 r'hestia-[a-f0-9]{32}-(apache|php|session-cleaner)\.service', unit) for unit in allowed_units),
             'HTTP_DRAIN_CENSUS_REJECTED')
+    return _identity_census(uid, gid, allowed_units)
+
+
+def _identity_census(uid, gid, allowed_units):
+    """Shared procfs scan; callers must bind and validate their allowed units.
+
+    The public drain keeps its original, narrower unit policy. Activation uses
+    this scan only after matching all five units to its native frozen profile.
+    """
     require(os.readlink('/proc/self/ns/pid') == os.readlink('/proc/1/ns/pid'),
             'HTTP_DRAIN_CENSUS_VISIBILITY_REQUIRED')
     mounts = Path('/proc/self/mountinfo').read_text().splitlines()

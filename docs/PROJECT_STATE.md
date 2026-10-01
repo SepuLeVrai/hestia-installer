@@ -1,3 +1,13 @@
+# Point de reprise 6B7b9 : activation MAIN explicite, candidat à qualifier
+
+- Parent corrigé : 6B7b8a `ed789c74f0e84d6864dee67c262c83007659c7d8`, trois CI PASS, 3 495 exécutions. Recette native distincte `36903341716` : résultat à vérifier, aucun PASS supposé.
+- Le premier 6B7b8 avait échoué nativement avant effet (profil proxy tuple/liste) ; la correction conserve la validation canonique et refuse les dérives d'adresse/réseau.
+- Nouveau coordinateur : admission SQL fraîche bornée, dernier marqueur de maintenance retiré sous verrou d'activité réellement conservé, libération SQL avant démarrage PHP/Apache/Foundation/Gateway/timer.
+- Journaux d'intention et identifiants natifs d'invocation : perte de réponse récupérable sans seconde commande ; reprise explicite des seuls rôles sans intention. Contrôle terminé sans écriture.
+- 40 contrats supplémentaires obligatoires, anciens identifiants conservés. Scénario natif avec SIGKILL après PHP, cinq démarrages ordonnés, page de connexion et preuves séparées.
+- Guide : `docs/PHASE6B7B9_MOBILE_ACTIVATION.md`. Qualification à rattacher au commit exact ; cette note décrit le candidat et ne constitue pas un certificat CI/native.
+- Aucun changement main/dev/dev-Bastien, aucun APK ; boot, restauration originale, DEV/FCM, 6C et clôture de phase 6 restent ouverts.
+
 ## Correction 6B7b8a - 1er octobre 2026
 
 Le parent 6B7b7b est qualifié nativement (36870409164, 36 PASS). La recette 6B7b8

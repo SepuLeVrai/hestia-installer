@@ -162,7 +162,7 @@ class ExternalReleasePlan:
         self.lease.assert_held()
 
     @contextmanager
-    def _configuration(self):
+    def _configuration_files(self):
         # Exclusive locks cannot coexist with the old shared ConfigurationLease,
         # even if recover() is called in the same process. Never forge/close it.
         with fs._directory(self.lease.scope.directory.parent) as conf, ExitStack() as stack:
@@ -182,6 +182,13 @@ class ExternalReleasePlan:
                             == (row['device'], row['inode']), ErrorCode.SOURCE_DRIFT)
                     require(f._sha(f._read(conf, row['name'], row['gid'], mode=row['mode'], limit=row['limit']))
                             == row['sha256'], ErrorCode.SOURCE_DRIFT)
+            check()
+            yield check
+            check()
+
+    @contextmanager
+    def _configuration(self):
+        with self._configuration_files() as check:
             guard = _ConfigurationGuard(self, check)
             guard.assert_held()
             try:
