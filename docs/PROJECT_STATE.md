@@ -1,3 +1,15 @@
+## Point de travail 6B7b5b - 1er octobre 2026
+
+Base 6B7b5a qualifiée : `f75be3c2c26d2c8a2d720f9117a16fd26b89e1ab`.
+La nouvelle composition garde le verrou SQL vivant pendant la libération externe,
+puis réacquiert une véritable configuration sans réservations et revalide les
+archives/fichiers. Apply/resume/check refont un export ; les observations enregistrées
+restent historiques. Données 0700, maintenance et bloqueurs conservés, aucun start.
+Voir [PHASE6B7B5B_EXTERNAL_ADMISSION.md](PHASE6B7B5B_EXTERNAL_ADMISSION.md).
+20 contrats cœur ajoutés ; recette native étendue avec dérive SQL avant effet et
+SIGKILL après le dernier RELEASE. Quatre verdicts exacts encore à obtenir sur ce
+gel. Les résultats définitifs seront dans les issues et la livraison. Phase 6 ouverte.
+
 ## Point de travail 6B7b5a - 30 septembre 2026
 
 Base 6B7b4 qualifiée : `68f7ed5a0bd1e0368dbd0768f2eed31ad24a0eea`.

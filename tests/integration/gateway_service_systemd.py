@@ -275,6 +275,10 @@ class GatewayLive(previous.FoundationLive):
         from mobile_reopen_admission_systemd import exercise as admission_exercise
         admission = admission_exercise(self, http, runtime, scope, lease_id, backup_root,
             operation._runtime, operation._source, payload, self.authority, preserved)
+        # 6B7b5b: hold fresh SQL admission across recoverable external release.
+        from mobile_external_admission_systemd import exercise as external_exercise
+        external_admission = external_exercise(self, http, runtime, scope, lease_id, backup_root,
+            operation._runtime, operation._source, payload, self.authority, preserved)
         # SQLite mode=ro may still create/remove WAL sidecars. Keep this native
         # identity oracle after all exact Gateway file-fence observations.
         self.assertEqual(self.sqlite_identity(runtime), sqlite_uuid)
@@ -293,6 +297,7 @@ class GatewayLive(previous.FoundationLive):
             'gateway_release_completed_recovery_without_worker_or_restart': True,
             'mobile_file_release_native': file_release,
             'mobile_admission_native': admission,
+            'mobile_external_admission_native': external_admission,
             'gateway_old_fd_and_bind_alias_writes_denied': True, 'gateway_snapshot_recovery_without_replay': True, 'public_mobile_delivered': False, 'boot_delivered': False}))
 
 

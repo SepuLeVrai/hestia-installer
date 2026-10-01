@@ -51,6 +51,18 @@ def _parents(lease):
                                                  source.gateway.g.MAX_JOURNAL * 2))}
 
 
+class _ConfigurationGuard:
+    """Process-local proof that this plan still owns both exclusive locks."""
+    def __init__(self, plan, check):
+        self._plan, self._check, self._pid, self._closed = plan, check, os.getpid(), False
+
+    def __reduce__(self): raise TypeError('Configuration guards cannot be serialized')
+
+    def assert_held(self):
+        require(not self._closed and self._pid == os.getpid(), ErrorCode.INVALID_STATE)
+        self._plan.lease.assert_held(); self._check()
+
+
 class ExternalReleasePlan:
     """Native caller owns the maintenance lease; instances cannot cross a fork."""
     def __init__(self, lease, backups, raw):
@@ -170,9 +182,12 @@ class ExternalReleasePlan:
                             == (row['device'], row['inode']), ErrorCode.SOURCE_DRIFT)
                     require(f._sha(f._read(conf, row['name'], row['gid'], mode=row['mode'], limit=row['limit']))
                             == row['sha256'], ErrorCode.SOURCE_DRIFT)
-            check()
-            yield
-            check()
+            guard = _ConfigurationGuard(self, check)
+            guard.assert_held()
+            try:
+                yield guard
+                guard.assert_held()
+            finally: guard._closed = True
 
     def _external(self):
         raw = _read_path(self.source_root, 'external-original.json', ef.MAX_JOURNAL)
@@ -207,23 +222,33 @@ class ExternalReleasePlan:
         require(confirmed is True and confirmation == self.plan_sha256, ErrorCode.CONFIRMATION_REQUIRED)
         require(action in ('apply', 'resume', 'check'), ErrorCode.INVALID_DATA)
         self._held()
-        with self._configuration():
-            intent, receipt = self._read('intent.json'), self._read('released.json')
-            require(intent in (None, self._owner()) and receipt in (None, self._receipt()), ErrorCode.SOURCE_DRIFT)
-            require(receipt is None or intent is not None, ErrorCode.INCOMPATIBLE_STATE)
-            if action == 'check':
-                require(intent is not None and receipt is not None, ErrorCode.MANUAL_ACTION_REQUIRED)
-                self._absent()
-            else:
-                if action == 'apply':
-                    require(intent is None and receipt is None, ErrorCode.MANUAL_ACTION_REQUIRED)
-                    raw, _ = self._external(); ef.assert_reservation(self.lease, raw)
-                    self._save('intent.json', self._owner())
-                else: require(intent is not None, ErrorCode.MANUAL_ACTION_REQUIRED)
-                require(self._read('intent.json') == self._owner(), ErrorCode.SOURCE_DRIFT)
-                self._held(); self._finish(); self._held()
-                self._save('released.json', self._receipt())
-            self._held()
+        with self._configuration() as locked:
+            return self._execute_locked(action, confirmation, confirmed=confirmed, locked=locked)
+
+    def _execute_locked(self, action, confirmation, *, confirmed, locked):
+        # Private composition seam: never reacquire a flock already held by the
+        # live SQL coordinator, and never accept a closed/foreign/forked guard.
+        require(confirmed is True and confirmation == self.plan_sha256, ErrorCode.CONFIRMATION_REQUIRED)
+        require(action in ('apply', 'resume', 'check'), ErrorCode.INVALID_DATA)
+        require(type(locked) is _ConfigurationGuard and locked._plan is self, ErrorCode.INVALID_STATE)
+        locked.assert_held(); self._held()
+        intent, receipt = self._read('intent.json'), self._read('released.json')
+        require(intent in (None, self._owner()) and receipt in (None, self._receipt()), ErrorCode.SOURCE_DRIFT)
+        require(receipt is None or intent is not None, ErrorCode.INCOMPATIBLE_STATE)
+        if action == 'check':
+            require(intent is not None and receipt is not None, ErrorCode.MANUAL_ACTION_REQUIRED)
+            self._absent()
+        else:
+            if action == 'apply':
+                require(intent is None and receipt is None, ErrorCode.MANUAL_ACTION_REQUIRED)
+                raw, _ = self._external(); ef.assert_reservation(self.lease, raw)
+                self._save('intent.json', self._owner())
+            else: require(intent is not None, ErrorCode.MANUAL_ACTION_REQUIRED)
+            require(self._read('intent.json') == self._owner(), ErrorCode.SOURCE_DRIFT)
+            locked.assert_held(); self._held(); self._finish(); self._held(); locked.assert_held()
+            self._save('released.json', self._receipt())
+        self._held()
+        locked.assert_held()
         return {**strict_json_loads(self._receipt()), 'plan_sha256': self.plan_sha256}
 
 
