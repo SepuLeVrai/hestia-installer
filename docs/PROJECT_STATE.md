@@ -1,3 +1,17 @@
+## Point de travail 6B7b7a - 1er octobre 2026
+
+Préparation durable de la reprise mobile, base 6B7b6b e56375f dont les trois
+campagnes Installer sont PASS et la recette native 36863158334 reste en cours.
+Le parent natif 6B7b5b e1a65ce est qualifié (36848220815, 36 PASS).
+Le nouveau plan conserve les journaux exacts et leurs métadonnées, les parents
+et l'ordre des services sous admission SQL/données courante. Reprise explicite
+des écritures interrompues ; observations sauvegardées purement historiques.
+40 contrats ajoutés, dont deux SIGKILL ; aucun ancien lecteur, test ou StepSpec
+modifié. Voir [PHASE6B7B7A_RESUME_PLAN.md](PHASE6B7B7A_RESUME_PLAN.md).
+Trois campagnes Installer requises sur ce gel ; verdicts dans les issues et le
+checkpoint. Raccordement natif restant, aucun bloqueur retiré ni service lancé.
+La phase 6 reste ouverte et aucune branche active n'est promue.
+
 ## Point de travail 6B7b6b - 1er octobre 2026
 
 Admission SQL courante pendant la réouverture récupérable des données, préparée
