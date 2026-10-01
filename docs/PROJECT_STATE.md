@@ -1,3 +1,15 @@
+## Point de travail 6B7b7b - 1er octobre 2026
+
+Reprise sur 349345a. Le run natif parent 36863158334 a échoué sur
+SQL_FENCE_TIMEOUT dans la recette fichiers antérieure, avant la réouverture
+SQL/données. Le nouveau lot sépare les quatre scénarios indépendants sur des
+exports frais, conserve toutes leurs assertions et ajoute la composition native
+du plan 6B7b7a : SIGKILL, reprise read-only, préparation explicite, check,
+refus de dérive SQL et de fenêtre fermée. Production et baseline inchangées.
+Voir [PHASE6B7B7B_NATIVE_RESUME_PLAN.md](PHASE6B7B7B_NATIVE_RESUME_PLAN.md).
+Verdicts du gel dans le checkpoint de livraison ; aucune qualification native
+anticipée, aucun service démarré ni bloqueur retiré, phase 6 toujours ouverte.
+
 ## Point de travail 6B7b7a - 1er octobre 2026
 
 Préparation durable de la reprise mobile, base 6B7b6b e56375f dont les trois
