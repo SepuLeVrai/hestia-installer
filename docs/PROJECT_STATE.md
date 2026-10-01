@@ -1,3 +1,17 @@
+## Correction de recette 6B7b5b - 1er octobre 2026
+
+Le run natif 36820888356 a échoué sur SQL_FENCE_TIMEOUT à la sortie de la
+fenêtre de reprise. Les 36 tests ont été exécutés, avec une erreur et zéro skip.
+La correction répartit les scénarios indépendants sur trois exports et fenêtres
+SQL fraîches, conserve toutes les assertions et garde la limite native de 180 s.
+Neuf mesures de durée sont ajoutées au rapport ; production et lecteurs inchangés.
+Base : 6B7b6a bc1cc59, déjà verte sur ses trois campagnes Installer. Sa primitive
+données demeure indépendante et n’est pas appelée par cette recette externe.
+Voir [PHASE6B7B5B_WINDOW_BUDGET.md](PHASE6B7B5B_WINDOW_BUDGET.md).
+Trois campagnes Installer puis une recette native épinglée sont à obtenir sur
+ce gel avant le raccordement SQL/données. Verdicts dans les issues et la livraison.
+Phase 6 ouverte ; aucun service démarré par ce lot.
+
 ## Point de travail 6B7b6a - 1er octobre 2026
 
 Primitive privée de réouverture récupérable des données, isolée sur le candidat
