@@ -1,3 +1,16 @@
+## Point de travail 6B7b6a - 1er octobre 2026
+
+Primitive privée de réouverture récupérable des données, isolée sur le candidat
+6B7b5b `b7159802a0973d96f8f8a38662b288e932274a3e` dont la recette native reste
+en cours au gel. Dernière base qualifiée : 6B7b5a. Intention durable avant effet,
+reprise explicite après chmod/unlink, mêmes parents et bloqueurs conservés.
+Les lecteurs stricts et primitives natives restent inchangés. Aucun start ni
+admission SQL courante revendiquée. Voir [PHASE6B7B6A_DATA_RELEASE.md](PHASE6B7B6A_DATA_RELEASE.md).
+20 tests Ext4/processus/SIGKILL et 4 contrats purs ajoutés sans retirer l’existant.
+Trois campagnes Installer à obtenir sur ce gel ; verdicts finaux dans les issues
+et la livraison. Le raccordement SQL/données vient après qualification de 6B7b5b.
+Phase 6 globale ouverte.
+
 ## Point de travail 6B7b5b - 1er octobre 2026
 
 Base 6B7b5a qualifiée : `f75be3c2c26d2c8a2d720f9117a16fd26b89e1ab`.
