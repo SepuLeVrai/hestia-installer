@@ -7,19 +7,18 @@ from installer import mobile_activation_admission as n
 import test_mobile_blocker_files as prior
 
 t,v=n.t,n.v
-base=prior.BlockerFilesTests
 
 class ActivationFilesTests(unittest.TestCase):
-    fixture_root=base.fixture_root
-    mount=base.mount
-    controller=base.controller
-    write=staticmethod(base.write)
-    close_handles=base.close_handles
-    loaded=base.loaded
-    window=base.window
-    execute=base.execute
+    fixture_root=prior.BlockerFilesTests.fixture_root
+    mount=prior.BlockerFilesTests.mount
+    controller=prior.BlockerFilesTests.controller
+    write=staticmethod(prior.BlockerFilesTests.write)
+    close_handles=prior.BlockerFilesTests.close_handles
+    loaded=prior.BlockerFilesTests.loaded
+    window=prior.BlockerFilesTests.window
+    execute=prior.BlockerFilesTests.execute
     def setUp(self):
-        base.setUp(self);self.execute()
+        prior.BlockerFilesTests.setUp(self);self.execute()
         self.enterContext(patch.object(v.o,'_provenance',return_value={'fixture_boot':'a'*32}))
         self.native=object.__new__(v.NativeRuntime)
         self.native.http=self.runtime;self.native.scope=self.scope;self.native.account=self.account
