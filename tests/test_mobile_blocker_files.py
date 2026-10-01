@@ -3,6 +3,7 @@
 SQL and service readers remain isolated like the reused data fixture. These
 contracts certify file transitions, not native SQL admission or service starts.
 """
+from dataclasses import replace
 import os
 import pickle
 import signal
@@ -28,6 +29,10 @@ class BlockerFilesTests(unittest.TestCase):
 
     def setUp(self):
         prior.DataReleaseFilesTests.setUp(self)
+        # Exercise the real tuple-bearing proxy profile, as in native MAIN.
+        # Service audits remain isolated by the inherited disposable fixture.
+        self.runtime.spec = replace(self.runtime.spec, ingress=n.r.hd.h.ProxyIngress(
+            '127.0.0.2', ('127.0.0.1/32',)))
         data = prior.DataReleaseFilesTests.plan(self)
         data.execute('apply', data.plan_sha256, confirmed=True)
         raw = self.barrier._profile
@@ -80,6 +85,24 @@ class BlockerFilesTests(unittest.TestCase):
         self.assertEqual(marker.read_bytes(), self.state.activation())
         self.assertEqual((marker.stat().st_uid, marker.stat().st_gid, stat.S_IMODE(marker.stat().st_mode)), (0, 0, 0o600))
         self.closed_activity()
+
+    def test_proxy_tuple_profile_roundtrips_without_adopting_a_different_profile(self):
+        persisted = self.plan_control.value['runtime']
+        _, observed = n.m.d._runtime(self.runtime, self.lease)
+        self.assertIsInstance(persisted['spec']['ingress']['client_networks'], list)
+        self.assertIsInstance(observed['spec']['ingress']['client_networks'], tuple)
+        self.assertNotEqual(persisted, observed)
+        self.assertEqual(canonical_bytes(persisted), canonical_bytes(observed))
+        self.assert_done(self.execute(state=self.loaded()))
+
+    def test_changed_proxy_address_or_network_is_rejected_before_intent(self):
+        original = self.runtime.spec
+        for ingress in (n.r.hd.h.ProxyIngress('127.0.0.3', ('127.0.0.1/32',)),
+                        n.r.hd.h.ProxyIngress('127.0.0.2', ('192.0.2.0/24',))):
+            self.runtime.spec = replace(original, ingress=ingress)
+            with self.assertRaises(s.BlockerError): self.loaded()
+            self.assertFalse(self.state.root.exists())
+        self.runtime.spec = original; self.closed_activity()
 
     def test_parent_attachment_and_report_are_read_only(self):
         self.assertFalse(self.state.root.exists())

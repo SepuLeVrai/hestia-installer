@@ -1,3 +1,12 @@
+## Correction 6B7b8a - 1er octobre 2026
+
+Le parent 6B7b7b est qualifié nativement (36870409164, 36 PASS). La recette 6B7b8
+36877093949 échoue avant tout effet sur la comparaison tuple/liste du profil proxy
+après JSON. Comparaison canonique rétablie comme dans le lecteur parent ; fixture
+proxy généralisée et deux régressions ajoutées sans supprimer de tests.
+Voir [PHASE6B7B8_BLOCKER_HANDOFF.md](PHASE6B7B8_BLOCKER_HANDOFF.md).
+Nouvelle qualification sur gel corrigé requise. Phase 6 ouverte.
+
 ## Point de travail 6B7b8 - 1er octobre 2026
 
 Remplacement récupérable des bloqueurs mobile/Gateway sur le gel 6B7b7b e65fa34.

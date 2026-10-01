@@ -101,7 +101,10 @@ class BlockerState:
         common = {'instance': self.lease.scope.instance, 'lease_id': self.lease.lease_id,
                   'backup_root': str(self.backups), 'backup_identity': identity, 'parents': parents}
         require(all(external.value[k] == v and data.value[k] == v for k, v in common.items()))
-        require(data.value['runtime'] == runtime_profile and data.value['external_plan_sha256'] == external.plan_sha256)
+        # Compare the canonical persisted representation: ProxyIngress contains
+        # tuples in Python and arrays after the exact JSON round trip.
+        require(canonical_bytes(data.value['runtime']) == canonical_bytes(runtime_profile)
+            and data.value['external_plan_sha256'] == external.plan_sha256)
         require(external._read('intent.json') == external._owner()
             and external._read('released.json') == external._receipt()
             and data._read('intent.json') == data._owner() and data._read('released.json') == data._receipt())

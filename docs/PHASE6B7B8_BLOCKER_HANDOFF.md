@@ -79,3 +79,24 @@ Ne jamais rappeler HttpDrain.recover après le premier démarrage : il arrêtera
 les services déjà démarrés. Le nouveau lot reste privé, sans raccordement public
 au wizard tant que cette activation et les scénarios fresh/upgrade finaux ne sont
 pas qualifiés.
+
+## Correction 6B7b8a - profil proxy canonique
+
+Le run natif 36877093949 conserve 36 tests exécutés, une erreur, zéro échec/skip.
+Il refuse l'attachement avant intention à mobile_blocker_state.py:104 : le profil
+ProxyIngress porte un tuple client_networks en Python, relu en liste depuis JSON.
+La comparaison directe échoue malgré des octets canoniques identiques. La fixture
+fichiers utilisait ingress=None et ne couvrait donc pas ce cas. Le parent 6B7b7b
+reste qualifié nativement (36870409164, artefact 11169952498 vérifié).
+
+La correction reprend la comparaison canonique déjà utilisée par
+DataReleasePlan._held, sans normaliser ni accepter de champs différents. Tous les
+contrats fichiers du nouveau bloqueur utilisent maintenant le profil proxy réel.
+Deux régressions vérifient le round-trip et le refus d'une adresse/réseau changé.
+Aucun ancien identifiant requis n'est supprimé. Aucun effet n'avait eu lieu lors
+de l'échec natif. Les preuves et le gel 03e008e restent conservés.
+
+La nouvelle recette utilise le gel corrigé et le parent natif déjà acquis ; elle
+ne relance pas le run échoué. Trois campagnes Installer sont requises avant la
+publication de cette recette. Les verdicts sont dans la livraison. La phase 6
+reste ouverte et aucun start n'est ajouté par cette correction.
