@@ -137,42 +137,52 @@ class DataReleasePlan:
         require(action in ('apply', 'resume', 'check'), ErrorCode.INVALID_DATA)
         external, _, _, _ = self._held()
         with external._configuration() as locked:
-            _, _, marker, mode = self._held()
-            intent, receipt = self._read('intent.json'), self._read('released.json')
-            require(intent in (None, self._owner()) and receipt in (None, self._receipt()), ErrorCode.SOURCE_DRIFT)
-            require(receipt is None or intent is not None, ErrorCode.INCOMPATIBLE_STATE)
-            if action == 'check':
-                require(intent is not None and receipt is not None, ErrorCode.MANUAL_ACTION_REQUIRED)
-                self._open()
-            else:
-                if action == 'apply':
-                    require(intent is None and receipt is None and marker is not None and mode == 0o700,
-                            ErrorCode.MANUAL_ACTION_REQUIRED)
-                    self._save('intent.json', self._owner())
-                else: require(intent is not None, ErrorCode.MANUAL_ACTION_REQUIRED)
-                require(self._read('intent.json') == self._owner(), ErrorCode.SOURCE_DRIFT)
-                locked.assert_held()
-                _, _, marker, _ = self._held()
-                if receipt is not None:
-                    self._open()  # A receipt never authorizes another native effect.
-                elif marker is not None:
-                    # Qualified explicit recovery recloses an interrupted 0750
-                    # + marker state before runtime audit and process census.
-                    # A census failure leaves closure in place; no signals sent.
-                    fence = da.recover(self.runtime, self.lease, confirmed=True)
-                    try:
-                        self._held(); locked.assert_held(); fence.reopen(confirmed=True)
-                    finally: fence.close()
-                self._open(); locked.assert_held()
-                if receipt is None:
-                    # Reconcile unlink whose response was lost before native
-                    # fsync: make the completed effect durable before our receipt.
-                    with fs._directory(self.runtime.spec.root / 'data') as fd: os.fsync(fd)
-                    os.fsync(self.lease._directory)
-                    self._open(); locked.assert_held()
-                self._save('released.json', self._receipt())
+            return self._execute_locked(action, confirmation, confirmed=confirmed, locked=locked)
+
+    def _execute_locked(self, action, confirmation, *, confirmed, locked):
+        """Private composition seam under the exact live external-plan locks."""
+        require(confirmed is True and confirmation == self.plan_sha256, ErrorCode.CONFIRMATION_REQUIRED)
+        require(action in ('apply', 'resume', 'check'), ErrorCode.INVALID_DATA)
+        require(type(locked) is e._ConfigurationGuard
+                and locked._plan.lease is self.lease and locked._plan.backups == self.backups
+                and locked._plan.plan_sha256 == self.value['external_plan_sha256'], ErrorCode.INVALID_STATE)
+        locked.assert_held()
+        _, _, marker, mode = self._held()
+        intent, receipt = self._read('intent.json'), self._read('released.json')
+        require(intent in (None, self._owner()) and receipt in (None, self._receipt()), ErrorCode.SOURCE_DRIFT)
+        require(receipt is None or intent is not None, ErrorCode.INCOMPATIBLE_STATE)
+        if action == 'check':
+            require(intent is not None and receipt is not None, ErrorCode.MANUAL_ACTION_REQUIRED)
+            self._open()
+        else:
+            if action == 'apply':
+                require(intent is None and receipt is None and marker is not None and mode == 0o700,
+                        ErrorCode.MANUAL_ACTION_REQUIRED)
+                self._save('intent.json', self._owner())
+            else: require(intent is not None, ErrorCode.MANUAL_ACTION_REQUIRED)
+            require(self._read('intent.json') == self._owner(), ErrorCode.SOURCE_DRIFT)
+            locked.assert_held()
+            _, _, marker, _ = self._held()
+            if receipt is not None:
+                self._open()  # A receipt never authorizes another native effect.
+            elif marker is not None:
+                # Qualified explicit recovery recloses an interrupted 0750
+                # + marker state before runtime audit and process census.
+                # A census failure leaves closure in place; no signals sent.
+                fence = da.recover(self.runtime, self.lease, confirmed=True)
+                try:
+                    self._held(); locked.assert_held(); fence.reopen(confirmed=True)
+                finally: fence.close()
             self._open(); locked.assert_held()
-            return {**strict_json_loads(self._receipt()), 'plan_sha256': self.plan_sha256}
+            if receipt is None:
+                # Reconcile unlink whose response was lost before native
+                # fsync: make the completed effect durable before our receipt.
+                with fs._directory(self.runtime.spec.root / 'data') as fd: os.fsync(fd)
+                os.fsync(self.lease._directory)
+                self._open(); locked.assert_held()
+            self._save('released.json', self._receipt())
+        self._open(); locked.assert_held()
+        return {**strict_json_loads(self._receipt()), 'plan_sha256': self.plan_sha256}
 
 
 def begin(external, access, *, confirmed):

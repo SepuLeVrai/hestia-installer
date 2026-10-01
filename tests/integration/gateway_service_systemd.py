@@ -279,6 +279,10 @@ class GatewayLive(previous.FoundationLive):
         from mobile_external_admission_systemd import exercise as external_exercise
         external_admission = external_exercise(self, http, runtime, scope, lease_id, backup_root,
             operation._runtime, operation._source, payload, self.authority, preserved)
+        # 6B7b6b candidate: fresh SQL across recoverable data-path reopening.
+        from mobile_data_admission_systemd import exercise as data_exercise
+        data_admission = data_exercise(self, http, runtime, scope, lease_id, backup_root,
+            operation._runtime, operation._source, payload, self.authority, preserved)
         # SQLite mode=ro may still create/remove WAL sidecars. Keep this native
         # identity oracle after all exact Gateway file-fence observations.
         self.assertEqual(self.sqlite_identity(runtime), sqlite_uuid)
@@ -298,6 +302,7 @@ class GatewayLive(previous.FoundationLive):
             'mobile_file_release_native': file_release,
             'mobile_admission_native': admission,
             'mobile_external_admission_native': external_admission,
+            'mobile_data_admission_native': data_admission,
             'gateway_old_fd_and_bind_alias_writes_denied': True, 'gateway_snapshot_recovery_without_replay': True, 'public_mobile_delivered': False, 'boot_delivered': False}))
 
 

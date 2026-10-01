@@ -1,3 +1,16 @@
+## Point de travail 6B7b6b - 1er octobre 2026
+
+Admission SQL courante pendant la réouverture récupérable des données, préparée
+sur e1a65ce. Sa recette native corrective 36848220815 reste en cours au gel.
+Le candidat précédent demeure inchangé. Nouvel export pour apply/resume/check,
+verrous exclusifs tenus pendant toute la fenêtre, observation exacte des données
+après 0750 et refermeture explicite du cas interrompu avant admission fraîche.
+Seize contrats purs et dix tests de fichiers ajoutés à la baseline, anciens
+contrats et lecteurs stricts préservés. Voir [PHASE6B7B6B_DATA_ADMISSION.md](PHASE6B7B6B_DATA_ADMISSION.md).
+Trois campagnes Installer à obtenir sur ce gel ; recette native suivante après
+qualification du parent et vérification de ses preuves. Verdicts dans les issues
+et la livraison. Aucun start ni retrait de maintenance/bloqueur. Phase 6 ouverte.
+
 ## Correction de recette 6B7b5b - 1er octobre 2026
 
 Le run natif 36820888356 a échoué sur SQL_FENCE_TIMEOUT à la sortie de la
