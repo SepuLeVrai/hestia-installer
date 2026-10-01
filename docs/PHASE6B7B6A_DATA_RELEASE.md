@@ -87,3 +87,14 @@ pendant la transition données, avec les seuls écarts de journaux exactement li
 Ne pas réutiliser la fenêtre 6B7b5b après changement : elle exige encore 0700.
 La consommation des bloqueurs, les starts dédupliqués, boot/restauration originale,
 DEV/FCM, l’assistant et la recette 6C restent des étapes séparées. Phase 6 ouverte.
+
+## Correction de l’instrumentation avant le second gel
+
+Le premier candidat `9e01c9180480ca2c83ab5420296e8d53773edf13` a exécuté
+1 479 tests cœur par Debian, avec un unique échec identique : l’observateur global
+de fchmod comptait aussi le chmod 0600 du reçu après les deux transitions attendues
+du répertoire données. Le test cible désormais l’identité périphérique/inode exacte
+de ce répertoire et conserve l’assertion 0700 puis 0750. Aucun comportement de
+production, test historique ou contrôle attendu n’est changé. Les sept artefacts
+du premier essai sont conservés. Le nouveau gel requiert à nouveau les trois
+campagnes Installer sur sa propre identité source.

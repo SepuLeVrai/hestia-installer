@@ -10,6 +10,11 @@ admission SQL courante revendiquée. Voir [PHASE6B7B6A_DATA_RELEASE.md](PHASE6B7
 Trois campagnes Installer à obtenir sur ce gel ; verdicts finaux dans les issues
 et la livraison. Le raccordement SQL/données vient après qualification de 6B7b5b.
 Phase 6 globale ouverte.
+Le premier candidat 9e01c918 échoue uniquement sur l’observation trop large de
+fchmod dans un nouveau test (le reçu 0600 était également compté). Le second gel
+cible l’inode données exact, conserve l’assertion 0700 puis 0750 et ne modifie pas
+la production. Les preuves du premier essai sont conservées ; trois nouveaux
+verdicts sur le gel corrigé sont requis.
 
 ## Point de travail 6B7b5b - 1er octobre 2026
 

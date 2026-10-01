@@ -108,8 +108,12 @@ class DataReleaseFilesTests(unittest.TestCase):
             self.runtime._inspect_configuration()
         recovered = self.resumed()  # Loading is read-only, not implicit repair.
         self.assertEqual(self.data.stat().st_mode & 0o777, 0o750)
-        modes = []; chmod = os.fchmod
-        def observe(fd, mode): modes.append(mode); return chmod(fd, mode)
+        modes = []; chmod = os.fchmod; data_info = self.data.stat()
+        data_identity = (data_info.st_dev, data_info.st_ino)
+        def observe(fd, mode):
+            info = os.fstat(fd)
+            if (info.st_dev, info.st_ino) == data_identity: modes.append(mode)
+            return chmod(fd, mode)
         with patch.object(d.da.os, 'fchmod', side_effect=observe):
             self.assert_done(self.run_release('resume', recovered))
         self.assertEqual(modes, [0o700, 0o750])
