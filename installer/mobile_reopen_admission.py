@@ -124,10 +124,15 @@ def _envelope(saved, removed, added):
 
 def _journal_changes(control, document):
     released = files._read(control.lease._directory, r.gateway.RELEASED, r.gateway.g.MAX_JOURNAL * 2)
+    return _journal_records(control, document, released, control._guard._raw)
+
+
+def _journal_records(control, document, released, guard_raw):
+    """Build exact records from already-validated native or retained originals."""
     receipt = strict_json_loads(released)
     removed = {r.MODULES[role].MARKER: control._raw(role) for role in r.ROLES}
     removed[r.gateway.g.MARKER] = canonical_bytes(receipt['intent']['fence'])
-    added = {r.gateway.RELEASED: released, r.guard.MARKER: control._guard._raw,
+    added = {r.gateway.RELEASED: released, r.guard.MARKER: guard_raw,
         'mobile-reopen-files': None, 'mobile-reopen-files/transaction': None,
         'mobile-reopen-files/transaction/.transaction.lock': b'',
         'mobile-reopen-files/transaction/state.json': canonical_bytes(document) + b'\n',
@@ -147,6 +152,8 @@ def _journal_changes(control, document):
 
 
 class _Archives:
+    _journal_changes = staticmethod(_journal_changes)
+
     def __init__(self, control, runtime, database, document, cancel):
         self.control, self.runtime, self.cancel = control, runtime, cancel
         self.web = control.profile()['web_backup']
@@ -177,7 +184,7 @@ class _Archives:
             require(saved['web_uid'] == account.pw_uid and saved['web_gid'] == account.pw_gid
                 and saved['roots'] == [{'scope': n.replace('-', '_'), 'root': str(spec.root / 'data' / n)}
                     for n in sorted((*r.hd.h.DATA, 'uploads'), key=lambda n: n.replace('-', '_'))])
-        self.removed, self.added = _journal_changes(control, document)
+        self.removed, self.added = self._journal_changes(control, document)
         self.expected = _envelope(manifest['files'], self.removed, self.added)
 
     def check(self):

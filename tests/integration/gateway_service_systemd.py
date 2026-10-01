@@ -287,6 +287,10 @@ class GatewayLive(previous.FoundationLive):
         from mobile_resume_plan_systemd import exercise as resume_exercise
         resume_plan = resume_exercise(self, http, runtime, scope, lease_id, backup_root,
             operation._runtime, operation._source, payload, self.authority, preserved)
+        # 6B7b8: recoverable old-blocker handoff under fresh native SQL admission.
+        from mobile_blocker_admission_systemd import exercise as blocker_exercise
+        blocker_admission = blocker_exercise(self, http, runtime, scope, lease_id, backup_root,
+            operation._runtime, operation._source, payload, self.authority, preserved, resume_plan['plan_sha256'])
         # SQLite mode=ro may still create/remove WAL sidecars. Keep this native
         # identity oracle after all exact Gateway file-fence observations.
         self.assertEqual(self.sqlite_identity(runtime), sqlite_uuid)
@@ -308,6 +312,7 @@ class GatewayLive(previous.FoundationLive):
             'mobile_external_admission_native': external_admission,
             'mobile_data_admission_native': data_admission,
             'mobile_resume_plan_native': resume_plan,
+            'mobile_blocker_admission_native': blocker_admission,
             'gateway_old_fd_and_bind_alias_writes_denied': True, 'gateway_snapshot_recovery_without_replay': True, 'public_mobile_delivered': False, 'boot_delivered': False}))
 
 

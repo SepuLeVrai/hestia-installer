@@ -1,3 +1,16 @@
+## Point de travail 6B7b8 - 1er octobre 2026
+
+Remplacement récupérable des bloqueurs mobile/Gateway sur le gel 6B7b7b e65fa34.
+Intention privée, puis bloqueur d'activation durable avant tout unlink. Chaque
+reprise utilise une admission SQL et un export frais, les verrous natifs et les
+archives/sources exactes ; les originaux restent conservés. Le nouveau bloqueur
+interdit aussi la reprise ancienne de maintenance. SIGKILL à chacun des retraits
+et dérives SQL avant/après effet ajoutés à la recette native. Documentation :
+[PHASE6B7B8_BLOCKER_HANDOFF.md](PHASE6B7B8_BLOCKER_HANDOFF.md).
+Les trois campagnes Installer du parent sont PASS ; sa recette native 36870409164
+reste en cours au gel initial. Verdicts du nouveau gel dans la livraison. Aucun
+start ni levée de maintenance, aucun ancien test supprimé, phase 6 ouverte.
+
 ## Point de travail 6B7b7b - 1er octobre 2026
 
 Reprise sur 349345a. Le run natif parent 36863158334 a échoué sur
