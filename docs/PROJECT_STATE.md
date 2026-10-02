@@ -1,3 +1,15 @@
+# Point 6B9 — 2 octobre 2026 — listeners Web/Mobile partagés
+
+Compilation des deux domaines sur les mêmes processus HTTP 80 / HTTPS 443,
+certificats et défis HTTP-01 séparés, contrôle Host/SNI réciproque, maintien du
+Web pendant la préparation et le rechargement du certificat Mobile. Dix contrats
+purs et dix nouveaux tests NGINX par Debian dans les CI existantes. Aucun ancien
+test ni garde de bundle Phase 5 modifié. Qualification sur le nouveau gel à
+vérifier ; candidat sans effet, reprise des unités/renouvellement et cockpit
+encore à intégrer. Voir [SHARED_MOBILE_TLS.md](SHARED_MOBILE_TLS.md).
+6B7b11 natif qualifié (37022581175, 36 tests) ; 6B7b12 natif déjà en cours
+(37028464992), sans relance. Phase 6 ouverte, aucune promotion de branche active.
+
 # Point 6B8 — 2 octobre 2026 — contrat du frontal Mobile
 
 Frontal NGINX à 63 routes exactes, backend Gateway 9083 unique, Host/SNI et

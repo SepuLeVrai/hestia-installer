@@ -156,6 +156,12 @@ jobs:
           docker exec -e HESTIA_MOBILE_INGRESS_TEST=1 hestia-system-runtime \
             python3 /opt/hestia-installer/tests/integration/mobile_ingress_nginx.py \
             --report /evidence/mobile-ingress.json 2>&1 | tee evidence/mobile-ingress.log
+      - name: Exercise shared Web and Mobile listeners, HTTP01 isolation and certificate reload
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_SHARED_MOBILE_TLS_TEST=1 hestia-system-runtime \
+            python3 /opt/hestia-installer/tests/integration/shared_mobile_tls_nginx.py \
+            --report /evidence/shared-mobile-tls.json 2>&1 | tee evidence/shared-mobile-tls.log
       - name: Preserve non-secret evidence and remove disposable container
         if: always()
         run: |
