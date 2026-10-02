@@ -1,3 +1,7 @@
+# Point 6B7b10a - 2 octobre 2026 - correction du scénario natif
+
+6B7b10 a trois CI PASS (3 625 exécutions), mais son run natif 36991634086 est FAIL. Le scénario réutilisait un serveur fermé par la sortie du bootstrap et recevait `SHUTTING_DOWN` avant l'activation. Correction limitée au test et à sa documentation : recréer le service depuis les journaux après chaque contexte navigateur, puis exiger un vrai passage par le recontrôle SQL lors du refus de dérive. Code produit et baseline inchangés. Qualification à établir sur le nouveau gel, aucun statut natif acquis par héritage. Les preuves du run initial restent conservées.
+
 # Point 6B7b10 - 2 octobre 2026 - cockpit activation mobile
 
 Base 6B7b9 qualifiée : Installer `cb814f4d491e1d6902a9a1c25390336e5d5a95c0`, recette native 36910866139 PASS (36 tests).

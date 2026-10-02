@@ -10,7 +10,7 @@ import time
 import traceback
 from unittest.mock import patch
 from installer import mobile_activation_admission as n
-from installer.model import InstallerError
+from installer.model import ErrorCode, InstallerError
 from playwright.sync_api import expect
 from mobile_reopen_files_systemd import killed_at_boundary
 
@@ -24,7 +24,6 @@ def exercise(test,http,runtime,scope,lease_id,backups,worker,source,payload,auth
         for p in (backups/('mobile-resume-'+lease_id)).iterdir()}
     original_acquire=n.a.c.rf.acquire;original_start=v.NativeRuntime.start
     control=test.service.mobile_activation
-    parents=control.binding(test.service.engine.report())['parents']
     credentials={'database_password':payload['secrets']['database_password'],
         'authority_user':authority._user,'authority_password':authority._password}
     # Real HTTPS and unchanged production JS prepare and cancel the first action.
@@ -35,6 +34,9 @@ def exercise(test,http,runtime,scope,lease_id,backups,worker,source,payload,auth
         page.locator('#mobile-sql-consent').check();page.locator('#apply-mobile-activation').click()
         page.keyboard.press('Escape')
         test.assertIsNone(control._read('approved.json'));test.assertFalse(root.exists())
+    # Leaving prepare_bootstrap closes its TransactionService. Reopening the
+    # persisted cockpit is a new service, never a reset of its shutdown guard.
+    test.service=test.build_service();control=test.service.mobile_activation
     test.assertEqual(control.profile()['resume_plan_sha256'],confirmation)
     def append(path,value):
         rows=json.loads(path.read_text()) if path.exists() else [];rows.append(value)
@@ -81,7 +83,10 @@ def exercise(test,http,runtime,scope,lease_id,backups,worker,source,payload,auth
     stage='sql-drift-before-plan'
     test.sql([f'CREATE TABLE `{test.db}`.Hestia_Activation_Drift (id INT PRIMARY KEY)'])
     try:
-        with test.assertRaises(InstallerError):invoke('apply')
+        with patch.object(n.a.c,'_recheck',wraps=n.a.c._recheck) as recheck:
+            with test.assertRaises(InstallerError) as refused:invoke('apply')
+            test.assertEqual(refused.exception.code,ErrorCode.MANUAL_ACTION_REQUIRED)
+            recheck.assert_called_once()
     finally:test.sql([f'DROP TABLE `{test.db}`.Hestia_Activation_Drift'])
     test.assertFalse(root.exists());test.assertTrue((scope.directory/t.s.MARKER).exists())
     test.assertEqual(scope.observe()['state'],'MAINTENANCE_REQUIRED');runtime.stopped();runtime.foundation.stopped()
@@ -118,6 +123,11 @@ def exercise(test,http,runtime,scope,lease_id,backups,worker,source,payload,auth
     test.assertFalse(result['boot_persistence']);test.assertFalse(result['phase6_complete'])
     before={p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in root.iterdir()}
     stage='completed-read-only-check'
+    # The second browser context closed its service as well. A fresh facade
+    # must lose availability, preserve history and perform only this new check.
+    test.service=test.build_service();control=test.service.mobile_activation
+    test.assertIsNone(control.state()['availability'])
+    test.assertEqual(control.state()['state'],'DONE')
     with patch.object(t.ActivationRecord,'save',side_effect=AssertionError('completed check wrote a record')):
         checked=invoke('check')
     test.assertTrue(checked['availability']['login_page'])
@@ -141,6 +151,7 @@ def exercise(test,http,runtime,scope,lease_id,backups,worker,source,payload,auth
         'cockpit_https_plan_and_cancel':True,'api_final_sql_and_sigkill_start':True,
         'cockpit_refresh_without_replay':True,'cockpit_credentialless_resume':True,
         'api_completed_check_without_sql_credentials':True,'restart_discards_availability':True,
+        'bootstrap_lifecycle_reopened':True,'sql_drift_reached_final_recheck':True,
         'services_started':True,'activity_resumed':True,'sql_read_fence_max_seconds':180,
         'window_timings':complete,'completed_fresh_windows':1,'boot_persistence':False,
         'public_tls_verified':False,'phase6_complete':False}

@@ -34,3 +34,7 @@ Après admission, l'entrée dédiée exige l'état SERVING, le journal natif ori
 Les tests API couvrent consentement, parents modifiés, secrets, reprise, altération des fichiers et concurrence. Les suites Chromium bridge et HTTPS natif couvrent confirmation, annulation, rechargement, reprise sans identifiants et conservation du champ actif pendant le polling. La recette Debian 13 jetable ajoute ce cockpit à l'admission SQL réelle, au SIGKILL après le vrai démarrage PHP et à l'adoption de la même invocation.
 
 Une CI générale verte ne remplace pas cette recette native. La livraison précise son statut réel. Ce lot ne clôt pas la phase 6 et ne qualifie ni accès Mobile public, ni TLS public, ni boot, ni APK.
+
+## Correction de la recette 6B7b10a
+
+Le premier run natif 36991634086 a échoué avant l'activation : le scénario réutilisait un `TransactionService` fermé à la sortie du bootstrap HTTPS. Le refus `SHUTTING_DOWN` était correct. La correction reconstruit le service depuis les journaux après chaque fermeture de navigateur avant une nouvelle commande API. Elle exige aussi que le test de dérive SQL atteigne effectivement le recontrôle SQL final et retourne le code attendu. Les contrôles du produit et les délais restent inchangés. Le run initial et ses traces sont conservés ; une nouvelle recette sur le commit corrigé est nécessaire pour qualifier le cockpit.
