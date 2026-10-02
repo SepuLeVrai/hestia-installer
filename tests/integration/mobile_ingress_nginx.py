@@ -131,7 +131,7 @@ class MobileIngressLive(unittest.TestCase):
     def test_wrong_methods_are_closed_even_head_health_and_options(self):
         for route in ROUTES:
             method='GET' if route.methods==('POST',) else 'POST'
-            self.assertEqual(self.refused(route.path,method),405)
+            self.assertEqual(self.refused(route.path,method,None),405)
         for method in ('HEAD','OPTIONS','PUT','TRACE','DELETE'):self.refused('/health',method,None)
 
     def test_untrusted_headers_are_discarded_and_protocol_headers_preserved(self):

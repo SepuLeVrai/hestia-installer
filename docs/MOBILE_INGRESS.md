@@ -66,6 +66,12 @@ Le backend de cette recette enregistre les requêtes ; il ne simule pas une
 qualification fonctionnelle Gateway/Web. La recette ne démarre aucun service
 sur l'hôte Work, LAB ou PROD. Verdicts et identités des artefacts dans le checkpoint.
 
+Le premier gel `cf737125e0a6ddd1686cddcd074261b701689e3c` a détecté un
+défaut du test de méthode : son corps de deux octets dépassait le budget des
+routes sans corps et produisait 413 avant le 405 attendu. La correction envoie
+une requête sans corps pour isoler la méthode ; l'assertion exacte 405 et tous
+les refus avant backend sont conservés. Le rendu de production est inchangé.
+
 Le rendu seul **n'ouvre aucun port en production**. Restent à composer :
 enrôlement durable dans le frontal acquis, certificat Mobile/HTTP-01 et
 renouvellement, refus des collisions, activation explicite depuis le cockpit,
