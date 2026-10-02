@@ -128,7 +128,9 @@ class SharedMobileTLSLive(unittest.TestCase):
         self.assertTrue(all(p.poll() is None for p in self.processes.values()))
         pid = self.c.web.root / (role + '.pid')
         if not pid.is_file(): return False
-        self.assertEqual(int(pid.read_text().strip()), self.processes[role].pid)
+        value = pid.read_text().strip()
+        if not value: return False  # nginx -t creates an empty pidfile before startup.
+        self.assertEqual(int(value), self.processes[role].pid)
         try:
             with socket.create_connection(('127.0.0.1', port), timeout=.1): return True
         except OSError: return False

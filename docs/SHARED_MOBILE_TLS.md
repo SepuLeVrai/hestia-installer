@@ -62,3 +62,11 @@ Le parent 6B7b11 est qualifié nativement (37022581175, 36 tests). La recette
 6B7b12 37028464992 est déjà en cours : elle n'est pas relancée. Les verdicts
 actualisés, commits exacts et preuves figurent dans le checkpoint livré.
 Phase 6 ouverte, aucune promotion main/dev/dev-Bastien et aucun APK.
+
+## Correction 6B9b du signal de disponibilité
+
+NGINX configtest crée un pidfile vide avant le démarrage effectif. La fixture
+6B9a le convertissait trop tôt en entier. Elle attend désormais sa publication
+non vide, dans la même attente bornée, puis exige toujours le PID exact du
+master lancé. Aucun changement produit, aucun retrait de test ; l'échec 6B9a
+est conservé avec celui du premier gel.
