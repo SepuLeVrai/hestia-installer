@@ -79,3 +79,12 @@ La fixture attend désormais le résultat HTTPS effectif pour les deux états ;
 une erreur de confiance transitoire reste en attente bornée, puis la réussite
 exige toujours la validation stricte du certificat Mobile et un statut 200.
 La rotation et les huit autres scénarios restent inchangés.
+
+## Correction 6B9d de la concurrence au boot de la fixture
+
+Les paquets officiels activent Apache et NGINX par défaut sur le même port 80.
+Le vainqueur de cette course de boot varie : 6B9c passe les dix scénarios sur
+Debian 12, mais Apache conserve le listener sur Debian 13. La fixture suspend
+les deux services connus, refuse tout listener résiduel sur 80/443, puis
+rétablit uniquement ceux qui étaient actifs. Les configurations globales et le
+code produit restent identiques. Les quatre gels intermédiaires sont conservés.

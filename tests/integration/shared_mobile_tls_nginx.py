@@ -62,20 +62,23 @@ class SharedMobileTLSLive(unittest.TestCase):
         value['boot']['application'] = {'instance': instance, 'configuration': {'web': FreshProfile(instance).web(WEB)}}
         value['choices']['networks'] = ['127.0.0.11/32']
         cls.candidate = SharedMobileTLS(value, gateway(), ('127.0.0.10/32',))
-        # The official package enables its default port-80 service at container
-        # boot. Stop only that known fixture service, never adopt its listener.
-        cls.default_nginx_active = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', 'nginx.service'],
-            capture_output=True, timeout=5).returncode == 0
-        if cls.default_nginx_active:
-            subprocess.run(['/usr/bin/systemctl', 'stop', 'nginx.service'], check=True, capture_output=True, timeout=10)
+        # Both official packages enable a default port-80 service; either can
+        # win the boot race. Stop only these known disposable fixture services.
+        cls.default_services = {unit: subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', unit],
+            capture_output=True, timeout=5).returncode == 0 for unit in ('nginx.service', 'apache2.service')}
+        subprocess.run(['/usr/bin/systemctl', 'stop', *cls.default_services], check=True, capture_output=True, timeout=10)
+        for port in (80, 443):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                listener.bind(('0.0.0.0', port))  # Refuse any remaining foreign listener.
         subprocess.run(['/usr/sbin/useradd', '--system', '--user-group', '--no-create-home',
             '--shell', '/usr/sbin/nologin', cls.candidate.web.identity.user], check=True, capture_output=True, timeout=10)
 
     @classmethod
     def tearDownClass(cls):
         subprocess.run(['/usr/sbin/userdel', cls.candidate.web.identity.user], check=True, capture_output=True, timeout=10)
-        if cls.default_nginx_active:
-            subprocess.run(['/usr/bin/systemctl', 'start', 'nginx.service'], check=True, capture_output=True, timeout=10)
+        for unit, active in cls.default_services.items():
+            if active: subprocess.run(['/usr/bin/systemctl', 'start', unit], check=True, capture_output=True, timeout=10)
 
     def setUp(self):
         self.c = self.candidate; self.root = self.c.web.layout.root
@@ -125,7 +128,9 @@ class SharedMobileTLSLive(unittest.TestCase):
         self.fail('NGINX transition did not complete')
 
     def listening(self, role, port):
-        self.assertTrue(all(p.poll() is None for p in self.processes.values()))
+        for name, process in self.processes.items():
+            log = self.c.web.root / (name + '.log')
+            self.assertIsNone(process.poll(), log.read_text()[-4000:] if log.is_file() else name)
         pid = self.c.web.root / (role + '.pid')
         if not pid.is_file(): return False
         value = pid.read_text().strip()
@@ -244,7 +249,9 @@ class SharedMobileTLSLive(unittest.TestCase):
         try:
             self.assert_config('https', valid=False)
             self.assertEqual(self.request(WEB)[0], 200); self.assertEqual(self.request(MOBILE)[0], 200)
-            self.assertTrue(all(p.poll() is None for p in self.processes.values()))
+            for name, process in self.processes.items():
+            log = self.c.web.root / (name + '.log')
+            self.assertIsNone(process.poll(), log.read_text()[-4000:] if log.is_file() else name)
         finally: held.rename(original)
 
     def test_mobile_backend_outage_does_not_interrupt_web(self):
