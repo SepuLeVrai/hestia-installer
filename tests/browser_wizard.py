@@ -386,6 +386,57 @@ class BrowserWizardTests(unittest.TestCase):
         self.page.locator("#rollback-github-web").click(); self.dialog()
         expect(self.page.locator("#execution-state")).to_have_attribute("data-state", "ROLLED_BACK")
 
+    def preparation_fixture(self):
+        import test_mobile_preparation_plan as fixtures
+        fixture = fixtures.MobilePreparationPlanTests('test_plan_reads_are_repeatable_without_native_observation')
+        self.addCleanup(fixture.doCleanups); fixture.setUp()
+        self.quiesce_page(); self.service.close(); self.service = fixture.service
+        self.server.state.transaction_service = self.service
+        self.refresh(); self.step(5); self.page.locator('#plan-mobile-preparation').click()
+        expect(self.page.locator('#mobile-preparation-state')).to_have_attribute('data-state', 'AWAITING_CONFIRMATION')
+        return fixture
+
+    def preparation_credentials(self, fixture):
+        for name, value in fixture.credentials.items(): self.page.locator('#preparation-' + name).fill(value)
+        self.page.locator('#preparation-sql-consent').check()
+
+    def test_mobile_preparation_cancel_then_complete_without_activation(self):
+        fixture = self.preparation_fixture(); self.preparation_credentials(fixture)
+        self.page.locator('#apply-mobile-preparation').click(); self.dialog('cancel')
+        fixture.native.execute.assert_not_called(); self.assertIsNone(fixture.control._read('approved.json'))
+        for name in fixture.credentials: expect(self.page.locator('#preparation-' + name)).to_have_value('')
+        self.preparation_credentials(fixture); self.page.locator('#apply-mobile-preparation').click(); self.dialog()
+        expect(self.page.locator('#mobile-preparation-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual(fixture.native.execute.call_count, 6); fixture.effects.assert_not_called()
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#mobile-preparation-state')).to_have_attribute('data-state', 'DONE')
+        expect(self.page.locator('#plan-mobile-activation')).to_be_visible()
+        self.assertEqual(fixture.native.execute.call_count, 6)
+        for secret in fixture.credentials.values(): self.assertNotIn(secret, self.http('/api/installation/report')['body'])
+
+    def test_mobile_preparation_resume_keeps_completed_stages(self):
+        fixture = self.preparation_fixture()
+        def interrupted(stage):
+            if stage == 'external': raise RuntimeError('interrupted')
+            return fixture.prepared_stage(stage)
+        fixture.native.execute.side_effect = interrupted
+        self.preparation_credentials(fixture); self.page.locator('#apply-mobile-preparation').click(); self.dialog()
+        expect(self.page.locator('#mobile-preparation-state')).to_have_attribute('data-state', 'RESUME_REQUIRED')
+        self.refresh(); self.step(5); self.assertEqual(fixture.native.execute.call_count, 3)
+        fixture.native.execute.side_effect = fixture.prepared_stage
+        self.preparation_credentials(fixture); self.page.locator('#resume-mobile-preparation').click(); self.dialog()
+        expect(self.page.locator('#mobile-preparation-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual([x.args[0] for x in fixture.native.execute.call_args_list].count('gateway'), 1)
+        fixture.effects.assert_not_called()
+
+    def test_mobile_preparation_sql_consent_and_focused_field_survive_poll(self):
+        fixture = self.preparation_fixture()
+        self.page.locator('#preparation-database_password').fill(fixture.credentials['database_password'])
+        self.page.wait_for_timeout(1750)
+        expect(self.page.locator('#preparation-database_password')).to_have_value(fixture.credentials['database_password'])
+        self.page.locator('#apply-mobile-preparation').click()
+        expect(self.page.locator('#operation-dialog')).not_to_be_visible(); fixture.native.execute.assert_not_called()
+
     def backup_fixture(self):
         import test_mobile_backup_plan as fixtures
         fixture = fixtures.MobileBackupPlanTests('test_plan_and_reads_preserve_parents_and_never_observe_host')

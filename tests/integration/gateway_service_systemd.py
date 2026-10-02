@@ -41,6 +41,10 @@ class GatewayLive(previous.FoundationLive):
             (native.drain.UNIT_ROOT / unit).unlink(missing_ok=True)
         super().dispose_profile()
 
+    def test_mobile_preparation_cockpit_end_to_end(self):
+        from mobile_preparation_systemd import exercise
+        exercise(self)
+
     def sqlite_identity(self, runtime):
         with closing(sqlite3.connect(runtime.profile.state.as_uri() + '/gateway.db?mode=ro', uri=True)) as database:
             database.execute('PRAGMA query_only=ON')
@@ -368,12 +372,13 @@ if __name__ == '__main__':
     import test_gateway_state, test_gateway_state_release
     suite = unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromModule(test_gateway_state),
         unittest.defaultTestLoader.loadTestsFromModule(test_gateway_state_release),
-        GatewayLive('test_gateway_real_credentials_recovery_main_and_coordinated_backup')])
+        GatewayLive('test_gateway_real_credentials_recovery_main_and_coordinated_backup'),
+        GatewayLive('test_mobile_preparation_cockpit_end_to_end')])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     stable = source == quality.snapshot(ROOT)
-    report = {'suite': 'Gateway MAIN native service, backup and guarded file release', 'tests': result.testsRun, 'expected': 36,
+    report = {'suite': 'Gateway MAIN native service, backup and guarded file release', 'tests': result.testsRun, 'expected': 37,
         'failures': len(result.failures), 'errors': len(result.errors), 'skips': len(result.skipped),
-        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 36 and not result.skipped and stable else 'FAIL',
+        'status': 'PASS' if result.wasSuccessful() and result.testsRun == 37 and not result.skipped and stable else 'FAIL',
         'source_stable': stable, 'source_files': len(source), 'phase6_complete': False}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     (args.report.parent / 'GATEWAY-SOURCE-MANIFEST.json').write_bytes(quality.encode(source))

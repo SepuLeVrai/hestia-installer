@@ -123,6 +123,9 @@ def main(argv: list[str] | None = None) -> int:
             from installer.mobile_backup_plan import MobileBackupPlan
             backup = MobileBackupPlan(MobileActivationPlan(ApplicationPlan(engine, github))).state()
             if backup['state'] != 'NOT_PLANNED': result['mobile_backup'] = backup
+            from installer.mobile_preparation_plan import MobilePreparationPlan
+            preparation = MobilePreparationPlan(MobileBackupPlan(MobileActivationPlan(ApplicationPlan(engine, github)))).state()
+            if preparation['state'] != 'NOT_PLANNED': result['mobile_preparation'] = preparation
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
         if args.resume:

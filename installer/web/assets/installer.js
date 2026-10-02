@@ -58,6 +58,7 @@
   let gateway = {preparation: null, profile: null};
   let foundation = {installation: null, profile: null, availability: null};
   let gatewayService = {installation: null, profile: null, availability: null};
+  let mobilePreparation = {state: "NOT_PLANNED", profile: null, steps: []};
   let mobileBackup = {state: "NOT_PLANNED", profile: null, backup: null};
   let mobileActivation = {state: "NOT_PLANNED", profile: null, steps: [], availability: null};
   let activation = {installation: null, availability: null};
@@ -600,7 +601,7 @@
     if (isApplication() && !isUpgrade() && installation.state === "DONE") gatewayForm();
     if (isApplication() && !isUpgrade() && gateway.preparation?.state === "DONE" && activation.installation?.state === "DONE") foundationForm();
     if (isApplication() && !isUpgrade() && foundation.installation?.state === "DONE") gatewayServiceForm();
-    if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") { mobileBackupForm(); mobileActivationForm(); }
+    if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") { mobileBackupForm(); if (mobileBackup.state === "DONE") mobilePreparationForm(); mobileActivationForm(); }
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
@@ -834,9 +835,58 @@
           $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
         }, action + "-mobile-backup", true));
       }
-      if (mobileBackup.state === "DONE") card.append(hint("Restaurations isolées enregistrées : SQL, fichiers, SQLite Gateway et cache. Le redémarrage des services nécessite une préparation de reprise puis une activation explicite. La préparation de reprise n'est pas encore disponible dans ce cockpit."));
+      if (mobileBackup.state === "DONE") card.append(hint("Restaurations isolées enregistrées : SQL, fichiers, SQLite Gateway et cache. Le redémarrage des services nécessite une préparation de reprise puis une activation explicite. Poursuivez avec la carte Préparation de reprise ci-dessous."));
       if (mobileBackup.last_error_redacted) card.append(hint(errorMessage({code: mobileBackup.last_error_redacted})));
       card.append(hint("Cet historique ne certifie pas l'état actuel du serveur. Le rafraîchissement ne relance aucune sauvegarde."));
+    }
+    content.append(card);
+  }
+  function mobilePreparationForm() {
+    const card = element("article", null, "wizard-card"); card.id = "mobile-preparation";
+    card.append(element("h2", "Préparation de reprise"), hint("Ce parcours prépare les fichiers et les données sauvegardés, vérifie SQL à chaque admission et prépare le démarrage. Les services restent arrêtés jusqu’à votre confirmation séparée de l’activation."));
+    if (mobilePreparation.state === "NOT_PLANNED") {
+      card.append(button("Préparer le plan de reprise", () => void run(async () => {
+        mobilePreparation = (await api("/api/mobile/preparation/plan", {parents: {
+          web: installation.plan_sha256, activation: activation.installation.plan_sha256,
+          gateway: gateway.preparation.plan_sha256, foundation: foundation.installation.plan_sha256,
+          gateway_service: gatewayService.installation.plan_sha256}})).mobile_preparation;
+        show(5);
+      }), "plan-mobile-preparation"));
+    } else {
+      const labels = {AWAITING_CONFIRMATION: "En attente de confirmation", RESUME_REQUIRED: "Préparation engagée, reprise explicite disponible", DONE: "Préparation terminée, activation à confirmer", UNAVAILABLE: "Journal indisponible, vérification manuelle requise"};
+      const status = element("p", labels[mobilePreparation.state]); status.id = "mobile-preparation-state";
+      status.dataset.state = mobilePreparation.state; status.setAttribute("aria-live", "polite"); card.append(status);
+      const labelsByStage = {gateway: "État Gateway", files: "Fichiers protégés", external: "Réservations externes", data: "Accès aux données", resume: "Plan de démarrage", blockers: "Passage à l'activation"};
+      const progress = {PENDING: "en attente", INTENT_RECORDED: "engagée, résultat à confirmer", DONE: "terminée"};
+      for (const row of mobilePreparation.steps) card.append(element("p", labelsByStage[row.stage] + " : " + progress[row.state]));
+      if (["AWAITING_CONFIRMATION", "RESUME_REQUIRED"].includes(mobilePreparation.state)) {
+        const credentials = element("div"); credentials.id = "preparation-sql-credentials"; const inputs = {};
+        for (const [name, label] of [["database_password", "Mot de passe SQL de l'application"], ["authority_user", "Compte SQL d'autorité"], ["authority_password", "Mot de passe du compte d'autorité"]]) {
+          const input = element("input"); input.type = name === "authority_user" ? "text" : "password";
+          input.id = "preparation-" + name; input.autocomplete = "off"; input.maxLength = 1024;
+          inputs[name] = input; credentials.append(field(label, input));
+        }
+        const consent = element("input"); consent.type = "checkbox"; consent.id = "preparation-sql-consent";
+        credentials.append(field("J'autorise le verrou global de lecture SQL, limité à 180 secondes.", consent));
+        credentials.append(hint("Ces identifiants servent uniquement à cette demande et ne sont pas enregistrés.")); card.append(credentials);
+        const action = mobilePreparation.state === "AWAITING_CONFIRMATION" ? "apply" : "resume";
+        card.append(button(action === "apply" ? "Exécuter la préparation" : "Reprendre la préparation", () => {
+          if (!consent.checked || Object.values(inputs).some((input) => !input.value)) {
+            message("Renseignez les trois identifiants et autorisez le verrou SQL."); return;
+          }
+          const values = Object.fromEntries(Object.entries(inputs).map(([name, input]) => [name, input.value]));
+          for (const input of Object.values(inputs)) input.value = "";
+          pendingAction = {action: "mobile-preparation." + action, payload: {confirmation: mobilePreparation.confirmation,
+            confirm: true, credentials: values, allow_global_read_lock: true}};
+          consent.checked = false;
+          $("operation-title").textContent = action === "apply" ? "Préparer la reprise des services ?" : "Reprendre la préparation interrompue ?";
+          $("operation-description").textContent = "La préparation enchaîne six étapes. Chaque admission SQL utilise un nouveau verrou limité à 180 secondes. Une interruption exige une reprise explicite. La maintenance reste active et aucun service ne démarre.";
+          $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+        }, action + "-mobile-preparation", true));
+      }
+      if (mobilePreparation.state === "DONE") card.append(hint("La reprise est prête. Utilisez la carte Activation pour confirmer le démarrage des services. L'historique seul ne vaut pas admission actuelle."));
+      if (mobilePreparation.last_error_redacted) card.append(hint(errorMessage({code: mobilePreparation.last_error_redacted})));
+      card.append(hint("Cet historique ne certifie pas l'état actuel du serveur. Le rafraîchissement ne relance aucune étape."));
     }
     content.append(card);
   }
@@ -1102,6 +1152,11 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action.startsWith("mobile-preparation.")) {
+        try {
+          mobilePreparation = (await api("/api/mobile/preparation/" + action.action.slice(19), action.payload)).mobile_preparation;
+        } finally { action.payload.credentials = {}; }
+        show(5);
       } else if (action.action.startsWith("mobile-backup.")) {
         try {
           mobileBackup = (await api("/api/mobile/backup/" + action.action.slice(14), action.payload)).mobile_backup;
@@ -1160,6 +1215,7 @@
     gateway = result.gateway || {preparation: null, profile: null};
     foundation = result.foundation || {installation: null, profile: null, availability: null};
     gatewayService = result.gateway_service || {installation: null, profile: null, availability: null};
+    mobilePreparation = result.mobile_preparation || mobilePreparation;
     mobileBackup = result.mobile_backup || mobileBackup;
     mobileActivation = result.mobile_activation || {state: "NOT_PLANNED", profile: null, steps: [], availability: null};
     packages = result.packages || {profile: null, acquisition: null, installation: null, selection: null};
@@ -1232,12 +1288,13 @@
         gateway = result.gateway || gateway;
         foundation = result.foundation || foundation;
         gatewayService = result.gateway_service || gatewayService;
+        mobilePreparation = result.mobile_preparation || mobilePreparation;
         mobileBackup = result.mobile_backup || mobileBackup;
         mobileActivation = result.mobile_activation || mobileActivation;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, gateway.preparation?.revision, foundation.installation?.revision, gatewayService.installation?.revision, mobileActivation, mobileBackup, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
-        const editingMobile = !serverBusy && !busy && ($("mobile-sql-credentials")?.contains(document.activeElement) || $("backup-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, gateway.preparation?.revision, foundation.installation?.revision, gatewayService.installation?.revision, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const editingMobile = !serverBusy && !busy && ($("mobile-sql-credentials")?.contains(document.activeElement) || $("backup-sql-credentials")?.contains(document.activeElement) || $("preparation-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
         if (stamp !== lastRevision && !editingMobile) {
           lastRevision = stamp;
           installation = result.installation;

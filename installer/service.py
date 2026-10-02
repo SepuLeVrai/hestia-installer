@@ -22,8 +22,10 @@ from installer.foundation_plan import FoundationPlan
 from installer.gateway_service_plan import GatewayServicePlan
 from installer.mobile_activation_plan import MobileActivationPlan
 from installer.mobile_backup_plan import MobileBackupPlan
+from installer.mobile_preparation_plan import MobilePreparationPlan
 
 POST_ROUTES = {
+    **{'/api/mobile/preparation/' + action: 'mobile-preparation.' + action for action in ('plan', 'apply', 'resume')},
     **{'/api/mobile/backup/' + action: 'mobile-backup.' + action for action in ('plan', 'apply', 'resume')},
     **{'/api/mobile/activation/' + action: 'mobile-activation.' + action for action in ('plan', 'apply', 'resume', 'check')},
     **{'/api/gateway/service/' + action: 'gateway-service.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
@@ -78,6 +80,7 @@ class TransactionService:
         self.gateway_service = GatewayServicePlan(self.foundation)
         self.mobile_activation = MobileActivationPlan(self.application, self.gateway_service)
         self.mobile_backup = MobileBackupPlan(self.mobile_activation)
+        self.mobile_preparation = MobilePreparationPlan(self.mobile_backup)
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
@@ -119,7 +122,7 @@ class TransactionService:
                     "acme_packages": self.acme_packages.state(), "public_tls": self.public_tls.state(),
                     "gateway": self.gateway.state(), "foundation": self.foundation.state(),
                     "gateway_service": self.gateway_service.state(), "mobile_activation": self.mobile_activation.state(),
-                    "mobile_backup": self.mobile_backup.state()}
+                    "mobile_backup": self.mobile_backup.state(), "mobile_preparation": self.mobile_preparation.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -158,10 +161,14 @@ class TransactionService:
             if mobile['state'] != 'NOT_PLANNED': result['mobile_activation'] = mobile
             backup = self.mobile_backup.state()
             if backup['state'] != 'NOT_PLANNED': result['mobile_backup'] = backup
+            preparation = self.mobile_preparation.state()
+            if preparation['state'] != 'NOT_PLANNED': result['mobile_preparation'] = preparation
             return result
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('mobile-preparation.'):
+                return {"mobile_preparation": self.mobile_preparation.execute(action.removeprefix('mobile-preparation.'), payload)}
             if action.startswith('mobile-backup.'):
                 return {"mobile_backup": self.mobile_backup.execute(action.removeprefix('mobile-backup.'), payload)}
             if action.startswith('mobile-activation.'):

@@ -1,5 +1,16 @@
 # Point 6B7b10a - 2 octobre 2026 - correction du scénario natif
 
+## Point de travail 6B7b12 — 2 octobre 2026
+
+Raccordement des six étapes de préparation entre sauvegarde et activation :
+chaîne d'intentions/reçus, reprise explicite sur le même verrou natif, nouvelles
+admissions SQL bornées, aucun démarrage pendant la préparation. Le parcours local
+complet est raccordé dans le code ; qualification native encore à obtenir.
+Voir [MOBILE_PREPARATION_COCKPIT.md](MOBILE_PREPARATION_COCKPIT.md).
+22 contrats ajoutés, trois parcours dans chacune des deux suites navigateur,
+37e test natif de bout en bout sans retirer les 36 précédents. Baseline renforcée.
+Les verdicts exacts et dépendances figurent dans le checkpoint. Phase 6 ouverte.
+
 ## Point de travail 6B7b11 — 2 octobre 2026
 
 Raccordement du moteur de sauvegarde MAIN au cockpit : plan sans effet,
