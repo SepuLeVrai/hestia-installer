@@ -1,3 +1,17 @@
+# Point 6B8 — 2 octobre 2026 — contrat du frontal Mobile
+
+Frontal NGINX à 63 routes exactes, backend Gateway 9083 unique, Host/SNI et
+politique IPv4 Mobile distincts, identité client reconstruite et en-têtes fermés.
+Douze contrats purs et dix tests NGINX/TLS réels sur chacun des deux Debian dans
+la CI système existante. Aucun ancien test retiré, aucune campagne SQL relancée.
+Le rendu est sans effet : enrôlement TLS/boot/cockpit et qualification avec la
+vraie Gateway restent à composer. Voir [MOBILE_INGRESS.md](MOBILE_INGRESS.md).
+
+6B7b10a natif qualifié : run 37016308782, 36 tests PASS et artefact vérifié.
+6B7b11 (37022581175) s'exécute et 6B7b12 (37028464992) attend son parent exact
+à l'ouverture de ce lot. Leur état actualisé figure dans le checkpoint.
+Phase 6 ouverte ; aucune promotion main/dev/dev-Bastien.
+
 # Point 6B7b10a - 2 octobre 2026 - correction du scénario natif
 
 ## Point de travail 6B7b12 — 2 octobre 2026
