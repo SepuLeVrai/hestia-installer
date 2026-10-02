@@ -249,9 +249,7 @@ class SharedMobileTLSLive(unittest.TestCase):
         try:
             self.assert_config('https', valid=False)
             self.assertEqual(self.request(WEB)[0], 200); self.assertEqual(self.request(MOBILE)[0], 200)
-            for name, process in self.processes.items():
-            log = self.c.web.root / (name + '.log')
-            self.assertIsNone(process.poll(), log.read_text()[-4000:] if log.is_file() else name)
+            self.assertTrue(all(p.poll() is None for p in self.processes.values()))
         finally: held.rename(original)
 
     def test_mobile_backend_outage_does_not_interrupt_web(self):

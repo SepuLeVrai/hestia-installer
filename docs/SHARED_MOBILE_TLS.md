@@ -88,3 +88,10 @@ Debian 12, mais Apache conserve le listener sur Debian 13. La fixture suspend
 les deux services connus, refuse tout listener résiduel sur 80/443, puis
 rétablit uniquement ceux qui étaient actifs. Les configurations globales et le
 code produit restent identiques. Les quatre gels intermédiaires sont conservés.
+
+## Correction 6B9e de la syntaxe de fixture
+
+Le gate statique du gel 6B9d a refusé une indentation introduite lors de
+l'ajout du diagnostic de processus. La correction rétablit l'assertion originale
+du scénario de certificat manquant. Le gate statique et les contrats purs sont
+revérifiés avant publication ; le code produit reste inchangé.
