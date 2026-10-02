@@ -62,12 +62,20 @@ class SharedMobileTLSLive(unittest.TestCase):
         value['boot']['application'] = {'instance': instance, 'configuration': {'web': FreshProfile(instance).web(WEB)}}
         value['choices']['networks'] = ['127.0.0.11/32']
         cls.candidate = SharedMobileTLS(value, gateway(), ('127.0.0.10/32',))
+        # The official package enables its default port-80 service at container
+        # boot. Stop only that known fixture service, never adopt its listener.
+        cls.default_nginx_active = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', 'nginx.service'],
+            capture_output=True, timeout=5).returncode == 0
+        if cls.default_nginx_active:
+            subprocess.run(['/usr/bin/systemctl', 'stop', 'nginx.service'], check=True, capture_output=True, timeout=10)
         subprocess.run(['/usr/sbin/useradd', '--system', '--user-group', '--no-create-home',
             '--shell', '/usr/sbin/nologin', cls.candidate.web.identity.user], check=True, capture_output=True, timeout=10)
 
     @classmethod
     def tearDownClass(cls):
         subprocess.run(['/usr/sbin/userdel', cls.candidate.web.identity.user], check=True, capture_output=True, timeout=10)
+        if cls.default_nginx_active:
+            subprocess.run(['/usr/bin/systemctl', 'start', 'nginx.service'], check=True, capture_output=True, timeout=10)
 
     def setUp(self):
         self.c = self.candidate; self.root = self.c.web.layout.root
@@ -90,7 +98,7 @@ class SharedMobileTLSLive(unittest.TestCase):
         for role, port in (('http', 80), ('https', 443)):
             self.assert_config(role)
             self.processes[role] = subprocess.Popen(self.argv(role), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.until(lambda: self.listening(port))
+            self.until(lambda: self.listening(role, port))
 
     def issue(self, live, hostname):
         live.mkdir(parents=True, exist_ok=True)
@@ -116,8 +124,11 @@ class SharedMobileTLSLive(unittest.TestCase):
             time.sleep(.02)
         self.fail('NGINX transition did not complete')
 
-    def listening(self, port):
+    def listening(self, role, port):
         self.assertTrue(all(p.poll() is None for p in self.processes.values()))
+        pid = self.c.web.root / (role + '.pid')
+        if not pid.is_file(): return False
+        self.assertEqual(int(pid.read_text().strip()), self.processes[role].pid)
         try:
             with socket.create_connection(('127.0.0.1', port), timeout=.1): return True
         except OSError: return False

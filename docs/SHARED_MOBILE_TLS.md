@@ -40,6 +40,13 @@ Les configurations globales Apache/NGINX sont comparées avant/après. Aucun
 compte, listener ou certificat n'est créé hors des conteneurs CI jetables.
 Les certificats/clefs de fixture ne sont pas exportés en preuves.
 
+Correction 6B9a : le NGINX officiel activé au boot du conteneur possédait déjà
+le port 80. Le premier scénario lisait ce listener au lieu d'attendre son propre
+master : trois tests HTTP échouaient, sept tests HTTPS passaient. La fixture
+arrête uniquement ce service connu et le rétablit en sortie ; elle exige le PID
+du master lancé avant toute requête. Le compilateur produit reste inchangé.
+Les preuves initiales sont conservées ; le nouveau gel est qualifié à nouveau.
+
 ## Reprise des services encore à raccorder
 
 Ce lot ne modifie ni bundle figé, ni unité, ni worker, ni contrôleur Phase 5.
