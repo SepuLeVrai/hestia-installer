@@ -150,18 +150,55 @@ class GatewayLive(previous.FoundationLive):
             result = original_flags(fd, value)
             if value is not None: os.kill(os.getpid(), signal.SIGKILL)
             return result
+        # The same qualified native scenario now enters through the real cockpit.
+        backup_control = self.service.mobile_backup
+        backup_parents = {**parents, 'gateway_service': document['plan_sha256']}
+        backup_credentials = {'database_password': payload['secrets']['database_password'],
+            'authority_user': self.authority._user, 'authority_password': self.authority._password}
+        with self.browser() as page:
+            page.locator('#plan-mobile-backup').click()
+            expect(page.locator('#mobile-backup-state')).to_have_attribute('data-state', 'AWAITING_CONFIRMATION')
+            for name, value in backup_credentials.items(): page.locator('#backup-' + name).fill(value)
+            page.locator('#backup-sql-consent').check(); page.locator('#apply-mobile-backup').click()
+            page.keyboard.press('Escape')
+            self.assertIsNone(backup_control._read('approved.json'))
+            for name in backup_credentials: expect(page.locator('#backup-' + name)).to_have_value('')
+        self.service = self.build_service(); backup_control = self.service.mobile_backup
+        self.assertEqual(backup_control.profile()['parents'], backup_parents)
+        request = {'confirmation': backup_control.state()['confirmation'], 'confirm': True,
+            'credentials': backup_credentials, 'allow_global_read_lock': True}
         def interrupted_backup():
             with patch.object(state_fence.inf, '_flags', side_effect=cut_after_first_flag):
-                operation.create_and_verify(payload, self.authority, config_root=self.profile.config_root,
-                    backup_root=backup_root, confirmed=True, allow_global_read_lock=True)
+                self.service.execute('mobile-backup.apply', request)
         self.kill_child(interrupted_backup)
         scope, _ = runtime.foundation.activation.configuration()
         lease_id = scope.observe()['lease_id']
         self.assertTrue((scope.directory / state_fence.MARKER).exists())
         self.assertFalse(any(backup_root.iterdir()))
-        backup = operation.create_and_verify(payload, self.authority, config_root=self.profile.config_root,
-            backup_root=backup_root, confirmed=True, allow_global_read_lock=True,
-            recover_lease_id=lease_id).report()
+        self.assertEqual(backup_control._read('lease.json')['lease_id'], lease_id)
+        self.assertEqual(backup_control.state()['state'], 'RESUME_REQUIRED')
+        with self.browser() as page:
+            expect(page.locator('#mobile-backup-state')).to_have_attribute('data-state', 'RESUME_REQUIRED')
+            for name, value in backup_credentials.items(): page.locator('#backup-' + name).fill(value)
+            page.locator('#backup-sql-consent').check(); page.locator('#resume-mobile-backup').click()
+            page.locator('#operation-dialog button[value="confirm"]').click()
+            expect(page.locator('#mobile-backup-state')).to_have_attribute('data-state', 'DONE', timeout=300000)
+            page.reload(); expect(page.locator('#mobile-backup-state')).to_have_attribute('data-state', 'DONE')
+            page.locator('#mobile-backup').screenshot(path='/evidence/mobile-backup-cockpit.png')
+        self.service = self.build_service(); backup_control = self.service.mobile_backup
+        backup = backup_control.receipt(backup_control.profile(), backup_control._read('lease.json'))
+        self.assertTrue(backup_control.state()['historical_only'])
+        with patch.object(provisioned_backup.ProvisionedBackup, 'create_and_verify', side_effect=AssertionError('backup replay')):
+            self.assertEqual(self.service.execute('mobile-backup.resume', request)['mobile_backup']['state'], 'DONE')
+        for secret in backup_credentials.values():
+            self.assertNotIn(secret, str(self.service.report()))
+            for path in backup_control.root.iterdir(): self.assertNotIn(secret.encode(), path.read_bytes())
+        Path('/evidence/mobile-backup-cockpit.json').write_bytes(quality.encode({'status': 'PASS',
+            'explicit_https_plan': True, 'cancel_without_approval': True, 'credentials_cleared': True,
+            'sigkill_after_first_gateway_flag': True, 'same_owned_lease_recovered': True,
+            'explicit_https_resume': True, 'complete_response_not_replayed': True,
+            'historical_get_only': True, 'bootstrap_lifecycle_reopened': True,
+            'activity_resumed': False, 'phase6_complete': False}))
         Path('/evidence/gateway-backup.json').write_bytes(quality.encode(backup))
         self.assertEqual(backup['state'], 'MOBILE_BACKUP_RESTORE_VERIFIED', backup)
         self.assertTrue(backup['database_restoration_verified'] and backup['registered_data_restoration_verified'])

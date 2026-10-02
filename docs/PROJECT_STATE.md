@@ -1,5 +1,17 @@
 # Point 6B7b10a - 2 octobre 2026 - correction du scénario natif
 
+## Point de travail 6B7b11 — 2 octobre 2026
+
+Raccordement du moteur de sauvegarde MAIN au cockpit : plan sans effet,
+confirmation séparée, identifiants éphémères, bail réel enregistré avant effet,
+reprise explicite et reconnaissance d'une réponse perdue sans répétition.
+Les primitives natives et lecteurs acquis restent inchangés. Quinze contrats
+et deux parcours navigateur ajoutés ; scénario natif existant étendu sans retirer
+d'assertion. Voir [MOBILE_BACKUP_COCKPIT.md](MOBILE_BACKUP_COCKPIT.md).
+Base 6B7b10a, trois CI PASS et recette 37016308782 en cours à l'ouverture.
+Verdicts du nouveau gel dans le checkpoint, aucune qualification anticipée.
+Préparation de reprise depuis le cockpit encore à raccorder ; phase 6 ouverte.
+
 6B7b10 a trois CI PASS (3 625 exécutions), mais son run natif 36991634086 est FAIL. Le scénario réutilisait un serveur fermé par la sortie du bootstrap et recevait `SHUTTING_DOWN` avant l'activation. Correction limitée au test et à sa documentation : recréer le service depuis les journaux après chaque contexte navigateur, puis exiger un vrai passage par le recontrôle SQL lors du refus de dérive. Code produit et baseline inchangés. Qualification à établir sur le nouveau gel, aucun statut natif acquis par héritage. Les preuves du run initial restent conservées.
 
 # Point 6B7b10 - 2 octobre 2026 - cockpit activation mobile

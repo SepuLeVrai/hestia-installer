@@ -167,7 +167,7 @@ class MobileActivationPlanTests(unittest.TestCase):
         path.unlink(); self.assertEqual(self.control.state()['state'], 'UNAVAILABLE')
 
     def test_all_posts_are_closed_and_no_targeted_retry_route_exists(self):
-        self.assertEqual({path for path in POST_ROUTES if path.startswith('/api/mobile/')},
+        self.assertEqual({path for path in POST_ROUTES if path.startswith('/api/mobile/activation/')},
                          {'/api/mobile/activation/' + x for x in ('plan', 'apply', 'resume', 'check')})
         with self.assertRaises(InstallerError): self.service.execute('mobile-activation.retry', {})
 

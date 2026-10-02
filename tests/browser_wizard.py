@@ -386,6 +386,49 @@ class BrowserWizardTests(unittest.TestCase):
         self.page.locator("#rollback-github-web").click(); self.dialog()
         expect(self.page.locator("#execution-state")).to_have_attribute("data-state", "ROLLED_BACK")
 
+    def backup_fixture(self):
+        import test_mobile_backup_plan as fixtures
+        fixture = fixtures.MobileBackupPlanTests('test_plan_and_reads_preserve_parents_and_never_observe_host')
+        self.addCleanup(fixture.doCleanups); fixture.setUp()
+        self.quiesce_page(); self.service.close(); self.service = fixture.service
+        self.server.state.transaction_service = self.service
+        self.refresh(); self.step(5)
+        self.page.locator('#plan-mobile-backup').click()
+        expect(self.page.locator('#mobile-backup-state')).to_have_attribute('data-state', 'AWAITING_CONFIRMATION')
+        return fixture
+
+    def backup_credentials(self, fixture):
+        for name, value in fixture.credentials.items(): self.page.locator('#backup-' + name).fill(value)
+        self.page.locator('#backup-sql-consent').check()
+
+    def test_mobile_backup_confirmation_cancel_and_historical_completion(self):
+        fixture = self.backup_fixture(); self.backup_credentials(fixture)
+        self.page.locator('#apply-mobile-backup').click(); self.dialog('cancel')
+        fixture.factory.assert_not_called(); self.assertIsNone(fixture.control._read('approved.json'))
+        for name in fixture.credentials: expect(self.page.locator('#backup-' + name)).to_have_value('')
+        self.backup_credentials(fixture); self.page.locator('#apply-mobile-backup').click(); self.dialog()
+        expect(self.page.locator('#mobile-backup-state')).to_have_attribute('data-state', 'DONE')
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#mobile-backup-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual(fixture.operation.create_and_verify.call_count, 1)
+        for secret in fixture.credentials.values(): self.assertNotIn(secret, self.http('/api/installation/report')['body'])
+
+    def test_mobile_backup_sql_consent_poll_and_explicit_resume(self):
+        fixture = self.backup_fixture()
+        self.page.locator('#backup-database_password').fill(fixture.credentials['database_password'])
+        self.page.wait_for_timeout(1750)
+        expect(self.page.locator('#backup-database_password')).to_have_value(fixture.credentials['database_password'])
+        self.page.locator('#apply-mobile-backup').click()
+        expect(self.page.locator('#operation-dialog')).not_to_be_visible(); fixture.factory.assert_not_called()
+        fixture.operation.create_and_verify.side_effect = RuntimeError('interrupted backup')
+        self.backup_credentials(fixture); self.page.locator('#apply-mobile-backup').click(); self.dialog()
+        expect(self.page.locator('#mobile-backup-state')).to_have_attribute('data-state', 'RESUME_REQUIRED')
+        self.refresh(); self.step(5); self.assertEqual(fixture.operation.create_and_verify.call_count, 1)
+        fixture.operation.create_and_verify.side_effect = fixture.completed
+        self.backup_credentials(fixture); self.page.locator('#resume-mobile-backup').click(); self.dialog()
+        expect(self.page.locator('#mobile-backup-state')).to_have_attribute('data-state', 'DONE')
+        fixture.scope.acquire.assert_called_once()
+
     def mobile_fixture(self):
         import test_mobile_activation_plan as fixtures
         fixture = fixtures.MobileActivationPlanTests('test_plan_is_separate_repeatable_and_read_only_for_all_parents')
