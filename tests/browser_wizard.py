@@ -386,6 +386,66 @@ class BrowserWizardTests(unittest.TestCase):
         self.page.locator("#rollback-github-web").click(); self.dialog()
         expect(self.page.locator("#execution-state")).to_have_attribute("data-state", "ROLLED_BACK")
 
+    def mobile_fixture(self):
+        import test_mobile_activation_plan as fixtures
+        fixture = fixtures.MobileActivationPlanTests('test_plan_is_separate_repeatable_and_read_only_for_all_parents')
+        self.addCleanup(fixture.doCleanups); fixture.setUp()
+        self.quiesce_page(); self.service.close(); self.service = fixture.service
+        self.server.state.transaction_service = self.service
+        self.refresh(); self.step(5)
+        self.page.locator('#plan-mobile-activation').click()
+        expect(self.page.locator('#mobile-activation-state')).to_have_attribute('data-state', 'AWAITING_CONFIRMATION')
+        return fixture
+
+    def mobile_credentials(self, fixture):
+        for name, value in fixture.credentials.items(): self.page.locator('#mobile-' + name).fill(value)
+        self.page.locator('#mobile-sql-consent').check()
+
+    def test_mobile_activation_confirmation_cancel_secrets_and_check(self):
+        fixture = self.mobile_fixture(); self.mobile_credentials(fixture)
+        self.page.locator('#apply-mobile-activation').click(); self.dialog('cancel')
+        fixture.effects.assert_not_called(); self.assertIsNone(fixture.control._read('approved.json'))
+        for name in fixture.credentials: expect(self.page.locator('#mobile-' + name)).to_have_value('')
+        self.mobile_credentials(fixture); self.page.locator('#apply-mobile-activation').click(); self.dialog()
+        expect(self.page.locator('#mobile-activation-state')).to_have_attribute('data-state', 'DONE')
+        self.page.locator('#check-mobile-activation').click()
+        expect(self.page.locator('#mobile-activation-availability')).to_contain_text('Services locaux et page de connexion vérifiés')
+        report = self.http('/api/installation/report')['body']
+        for value in fixture.credentials.values(): self.assertNotIn(value, report)
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#mobile-activation-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual(fixture.effects.call_count, 1); self.assertEqual(fixture.serving.call_count, 1)
+
+    def test_mobile_activation_refresh_and_credentialless_explicit_resume(self):
+        fixture = self.mobile_fixture()
+        def interrupted(*args, **kwargs):
+            fixture.completed()
+            for path in fixture.native_root.iterdir():
+                if path.name not in ('plan.json', 'admitted.json', 'php.intent.json'): path.unlink()
+            raise RuntimeError('lost start response')
+        fixture.effects.side_effect = interrupted
+        self.mobile_credentials(fixture); self.page.locator('#apply-mobile-activation').click(); self.dialog()
+        expect(self.page.locator('#mobile-activation-state')).to_have_attribute('data-state', 'RESUME_REQUIRED')
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#resume-mobile-activation')).to_be_visible()
+        self.assertEqual(fixture.effects.call_count, 1); fixture.serving.assert_not_called()
+        self.page.locator('#resume-mobile-activation').click(); self.dialog('cancel')
+        fixture.serving.assert_not_called()
+        self.page.locator('#resume-mobile-activation').click(); self.dialog()
+        expect(self.page.locator('#mobile-activation-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual(fixture.serving.call_args.kwargs['action'], 'resume')
+        self.assertEqual(fixture.effects.call_count, 1)
+
+    def test_mobile_activation_sql_consent_and_poll_do_not_discard_focused_input(self):
+        fixture = self.mobile_fixture()
+        self.page.locator('#mobile-database_password').fill(fixture.credentials['database_password'])
+        self.page.wait_for_timeout(1750)
+        expect(self.page.locator('#mobile-database_password')).to_have_value(fixture.credentials['database_password'])
+        self.page.locator('#apply-mobile-activation').click()
+        expect(self.page.locator('#wizard-message')).to_contain_text('Renseignez les trois identifiants')
+        expect(self.page.locator('#operation-dialog')).not_to_be_visible(); fixture.effects.assert_not_called()
+        self.assertIsNone(fixture.control._read('approved.json'))
+
     def test_keyboard_navigation_and_dialog_escape(self):
         self.page.locator("#next-button").focus(); self.page.keyboard.press("Enter"); self.step(1)
         self.page.keyboard.press("Tab")

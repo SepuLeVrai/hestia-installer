@@ -152,3 +152,28 @@ def execute(http,scope,lease_id,backups,runtime,source,payload,authority,confirm
     result.update({'local_web':availability,'state':'MOBILE_SERVICES_RUNNING_LOCAL_WEB_AVAILABLE',
         'public_tls_verified':False,'boot_persistence':False,'phase6_complete':False})
     return result
+
+
+@t.closed
+def continue_serving(http,backups,lease_id,confirmation,*,action,confirmed):
+    """Explicit post-admission recovery/check, without SQL credentials or export.
+
+    A still-closed maintenance gate cannot enter this path. The original native
+    record and activity lock remain the only authority for every service action.
+    """
+    require(confirmed is True,'MOBILE_ACTIVATION_CONSENT_REQUIRED')
+    require(type(http) is v.h.HttpRuntime and isinstance(backups,Path) and backups.is_absolute()
+        and type(lease_id) is str and re.fullmatch('[a-f0-9]{32}',lease_id)
+        and type(confirmation) is str and re.fullmatch('[a-f0-9]{64}',confirmation)
+        and action in ('resume','check'),'MOBILE_ACTIVATION_INPUT_REJECTED')
+    root=backups/('mobile-resume-'+lease_id)
+    require(f._sha(e._read_path(root,'plan.json',s.p.MAX_PLAN))==confirmation,
+        'MOBILE_ACTIVATION_CONFIRMATION_REQUIRED')
+    native=v.NativeRuntime(http,e._read_path(root,'http-drain-original.json',32768),confirmation)
+    require(native.scope.observe()['state']=='SERVING','MOBILE_ACTIVATION_MAINTENANCE_REQUIRED')
+    record=t.ActivationRecord.load(native,backups,lease_id,confirmation)
+    if action=='check':require(record.read('done.json') is not None,'MOBILE_ACTIVATION_INCOMPLETE')
+    with record.serving_lock() as guard:result=record.start_services(guard,check_only=action=='check')
+    result.update({'local_web':native.activation.check(),'state':'MOBILE_SERVICES_RUNNING_LOCAL_WEB_AVAILABLE',
+        'public_tls_verified':False,'boot_persistence':False,'phase6_complete':False})
+    return result

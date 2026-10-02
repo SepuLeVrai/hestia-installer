@@ -1,3 +1,13 @@
+# Point 6B7b10 - 2 octobre 2026 - cockpit activation mobile
+
+Base 6B7b9 qualifiée : Installer `cb814f4d491e1d6902a9a1c25390336e5d5a95c0`, recette native 36910866139 PASS (36 tests).
+
+Lot courant : routes HTTPS et carte de confirmation, suivi historique des cinq services, reprise explicite après interruption, contrôle local sans identifiants SQL après admission. Profil MAIN existant uniquement, une préparation mobile préexistante dans le répertoire serveur fixe. Aucune route de retry de service ni chemin fourni par le navigateur. Identifiants limités à la requête. GET et `--report` sans effet natif.
+
+Qualification de ce lot : à établir sur le commit figé et sa recette Debian 13 jetable. Aucun résultat natif antérieur ne qualifie les nouvelles routes. Phase 6, TLS Mobile public, boot et APK restent ouverts. Aucune promotion main/dev/dev-Bastien.
+
+Voir [le contrat du cockpit](MOBILE_ACTIVATION_COCKPIT.md).
+
 # Point de reprise 6B7b9 : activation MAIN explicite, candidat à qualifier
 
 - Parent corrigé : 6B7b8a `ed789c74f0e84d6864dee67c262c83007659c7d8`, trois CI PASS, 3 495 exécutions. Recette native distincte `36903341716` : résultat à vérifier, aucun PASS supposé.

@@ -117,6 +117,9 @@ def main(argv: list[str] | None = None) -> int:
             from installer.gateway_plan import GatewayPlan
             gateway = GatewayPlan(engine).state()
             if gateway['profile'] is not None: result['gateway'] = gateway
+            from installer.mobile_activation_plan import MobileActivationPlan
+            mobile = MobileActivationPlan(ApplicationPlan(engine, github)).state()
+            if mobile['state'] != 'NOT_PLANNED': result['mobile_activation'] = mobile
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
         if args.resume:

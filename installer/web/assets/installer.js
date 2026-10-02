@@ -58,6 +58,7 @@
   let gateway = {preparation: null, profile: null};
   let foundation = {installation: null, profile: null, availability: null};
   let gatewayService = {installation: null, profile: null, availability: null};
+  let mobileActivation = {state: "NOT_PLANNED", profile: null, steps: [], availability: null};
   let activation = {installation: null, availability: null};
   let packages = {profile: null, acquisition: null, installation: null, selection: null};
   let mariadb = {profile: null, installation: null, missing_credentials: []};
@@ -598,6 +599,7 @@
     if (isApplication() && !isUpgrade() && installation.state === "DONE") gatewayForm();
     if (isApplication() && !isUpgrade() && gateway.preparation?.state === "DONE" && activation.installation?.state === "DONE") foundationForm();
     if (isApplication() && !isUpgrade() && foundation.installation?.state === "DONE") gatewayServiceForm();
+    if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") mobileActivationForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
@@ -791,6 +793,68 @@
     }
     content.append(card);
   }
+  function mobileActivationForm() {
+    const card = element("article", null, "wizard-card"); card.id = "mobile-activation";
+    card.append(element("h2", "Reprise après sauvegarde mobile"), hint("Ce parcours utilise la reprise préparée sur ce serveur. Il vérifie une dernière fois les sauvegardes et SQL, lève la maintenance puis démarre les cinq services dans l'ordre."));
+    if (mobileActivation.state === "NOT_PLANNED") {
+      card.append(hint("Une sauvegarde mobile avec préparation de reprise doit avoir été terminée au préalable."));
+      card.append(button("Préparer l'activation mobile", () => void run(async () => {
+        mobileActivation = (await api("/api/mobile/activation/plan", {parents: {
+          web: installation.plan_sha256, activation: activation.installation.plan_sha256,
+          gateway: gateway.preparation.plan_sha256, foundation: foundation.installation.plan_sha256,
+          gateway_service: gatewayService.installation.plan_sha256}})).mobile_activation;
+        show(5);
+      }), "plan-mobile-activation"));
+    } else {
+      const labels = {AWAITING_CONFIRMATION: "En attente de confirmation", RESUME_REQUIRED: "Action engagée, reprise explicite disponible", DONE: "Activation enregistrée comme terminée", UNAVAILABLE: "Journal indisponible, vérification manuelle requise"};
+      const status = element("p", labels[mobileActivation.state]); status.id = "mobile-activation-state";
+      status.dataset.state = mobileActivation.state; status.setAttribute("aria-live", "polite"); card.append(status);
+      const roles = {php: "PHP", apache: "Apache", foundation: "Foundation MAIN", gateway: "Gateway MAIN", timer: "Nettoyage des sessions"};
+      const progress = {PENDING: "en attente", INTENT_RECORDED: "intention enregistrée, résultat à vérifier", START_RECORDED: "démarrage enregistré"};
+      for (const row of mobileActivation.steps) card.append(element("p", roles[row.role] + " : " + progress[row.state]));
+      card.append(hint("Cet historique ne garantit pas la disponibilité actuelle. Le rafraîchissement lit l'avancement sans relancer d'action."));
+      if (mobileActivation.state === "AWAITING_CONFIRMATION" || mobileActivation.state === "RESUME_REQUIRED") {
+        const inputs = {};
+        const credentials = element("details"); credentials.id = "mobile-sql-credentials";
+        credentials.open = !mobileActivation.admission_recorded;
+        credentials.append(element("summary", "Identifiants pour l'admission SQL finale"), hint("Requis tant que la maintenance reste fermée. Après admission, la reprise utilise le journal sans nouvel export SQL. Les valeurs ne sont pas enregistrées."));
+        for (const [name, label] of [["database_password", "Mot de passe SQL de l'application"], ["authority_user", "Compte SQL d'autorité"], ["authority_password", "Mot de passe du compte d'autorité"]]) {
+          const input = element("input"); input.type = name === "authority_user" ? "text" : "password";
+          input.id = "mobile-" + name; input.autocomplete = "off"; input.maxLength = 1024;
+          inputs[name] = input; credentials.append(field(label, input));
+        }
+        const consent = element("input"); consent.type = "checkbox"; consent.id = "mobile-sql-consent";
+        credentials.append(field("J'autorise le verrou global de lecture SQL, limité à 180 secondes.", consent));
+        card.append(credentials);
+        const action = mobileActivation.state === "AWAITING_CONFIRMATION" ? "apply" : "resume";
+        card.append(button(action === "apply" ? "Confirmer l'activation mobile" : "Reprendre l'activation mobile", () => {
+          const supplied = Object.values(inputs).some((input) => input.value !== "");
+          if ((action === "apply" || supplied) && (!consent.checked || Object.values(inputs).some((input) => !input.value))) {
+            message("Renseignez les trois identifiants et autorisez le verrou SQL, ou reprenez sans identifiants si l'admission est déjà passée."); return;
+          }
+          const values = supplied ? Object.fromEntries(Object.entries(inputs).map(([name, input]) => [name, input.value])) : {};
+          for (const input of Object.values(inputs)) input.value = "";
+          pendingAction = {action: "mobile-activation." + action, payload: {confirmation: mobileActivation.confirmation,
+            confirm: true, credentials: values, allow_global_read_lock: consent.checked}};
+          consent.checked = false;
+          $("operation-title").textContent = action === "apply" ? "Activer les services locaux ?" : "Reprendre l'activation ?";
+          $("operation-description").textContent = "La reprise respecte les intentions déjà enregistrées. Elle ne relance pas un service dont le démarrage est incertain. L'accès Mobile public et le démarrage automatique restent à qualifier.";
+          $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+        }, action + "-mobile-activation", true));
+      }
+      if (mobileActivation.state === "DONE") card.append(button("Vérifier les services locaux", () => void run(async () => {
+        mobileActivation = (await api("/api/mobile/activation/check", {confirmation: mobileActivation.confirmation, confirm: true})).mobile_activation;
+        show(5);
+      }), "check-mobile-activation"));
+      if (mobileActivation.last_error_redacted) card.append(hint(errorMessage({code: mobileActivation.last_error_redacted})));
+      technical(card, "Référence du plan confirmé", mobileActivation.profile);
+    }
+    const available = mobileActivation.availability;
+    const live = element("p", available ? (available.state === "LOCAL_SERVICES_AVAILABLE" ? "Services locaux et page de connexion vérifiés" : "Services locaux indisponibles") + " - " + available.checked_at : "Disponibilité actuelle non vérifiée.");
+    live.id = "mobile-activation-availability"; card.append(live);
+    card.append(hint("Accès Mobile public, TLS public et démarrage automatique non qualifiés par cette activation."));
+    content.append(card);
+  }
   function activationForm() {
     const card = element("article", null, "wizard-card"); card.id = "application-activation";
     card.append(element("h2", "Activation du Web local"), hint("Backend : 127.0.0.1:" + (isUpgrade() ? upgrade.profile.descriptor.http.port : 9080) + (publicTLS.phase5_complete ? ". Le frontal HTTPS est configuré. Sa disponibilité actuelle se vérifie dans la carte HTTPS." : ". Le frontal TLS public reste à configurer. Le démarrage automatique dispose de son propre plan ci-dessous.")));
@@ -982,12 +1046,20 @@
   }
   $("operation-dialog").addEventListener("close", () => {
     const action = pendingAction; pendingAction = null;
-    if ($("operation-dialog").returnValue !== "confirm" || !action) return;
+    if ($("operation-dialog").returnValue !== "confirm" || !action) {
+      if (action?.payload.credentials) action.payload.credentials = {};
+      return;
+    }
     void run(async () => {
       if (action.action === "reset-plan") {
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action.startsWith("mobile-activation.")) {
+        try {
+          mobileActivation = (await api("/api/mobile/activation/" + action.action.slice(18), action.payload)).mobile_activation;
+        } finally { action.payload.credentials = {}; }
+        show(5);
       } else if (action.action.startsWith("gateway-service.")) {
         gatewayService = (await api("/api/gateway/service/" + action.action.slice(16), action.payload)).gateway_service;
         show(5);
@@ -1036,6 +1108,7 @@
     gateway = result.gateway || {preparation: null, profile: null};
     foundation = result.foundation || {installation: null, profile: null, availability: null};
     gatewayService = result.gateway_service || {installation: null, profile: null, availability: null};
+    mobileActivation = result.mobile_activation || {state: "NOT_PLANNED", profile: null, steps: [], availability: null};
     packages = result.packages || {profile: null, acquisition: null, installation: null, selection: null};
     mariadb = result.mariadb || {profile: null, installation: null, missing_credentials: []};
     upgrade = result.upgrade || {profile: null, missing_credentials: []};
@@ -1087,7 +1160,7 @@
     if ($("cancel-dialog").returnValue !== "quit") return;
     void run(async () => { await saveChain.catch(() => {}); await api("/api/logout", {}); csrf = ""; window.location.replace("/bootstrap"); });
   });
-  window.addEventListener("pagehide", clearPasswords);
+  window.addEventListener("pagehide", () => { clearPasswords(); if (pendingAction?.payload.credentials) pendingAction.payload.credentials = {}; pendingAction = null; });
   window.addEventListener("pageshow", (event) => { if (event.persisted) window.location.reload(); });
 
   async function poll() {
@@ -1106,10 +1179,12 @@
         gateway = result.gateway || gateway;
         foundation = result.foundation || foundation;
         gatewayService = result.gateway_service || gatewayService;
+        mobileActivation = result.mobile_activation || mobileActivation;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, gateway.preparation?.revision, foundation.installation?.revision, gatewayService.installation?.revision, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
-        if (stamp !== lastRevision) {
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, gateway.preparation?.revision, foundation.installation?.revision, gatewayService.installation?.revision, mobileActivation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const editingMobile = !serverBusy && !busy && ($("mobile-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
+        if (stamp !== lastRevision && !editingMobile) {
           lastRevision = stamp;
           installation = result.installation;
           if (current === 5) show(5, false);

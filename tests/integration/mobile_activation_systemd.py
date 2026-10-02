@@ -10,6 +10,8 @@ import time
 import traceback
 from unittest.mock import patch
 from installer import mobile_activation_admission as n
+from installer.model import InstallerError
+from playwright.sync_api import expect
 from mobile_reopen_files_systemd import killed_at_boundary
 
 t,v=n.t,n.v
@@ -21,6 +23,19 @@ def exercise(test,http,runtime,scope,lease_id,backups,worker,source,payload,auth
     saved={p:(p.read_bytes(),p.stat().st_uid,p.stat().st_gid,stat.S_IMODE(p.stat().st_mode))
         for p in (backups/('mobile-resume-'+lease_id)).iterdir()}
     original_acquire=n.a.c.rf.acquire;original_start=v.NativeRuntime.start
+    control=test.service.mobile_activation
+    parents=control.binding(test.service.engine.report())['parents']
+    credentials={'database_password':payload['secrets']['database_password'],
+        'authority_user':authority._user,'authority_password':authority._password}
+    # Real HTTPS and unchanged production JS prepare and cancel the first action.
+    with test.browser() as page:
+        page.locator('#plan-mobile-activation').click()
+        expect(page.locator('#mobile-activation-state')).to_have_attribute('data-state','AWAITING_CONFIRMATION')
+        for name,value in credentials.items():page.locator('#mobile-'+name).fill(value)
+        page.locator('#mobile-sql-consent').check();page.locator('#apply-mobile-activation').click()
+        page.keyboard.press('Escape')
+        test.assertIsNone(control._read('approved.json'));test.assertFalse(root.exists())
+    test.assertEqual(control.profile()['resume_plan_sha256'],confirmation)
     def append(path,value):
         rows=json.loads(path.read_text()) if path.exists() else [];rows.append(value)
         path.write_text(json.dumps(rows,indent=2)+'\n')
@@ -49,8 +64,10 @@ def exercise(test,http,runtime,scope,lease_id,backups,worker,source,payload,auth
     def invoke(action):
         try:
             with patch.object(n.a.c.rf,'acquire',side_effect=fenced),patch.object(v.NativeRuntime,'start',start):
-                return n.execute(http,scope,lease_id,backups,worker,source,payload,authority,confirmation,
-                    action=action,confirmed=True,allow_global_read_lock=True)
+                public_action='resume' if action=='apply' and control._read('approved.json') is not None else action
+                request={'confirmation':control.state()['confirmation'],'confirm':True}
+                if public_action!='check':request.update(credentials=credentials,allow_global_read_lock=True)
+                return test.service.execute('mobile-activation.'+public_action,request)['mobile_activation']
         except BaseException as error:
             chain=[];current=error
             while current is not None and len(chain)<6:
@@ -64,7 +81,7 @@ def exercise(test,http,runtime,scope,lease_id,backups,worker,source,payload,auth
     stage='sql-drift-before-plan'
     test.sql([f'CREATE TABLE `{test.db}`.Hestia_Activation_Drift (id INT PRIMARY KEY)'])
     try:
-        with test.assertRaises(v.ActivationError):invoke('apply')
+        with test.assertRaises(InstallerError):invoke('apply')
     finally:test.sql([f'DROP TABLE `{test.db}`.Hestia_Activation_Drift'])
     test.assertFalse(root.exists());test.assertTrue((scope.directory/t.s.MARKER).exists())
     test.assertEqual(scope.observe()['state'],'MAINTENANCE_REQUIRED');runtime.stopped();runtime.foundation.stopped()
@@ -78,18 +95,32 @@ def exercise(test,http,runtime,scope,lease_id,backups,worker,source,payload,auth
     # SQL is now legitimately mutable. Serving recovery must neither export
     # historical SQL again nor stop/reclose already admitted activity.
     stage='serving-explicit-resume';fence_released=True
+    test.service=test.build_service();control=test.service.mobile_activation
+    test.assertIsNone(control.state()['availability'])
     with patch.object(n.a.c,'_recheck',side_effect=AssertionError('SQL recheck after admission')), \
-            patch.object(n.r.hd.HttpDrain,'recover',side_effect=AssertionError('drain replay')):
-        result=invoke('resume')
+            patch.object(n.r.hd.HttpDrain,'recover',side_effect=AssertionError('drain replay')), \
+            patch.object(v.NativeRuntime,'start',start):
+        with test.browser() as page:
+            expect(page.locator('#mobile-activation-state')).to_have_attribute('data-state','RESUME_REQUIRED')
+            page.reload();expect(page.locator('#resume-mobile-activation')).to_be_visible()
+            test.assertEqual([x['role'] for x in json.loads(starts_path.read_text())],['php'])
+            page.locator('#resume-mobile-activation').click();page.keyboard.press('Escape')
+            test.assertEqual([x['role'] for x in json.loads(starts_path.read_text())],['php'])
+            page.locator('#resume-mobile-activation').click()
+            page.locator('#operation-dialog button[value="confirm"]').click()
+            expect(page.locator('#mobile-activation-state')).to_have_attribute('data-state','DONE',timeout=120000)
+            expect(page.locator('#mobile-activation-availability')).to_contain_text('Services locaux et page de connexion vérifiés')
+            page.locator('#mobile-activation').screenshot(path='/evidence/mobile-activation-cockpit.png')
+        result=control.state()
     test.assertEqual(native.observed('php',active=True),first)
     test.assertEqual([x['role'] for x in json.loads(starts_path.read_text())],list(v.ROLES))
-    test.assertTrue(result['services_started']);test.assertTrue(result['local_web']['login_page'])
+    test.assertEqual(result['state'],'DONE');test.assertTrue(result['availability']['login_page'])
     test.assertFalse(result['boot_persistence']);test.assertFalse(result['phase6_complete'])
     before={p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in root.iterdir()}
     stage='completed-read-only-check'
     with patch.object(t.ActivationRecord,'save',side_effect=AssertionError('completed check wrote a record')):
         checked=invoke('check')
-    test.assertTrue(checked['local_web']['login_page'])
+    test.assertTrue(checked['availability']['login_page'])
     test.assertEqual(before,{p.name:(p.read_bytes(),p.stat().st_mtime_ns) for p in root.iterdir()})
     runtime.owned();runtime.foundation.owned()
     with scope.writer():pass
@@ -107,6 +138,9 @@ def exercise(test,http,runtime,scope,lease_id,backups,worker,source,payload,auth
         'five_starts_in_bound_order':True,'serving_resume_without_sql_export_or_drain':True,
         'completed_check_read_only':True,'parent_journals_bytes_modes_owners_preserved':True,
         'local_login_page_available':True,'native_foundation_and_gateway_owned':True,
+        'cockpit_https_plan_and_cancel':True,'api_final_sql_and_sigkill_start':True,
+        'cockpit_refresh_without_replay':True,'cockpit_credentialless_resume':True,
+        'api_completed_check_without_sql_credentials':True,'restart_discards_availability':True,
         'services_started':True,'activity_resumed':True,'sql_read_fence_max_seconds':180,
         'window_timings':complete,'completed_fresh_windows':1,'boot_persistence':False,
         'public_tls_verified':False,'phase6_complete':False}

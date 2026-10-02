@@ -20,8 +20,10 @@ from installer.public_tls_plan import PublicTLSPlan
 from installer.gateway_plan import GatewayPlan
 from installer.foundation_plan import FoundationPlan
 from installer.gateway_service_plan import GatewayServicePlan
+from installer.mobile_activation_plan import MobileActivationPlan
 
 POST_ROUTES = {
+    **{'/api/mobile/activation/' + action: 'mobile-activation.' + action for action in ('plan', 'apply', 'resume', 'check')},
     **{'/api/gateway/service/' + action: 'gateway-service.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/gateway/foundation/' + action: 'foundation.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/gateway/preparation/' + action: 'gateway.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
@@ -72,6 +74,7 @@ class TransactionService:
         self.gateway = GatewayPlan(engine, github.access if github is not None else None)
         self.foundation = FoundationPlan(self.application, self._fresh_activation, self.gateway)
         self.gateway_service = GatewayServicePlan(self.foundation)
+        self.mobile_activation = MobileActivationPlan(self.application, self.gateway_service)
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
@@ -112,7 +115,7 @@ class TransactionService:
                     "packages": self.packages.state(), "mariadb": self.mariadb.state(), "boot": self.boot.state(),
                     "acme_packages": self.acme_packages.state(), "public_tls": self.public_tls.state(),
                     "gateway": self.gateway.state(), "foundation": self.foundation.state(),
-                    "gateway_service": self.gateway_service.state()}
+                    "gateway_service": self.gateway_service.state(), "mobile_activation": self.mobile_activation.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -147,10 +150,14 @@ class TransactionService:
             if foundation['profile'] is not None: result['foundation'] = foundation
             gateway_service = self.gateway_service.state()
             if gateway_service['profile'] is not None: result['gateway_service'] = gateway_service
+            mobile = self.mobile_activation.state()
+            if mobile['state'] != 'NOT_PLANNED': result['mobile_activation'] = mobile
             return result
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('mobile-activation.'):
+                return {"mobile_activation": self.mobile_activation.execute(action.removeprefix('mobile-activation.'), payload)}
             if action.startswith('gateway-service.'):
                 return {"gateway_service": self.gateway_service.execute(action.removeprefix('gateway-service.'), payload)}
             if action.startswith('foundation.'):
