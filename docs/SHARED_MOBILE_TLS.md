@@ -70,3 +70,12 @@ NGINX configtest crée un pidfile vide avant le démarrage effectif. La fixture
 non vide, dans la même attente bornée, puis exige toujours le PID exact du
 master lancé. Aucun changement produit, aucun retrait de test ; l'échec 6B9a
 est conservé avec celui du premier gel.
+
+## Correction 6B9c de l'attente du reload TLS
+
+Le reload HTTP peut se terminer avant le reload HTTPS. 6B9b obtenait encore
+le certificat Web sur une connexion Mobile pendant cette transition normale.
+La fixture attend désormais le résultat HTTPS effectif pour les deux états ;
+une erreur de confiance transitoire reste en attente bornée, puis la réussite
+exige toujours la validation stricte du certificat Mobile et un statut 200.
+La rotation et les huit autres scénarios restent inchangés.

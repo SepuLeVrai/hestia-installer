@@ -205,7 +205,9 @@ class SharedMobileTLSLive(unittest.TestCase):
         for role in ('http', 'https'): self.reload(role)
         self.until(lambda: self.request(MOBILE, tls=False)[0] == 503)
         # Connect using the Web trust anchor while Mobile TLS has no vhost.
-        self.until(lambda: self.request(MOBILE, sni=WEB)[0] == 421)
+        # The challenge-only Web vhost accepts its Host with Mobile SNI; the
+        # ready composition rejects that crossover. Wait for the actual TLS reload.
+        self.until(lambda: self.request(WEB, sni=MOBILE)[0] == 200)
         backup = self.mobile_live.with_name('held-mobile'); self.mobile_live.rename(backup)
         try:
             for role in ('http', 'https'): self.assert_config(role)
@@ -215,7 +217,10 @@ class SharedMobileTLSLive(unittest.TestCase):
         self.write_configs(ready=True)
         for role in ('https', 'http'): self.reload(role)
         self.until(lambda: self.request(MOBILE, tls=False)[0] == 308)
-        self.until(lambda: self.request(MOBILE)[0] == 200)
+        def mobile_ready():
+            try: return self.request(MOBILE)[0] == 200
+            except ssl.SSLCertVerificationError: return False  # Old Web-only worker is still draining.
+        self.until(mobile_ready)
         self.assertEqual(self.request(WEB)[0], 200)
 
     def test_mobile_certificate_rotation_reload_preserves_web_certificate_and_master(self):
