@@ -227,6 +227,9 @@ class BrowserWizardTests(unittest.TestCase):
         draft = self.service.application.read()
         self.assertEqual(draft['version'], 2)
         self.refresh(); self.step(3)
+        expect(self.page.locator('#prepare-web-application')).not_to_be_checked()
+        self.assertEqual(self.service.application.read(), draft)
+        self.page.locator('#prepare-web-application').check()
         expect(self.page.locator('#application-profile')).to_have_value('fresh-mobile-staged-v2')
         with patch('installer.application_plan.HostPrerequisites.check'):
             self.page.locator('#next-button').click(); self.step(4)

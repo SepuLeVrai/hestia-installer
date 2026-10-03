@@ -1,3 +1,13 @@
+# Reprise par lots de finition - 3 octobre 2026
+
+La composition Web Mobile v2 est PASS dans la recette `37141785730`.
+Le candidat FCM `f52c504` passe cœur, système et paquets, mais sa qualification
+reste ouverte. Correction du test de réouverture explicite du formulaire ;
+acquisition du paquet Gateway privé à réparer dans la recette.
+Voir [les quatre lots restants](PHASE6_REMAINING_LOTS.md). Aucun SQL, APK ni
+moteur produit modifié dans ce correctif de qualification. Résultats du nouveau
+gel à établir avant livraison ; phase 6 toujours ouverte.
+
 # Raccordement FCM en qualification - 3 octobre 2026
 
 La recette native Web Mobile v2 `37141785730` est PASS sur Installer
