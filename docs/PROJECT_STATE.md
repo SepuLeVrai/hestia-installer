@@ -1,3 +1,18 @@
+# Point 6B10 - 3 octobre 2026 - parent public figé et plan de transfert
+
+Reprise sur 6B9e qualifié (`fef341b732f7fbe3f2d64ab434d424facf3a1823`).
+La recette 6B7b12 est désormais vérifiée : 37 tests PASS, run `37028464992`,
+artefact, manifeste, pins et toutes les assertions natives contrôlés sans relance.
+
+Le lecteur public conserve le registre, les reçus et le bundle Phase 5. Un plan
+privé distinct lie les parents et la composition, les quatre responsabilités
+HTTP/HTTPS/renouvellement/timer et les deux certificats. Réponse perdue récupérée
+sans réécriture ; état partiel, dérives, liens et permissions invalides refusés.
+Trente tests ajoutés à la baseline sans retrait. Les effets de transfert et le
+cockpit ne sont pas encore raccordés ; aucune disponibilité publique Mobile
+revendiquée. Voir [SHARED_PUBLIC_PLAN.md](SHARED_PUBLIC_PLAN.md).
+Les verdicts exacts du nouveau gel sont joints au checkpoint. Phase 6 ouverte.
+
 # Point 6B9 — 2 octobre 2026 — listeners Web/Mobile partagés
 
 Compilation des deux domaines sur les mêmes processus HTTP 80 / HTTPS 443,

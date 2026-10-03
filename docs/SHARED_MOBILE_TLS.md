@@ -1,5 +1,11 @@
 # 6B9 — composition des frontaux Web et Mobile
 
+Suite 6B10 : [lecteur du parent figé et plan durable](SHARED_PUBLIC_PLAN.md)
+ajoutés sans modifier ce compilateur ni les contrôleurs Phase 5. Le transfert
+des unités et son exécution restent à raccorder. La recette native 6B7b12
+citée comme en cours dans l'historique ci-dessous est désormais vérifiée :
+37 tests PASS, run `37028464992`, toutes les preuves et pins contrôlés.
+
 `SharedMobileTLS` compile les deux domaines dans les mêmes processus NGINX :
 un listener HTTP 80 et un listener HTTPS 443. Il lie le profil Web et l'origine
 exacte de l'identité Gateway, refuse leur collision et conserve les 63 routes
