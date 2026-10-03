@@ -104,7 +104,7 @@ class BootRecoveryTests(unittest.TestCase):
         self.enterContext(patch.object(b.h.drain, 'UNIT_ROOT', self.units))
         self.enterContext(patch.object(b.h, '_unit_absent'))
         self.command = self.enterContext(patch.object(b.h, '_command'))
-        profile = {'version': 1, 'application': {'instance': 'a' * 32, 'configuration': {'web': b.app.FreshProfile('a' * 32).web('hestia.example.test')}},
+        profile = {'version': 1, 'application': {'version': 1, 'instance': 'a' * 32, 'configuration': {'web': b.app.FreshProfile('a' * 32).web('hestia.example.test')}},
             'sql': {'instance': 'b' * 32, 'packages_sha256': 'c' * 64},
             'parents': {'preparation': 'd' * 64}, 'code': {n: b.f._sha(v) for n, v in b.code_files().items()}}
         self.runtime = b.BootRuntime(profile); self.runtime.root = root / 'boot'

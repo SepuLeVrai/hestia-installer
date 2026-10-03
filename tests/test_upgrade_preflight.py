@@ -226,13 +226,15 @@ class UpgradeFilesystemTests(ProtectedConfigurationFixture, unittest.TestCase):
         self.assertEqual(before,self.snapshot());self.sql.assert_not_called()
 
     def test_changes_during_inventory_are_not_silently_accepted(self):
-        def change(*args):
+        def change(*args, commit=u.WEB_COMMIT):
+            self.assertEqual(commit, u.WEB_COMMIT)
             (self.directory/'seal.json').write_text('{}');return inventory()
         self.sql.side_effect=change
         with self.assertRaises(u.UpgradePreflightError):self.inspect()
 
     def test_new_complete_settings_journal_invalidates_observation(self):
-        def change(*args):
+        def change(*args, commit=u.WEB_COMMIT):
+            self.assertEqual(commit, u.WEB_COMMIT)
             with fs._directory(self.directory) as fd:
                 for extension in ('.attempt','.done'):
                     f._write(fd,'assistant-'+('d'*32)+extension,p._json({'version':1,'request_id':'d'*32}),0,mode=0o600)
@@ -244,7 +246,8 @@ class UpgradeFilesystemTests(ProtectedConfigurationFixture, unittest.TestCase):
         event=threading.Event();event.set();before=self.snapshot()
         with self.assertRaisesRegex(u.UpgradePreflightError,'INTERRUPTED'):self.inspect(cancel=event)
         self.sql.assert_not_called();event.clear()
-        def stop(*args):event.set();return inventory()
+        def stop(*args, commit=u.WEB_COMMIT):
+            self.assertEqual(commit, u.WEB_COMMIT);event.set();return inventory()
         self.sql.side_effect=stop
         with self.assertRaisesRegex(u.UpgradePreflightError,'INTERRUPTED'):self.inspect(cancel=event)
         self.assertEqual(before,self.snapshot())

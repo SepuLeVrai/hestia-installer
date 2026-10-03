@@ -14,7 +14,7 @@ class MobileBackupPlanTests(unittest.TestCase):
     def setUp(self):
         fixture.MobileActivationPlanTests.setUp(self)
         self.control = self.service.mobile_backup
-        self.enterContext(patch.object(plan, 'FreshProfile', return_value=self.fresh))
+        self.enterContext(patch.object(plan, 'FreshProfile', return_value=self.fresh)).from_draft.return_value = self.fresh
         self.scope = Mock()
         self.scope.observe.return_value = {'state': 'SERVING', 'instance': self.fresh.instance}
         self.held = MagicMock(lease_id='a' * 32, assert_held=Mock())

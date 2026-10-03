@@ -24,7 +24,7 @@ class MobileActivationPlanTests(unittest.TestCase):
         self.fresh = plan.FreshProfile(self.service.application.read()['instance'])
         self.fresh.root = self.root / 'managed'; self.fresh.root.mkdir(mode=0o700)
         self.backups = self.fresh.root / 'gateway-backup'; self.backups.mkdir(mode=0o700)
-        self.enterContext(patch.object(plan, 'FreshProfile', return_value=self.fresh))
+        self.enterContext(patch.object(plan, 'FreshProfile', return_value=self.fresh)).from_draft.return_value = self.fresh
         self.candidate = self.enterContext(patch.object(plan.MobileActivationPlan, 'candidate',
             return_value={'lease_id': 'a' * 32, 'resume_plan_sha256': 'b' * 64}))
         self.enterContext(patch.object(self.fresh, 'runtime', return_value=self.fresh.runtime(planning=True)))

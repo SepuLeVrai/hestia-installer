@@ -237,7 +237,8 @@ class BackupFilesystemTests(ProtectedConfigurationFixture, unittest.TestCase):
 
     def test_cancel_after_restore_does_not_publish_success(self):
         event=threading.Event()
-        def cancel(*args):event.set();return self.proof
+        def cancel(*args, commit=f.WEB_COMMIT):
+            self.assertEqual(commit, f.WEB_COMMIT);event.set();return self.proof
         self.restore.side_effect=cancel;result=self.execute(cancel=event).report()
         self.assertEqual(result['code'],'BACKUP_INTERRUPTED');self.assertFalse((self.backups/result['backup_id']/'verified.json').exists())
 

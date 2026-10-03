@@ -18,7 +18,7 @@ class MobilePreparationPlanTests(unittest.TestCase):
         self.operation.create_and_verify.side_effect = lambda *a, **k: fixture.MobileBackupPlanTests.completed(self)
         fixture.MobileBackupPlanTests.prepare(self); fixture.MobileBackupPlanTests.request(self)
         self.backup_control = self.control; self.control = self.service.mobile_preparation
-        self.enterContext(patch.object(plan, 'FreshProfile', return_value=self.fresh))
+        self.enterContext(patch.object(plan, 'FreshProfile', return_value=self.fresh)).from_draft.return_value = self.fresh
         self.native = Mock(); self.native.execute.side_effect = self.prepared_stage
         self.factory = self.enterContext(patch.object(plan, 'NativePreparation', return_value=self.native))
 

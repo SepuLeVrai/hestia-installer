@@ -15,7 +15,7 @@ from installer.service import POST_ROUTES
 
 def profile():
     instance = 'a' * 32
-    return {'version': 1, 'boot': {'application': {'instance': instance,
+    return {'version': 1, 'boot': {'application': {'version': 1, 'instance': instance,
         'configuration': {'web': n.boot.app.FreshProfile(instance).web('hestia.example.test')}},
         'sql': {'instance': 'b' * 32, 'packages_sha256': 'c' * 64},
         'parents': {'preparation': 'd' * 64}, 'code': {}},
