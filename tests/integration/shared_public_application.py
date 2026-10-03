@@ -111,6 +111,7 @@ class Browser(unittest.TestCase):
             expect(page.locator('#shared-public-state')).to_have_attribute('data-state', 'FAILED')
             document = state()['installation']; failed = [r for r in document['steps'] if r['state'] == 'FAILED']
             self.assertEqual([r['name'] for r in failed], ['shared.public.certificate'])
+            self.assertEqual(document['last_error_redacted'], 'OPERATION_FAILED', document['last_error_redacted'])
             page.reload(); page.locator('#retry-shared-public').click(); page.locator('#operation-dialog button[value=confirm]').click()
             expect(page.locator('#shared-public-state')).to_have_attribute('data-state', 'PLANNED')
             page.locator('#resume-shared-public').click(); page.locator('#operation-dialog button[value=confirm]').click()

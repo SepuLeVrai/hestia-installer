@@ -59,3 +59,13 @@ HTTPS et les verrous existants. GET/rapport restent historiques. Le contrôle
 explicite atteste la configuration actuelle, sans prouver un reboot effectif.
 La recette composée est étendue au reboot réel et au bootstrap signé après
 reboot ; cette qualification reste à obtenir sur ce candidat.
+
+## Correction HTTP-01 issue de la recette composée
+
+Le run natif `37109584055` a installé les vrais services, puis échoué lors du
+challenge Mobile. Le vhost Mobile refusait l'autorité HTTP contenant le port
+standard explicite (`mobile.example.test:80`), contrairement au vhost Web.
+Le compilateur accepte désormais le domaine exact avec ou sans `:80` et
+continue à refuser les autres ports et autorités. Un contrôle NGINX natif
+sert un jeton sentinelle sous les deux formes ; la recette ACME doit confirmer
+le parcours entier. Aucun échec partiel de certificat n'est rejoué.

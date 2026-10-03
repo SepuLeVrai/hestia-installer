@@ -1111,6 +1111,7 @@
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_collision_and_noncanonical_gateway_origins_fail_closed",
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_compilation_and_commands_never_probe_or_mutate_the_host",
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_domains_certificates_challenge_roots_and_upstreams_are_distinct",
+      "test_shared_mobile_tls.SharedMobileTLSContracts.test_http01_accepts_explicit_standard_port_but_refuses_other_authorities",
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_input_drafts_and_returned_profiles_cannot_mutate_candidate",
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_manifest_binds_parents_networks_stage_bytes_and_gateway_pin",
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_mobile_http01_remains_public_and_canonical_with_closed_methods",

@@ -213,6 +213,16 @@ class SharedSystemd(unittest.TestCase):
         self.assertEqual(self.request(MOBILE,'/health')[0],200)
         self.assertEqual(self.request(MOBILE,tls=False)[0],308)
         self.assertTrue(all(self.web.running(role) for role in ('http','https','timer')))
+        token = 'hestia-disposable-http01-token'
+        challenge = self.r.shared.public / 'htdocs/.well-known/acme-challenge' / token
+        challenge.write_bytes(b'owned-mobile-challenge'); challenge.chmod(0o644)
+        try:
+            for authority in (MOBILE, MOBILE + ':80'):
+                self.assertEqual(self.request(authority, '/.well-known/acme-challenge/' + token, tls=False),
+                    (200, b'owned-mobile-challenge'))
+            for authority in (MOBILE + ':443', MOBILE + ':8080'):
+                self.assertEqual(self.request(authority, '/.well-known/acme-challenge/' + token, tls=False)[0], 421)
+        finally: challenge.unlink()
 
     def test_02_parent_sources_configurations_and_original_fragments_remain_exact(self):
         self.assertEqual((self.web.root/'profile.json').read_bytes(),self.frozen_profile)

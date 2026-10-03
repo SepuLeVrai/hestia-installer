@@ -40,6 +40,7 @@ class SharedMobileTLS:
     def http_server(self, *, ready):
         require(type(ready) is bool)
         host = self.mobile.hostname
+        authority = host.replace('.', '[.]')
         response = '308 https://' + host + '$request_uri' if ready else '503'
         # HTTP-01 is deliberately public, independently of the Mobile allowlist.
         # Only canonical base64url token paths are served; no query or traversal.
@@ -49,7 +50,7 @@ class SharedMobileTLS:
   access_log off;
   error_log /dev/null crit;
   client_max_body_size 1;
-  if ($http_host != {host}) {{ return 421; }}
+  if ($http_host !~ "^{authority}(:80)?$") {{ return 421; }}
   if ($request !~ "^[A-Z]+ /") {{ return 400; }}
   if ($request_method !~ "^(GET|HEAD)$") {{ return 405; }}
   if ($http_transfer_encoding != "") {{ return 400; }}

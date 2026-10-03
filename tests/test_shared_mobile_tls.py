@@ -1,5 +1,6 @@
 """Pure contracts for shared listeners; no account, process or file effects."""
 import json
+import re
 import unittest
 from unittest.mock import patch
 
@@ -58,6 +59,15 @@ class SharedMobileTLSContracts(unittest.TestCase):
         self.assertNotIn('allow ', text); self.assertNotIn('proxy_pass', text)
         self.assertIn('[A-Za-z0-9_-]{22,128}$', text); self.assertIn('$request_uri !~', text)
         self.assertIn('^(GET|HEAD)$', text); self.assertIn('return 308 https://mobile.hestia.test$request_uri;', text)
+
+    def test_http01_accepts_explicit_standard_port_but_refuses_other_authorities(self):
+        text = self.candidate().http_server(ready=False)
+        rule = re.search(r'if \(\$http_host !~ "([^"]+)"\)', text).group(1)
+        for host in ('mobile.hestia.test', 'mobile.hestia.test:80'):
+            self.assertIsNotNone(re.fullmatch(rule, host))
+        for host in ('mobile.hestia.test:443','mobile.hestia.test:8080','mobileXhestiaXtest',
+            'mobile.hestia.test.evil','evil@mobile.hestia.test','mobile.hestia.test:80.evil'):
+            self.assertIsNone(re.fullmatch(rule, host))
 
     def test_closed_role_state_and_networks_reject_ambiguous_values(self):
         c = self.candidate()
