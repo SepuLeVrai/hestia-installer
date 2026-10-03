@@ -71,7 +71,7 @@ class SharedSystemd(unittest.TestCase):
             with socket.socket() as sock:
                 sock.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); sock.bind(('0.0.0.0',port))
         value=profile(); instance=uuid.uuid4().hex
-        value['boot']['application']={'instance':instance,'configuration':{'web':s.boot.app.FreshProfile(instance).web(WEB)}}
+        value['boot']['application']={'version':1,'instance':instance,'configuration':{'web':s.boot.app.FreshProfile(instance).web(WEB)}}
         value['choices']['networks']=['127.0.0.11/32']
         with patch.object(s.boot,'SOURCE',FROZEN): value['code']={name:s.f._sha(raw) for name,raw in s.boot.code_files().items()}
         cls.r=s.SharedPublic(selected(value)); cls.web=cls.r.web

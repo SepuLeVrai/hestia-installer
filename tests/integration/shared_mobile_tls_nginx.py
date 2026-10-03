@@ -59,7 +59,7 @@ class SharedMobileTLSLive(unittest.TestCase):
                 or not Path('/.dockerenv').exists() or Path('/proc/1/comm').read_text().strip() != 'systemd':
             raise RuntimeError('Disposable root systemd CI opt-in required')
         value = profile(); instance = uuid.uuid4().hex
-        value['boot']['application'] = {'instance': instance, 'configuration': {'web': FreshProfile(instance).web(WEB)}}
+        value['boot']['application'] = {'version': 1, 'instance': instance, 'configuration': {'web': FreshProfile(instance).web(WEB)}}
         value['choices']['networks'] = ['127.0.0.11/32']
         cls.candidate = SharedMobileTLS(value, gateway(), ('127.0.0.10/32',))
         # Both official packages enable a default port-80 service; either can

@@ -50,7 +50,7 @@ def snapshot(service):
             *(Path('/etc/systemd/system') / unit for unit in units[1:])]}}
 
 
-def setup():
+def setup(*, profile='fresh-storage-staged-v1'):
     service = facade()
     try:
         package = service.packages.state()['installation']
@@ -59,6 +59,7 @@ def setup():
         assert service.execute('mariadb.apply', confirm(document))['mariadb']['installation']['state'] == 'DONE'
         service.execute('github.validate', {'credential': DUMMY})
         payload = setup_payload(); r = service.mariadb.runtime()
+        payload['profile'] = profile
         payload['credentials'].update(authority_user=r.authority_user, migration_user=r.migration_user, authority_password=fixture.PASSWORD)
         saved = service.execute('web.setup', payload)['application']['draft']
         document = service.execute('wizard.plan', {'modules': ['web'], 'mode': 'fresh', 'refs': {}, 'application_revision': saved['revision']})['installation']

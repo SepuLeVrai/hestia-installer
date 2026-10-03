@@ -36,6 +36,7 @@ CONNECTION = Path('/var/lib/hestia-mariadb-browser.json')
 TARGET = Path('/opt/hestia-pinned-web')
 EVIDENCE = Path('/evidence')
 PASSWORD = 'authority-disposable-fixture-2026'
+SOURCE_COMMIT = app.STORAGE_COMMIT
 PHASE = None
 
 
@@ -43,7 +44,7 @@ def service():
     engine = TransactionEngine(StateJournal(STATE), default_registry())
     if TARGET.exists():
         fake = FakeGitHub()
-        fake.archive_override = tar_bytes('web', app.STORAGE_COMMIT, [(p.relative_to(TARGET).as_posix(), p.read_bytes(), p.stat().st_mode & 0o777)
+        fake.archive_override = tar_bytes('web', SOURCE_COMMIT, [(p.relative_to(TARGET).as_posix(), p.read_bytes(), p.stat().st_mode & 0o777)
             for p in sorted(TARGET.rglob('*')) if p.is_file()])
         access = GitHubAccess(engine.secrets, GitHubClient(opener=fake))
         github = GitHubAcquisition(engine, access, restore=False)

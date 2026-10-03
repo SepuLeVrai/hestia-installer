@@ -106,3 +106,12 @@ fixe la sonde au port 9083. Le FPM v2 utilise son `foundation/main.json` privé,
 également contrôlé par les lecteurs de sauvegarde et boot. Les fragments v1
 gardent leurs octets. Le choix v2 reste explicite dans l'API de préparation ;
 il ne devient pas le défaut du cockpit avant qualification native.
+
+La recette `mobile_web_application.py` prépare ce profil v2 sur Debian jetable,
+puis traverse les vrais contrôleurs sauvegarde, préparation et activation
+avant l'enrôlement boot et le frontal public. Elle réutilise les assertions
+SIGKILL/ACME/reboot et ajoute un login administrateur, la sonde Gateway sur 9083
+et un QR issu de l'origine privée après démarrage et après nouveau PID 1.
+Cette extension est un candidat, pas encore une preuve PASS. Les fixtures
+historiques déclarent maintenant explicitement leur version 1 ; les anciennes
+recettes et les assertions de leurs bundles figés restent conservées.
