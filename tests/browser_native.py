@@ -17,6 +17,36 @@ from test_wizard import good_checks
 
 
 class NativeBrowserTests(legacy.BrowserWizardTests):
+    def test_dev_target_explicit_choice_cancel_apply_and_refresh_without_replay(self):
+        from test_dev_plan import DevFoundationPlanTests
+        self.quiesce_page()
+        fixture = DevFoundationPlanTests('test_dev_requires_explicit_selection_and_has_six_ordered_steps')
+        fixture.setUp(); self.addCleanup(fixture.doCleanups)
+        self.service = fixture.service
+        self.server.state.transaction_service = self.service
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#foundation-dev')).not_to_be_checked()
+        self.page.locator('#foundation-dev').check()
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#foundation-dev')).not_to_be_checked()
+        self.page.locator('#foundation-dev').check()
+        self.page.locator('#plan-foundation').click()
+        expect(self.page.locator('#foundation-state')).to_have_attribute('data-state', 'PLANNED')
+        self.assertEqual(fixture.control.profile()['version'], 2)
+        fixture.dev.stage.assert_not_called()
+        self.page.locator('#apply-foundation').click(); self.dialog('cancel')
+        fixture.dev.stage.assert_not_called()
+        self.page.locator('#apply-foundation').click(); self.dialog()
+        expect(self.page.locator('#foundation-state')).to_have_attribute('data-state', 'DONE')
+        fixture.dev.stage.assert_called_once()
+        before = fixture.control.journal.path.read_bytes()
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#foundation-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual(fixture.control.journal.path.read_bytes(), before)
+        fixture.dev.stage.assert_called_once()
+        self.assertNotIn('PRIVATE KEY', self.page.content())
+        self.assertEqual(self.page.evaluate('localStorage.length + sessionStorage.length'), 0)
+
     def fcm_fixture(self):
         import fcm_fixture
         responses = fcm_fixture.responses(); self.fake.override = responses

@@ -1,0 +1,84 @@
+# Phase 6, lot 2 : Web DEV distinct
+
+## Contrat du candidat du 4 octobre 2026
+
+Le lot ajoute un premier raccordement Foundation/Gateway à deux contextes.
+MAIN reste l'autorité des appareils et de l'enrôlement. DEV utilise un autre
+Web géré, ses propres comptes système, arborescences, base et utilisateur SQL.
+Le Web sélectionné reste Mobile v2 `a21fc758fc4c1de9580a953ec07f459f54609874`.
+Les clés P-256 MAIN/DEV préparées sont relues, jamais régénérées ni copiées.
+Le Gateway FCM `33927821bbda57a2c10791d0523eaf3b254c8c9e` et le credential
+FCM du lot 1 restent compatibles avec ce profil.
+
+| Canal | MAIN | DEV |
+| --- | --- | --- |
+| Identifiant Mobile | `main` | `dev-bastien` |
+| Backend Web | `127.0.0.1:9080` | `127.0.0.1:9084` |
+| Foundation | `127.0.0.1:9082` | `127.0.0.1:9081` |
+| Clé chargée par systemd | `main-key` | `dev-key` |
+| Appareils et enrôlement | Autorité canonique | Aucun registre cloné |
+
+Le service Gateway commun écoute toujours sur `127.0.0.1:9083`. Aucun port
+arbitraire ni URL externe ne peut être soumis par le navigateur.
+
+## Enregistrement puis consentement
+
+Avant le premier plan Foundation et avant le service Gateway, l'administrateur
+enregistre le descripteur JSON privé d'un Web DEV **déjà préparé et activé** :
+`python3 -m installer --state-dir /chemin/etat-main --register-dev-web /chemin/prive/dev.json`.
+Le fichier doit appartenir à root, être en mode 0600 dans un dossier privé et
+ne pas dépasser 16 Kio. L'enregistrement ne crée pas le Web ni sa base.
+
+Le format fermé comprend `version: 1`, `descriptor`, `configuration`,
+`preparation_sha256`, `main_configuration_sha256` et `debug_subjects`.
+Le descripteur géré est version 2 ; son HTTP contient `instance`, `root`,
+`webroot`, `service_user`, `hostname`, `port` et `maintenance_directory`.
+Le worker contient `user`, `run_root` et `state_root`. Les chemins et comptes
+doivent être exactement ceux du profil fresh Mobile v2 pour cette instance.
+La configuration publique provient des sceaux du Web existant : mode upgrade,
+base locale existante, aucun administrateur à créer, assistant préservé.
+Les deux empreintes lient la préparation DEV et la configuration publique MAIN.
+Le contrôle natif relit aussi les unités, comptes, sources et sceaux attendus.
+
+`debug_subjects` est une liste triée de 1 à 16 UUID v4 explicitement autorisés.
+Les comptes correspondants doivent déjà exister dans chaque Web. Le produit ne
+copie ni compte, ni appareil, ni session. Les appareils de distribution restent
+limités à MAIN ; l'accès debug à DEV exige aussi les politiques Web courantes.
+
+Le cockpit propose ensuite « Raccorder aussi le Web DEV enregistré ». La case
+est décochée à chaque rechargement avant plan. Le plan sélectionne l'empreinte
+du descripteur et présente six étapes : préparation, démarrage et contrôle de
+MAIN, puis de DEV. L'application exige son consentement distinct. GET et refresh
+relisent uniquement les métadonnées, sans sonde, réparation ni redémarrage.
+
+## Compatibilité et reprise
+
+Les profils MAIN historiques gardent leurs champs, fragments et étapes exacts.
+La variante à deux contextes est versionnée explicitement ; une dérive de cible,
+de clé, de configuration ou de parent est refusée. Un effet incertain n'est pas
+rejoué implicitement. Les reçus et intentions de démarrage sont distincts.
+
+La maintenance DEV ferme son canal sans détour vers MAIN. La maintenance MAIN
+continue de fermer le Gateway commun. Au nouveau PID 1, le boot Mobile démarre
+les unités DEV déjà scellées uniquement si le garde DEV autorise le service.
+Un garde DEV fermé reste fermé et MAIN peut démarrer. Une intention déjà émise
+ne permet pas de redémarrer un processus disparu durant le même démarrage.
+
+## Qualification et limites
+
+Le candidat ajoute 23 contrats locaux et un parcours Chromium HTTPS de sélection,
+annulation, application et refresh. La recette composée utilise deux véritables
+bases SQL et le binaire Gateway exact ; elle conserve aussi sauvegarde,
+préparation, activation, FCM, QR, ACME privé et nouveau PID 1 du lot précédent.
+Elle vérifie les autorisations dans chaque contexte, les clés et sessions
+croisées refusées, la politique de compte DEV et l'absence d'appareil copié.
+Les verdicts natifs et les manifestes exacts restent requis avant livraison.
+
+Le banc provisionne sa cible DEV séparément au port fixe avec le moteur Web
+qualifié. Ce montage de recette ne constitue pas un assistant fresh DEV produit.
+L'ajout de DEV sur un Gateway déjà scellé, la modification d'une cible enregistrée,
+l'upgrade/rollback et la restauration d'origine relèvent du lot 3 (#17).
+La réouverture après le test de maintenance DEV est explicite et confinée au banc.
+Aucune réouverture automatique n'est revendiquée. Aucun certificat public,
+reboot noyau, accès Firebase réel ni réception sur téléphone n'est revendiqué.
+La clôture globale de phase 6 reste liée au lot 4 (#18).

@@ -47,7 +47,7 @@ def diagnostic(callback):
     return invoke
 
 
-def setup(*, gateway_commit=None, credential=None):
+def setup(*, gateway_commit=None, credential=None, dev_setup=None):
     boot_fixture.setup(profile='fresh-mobile-staged-v2')
     service = fixture.service()
     try:
@@ -64,7 +64,9 @@ def setup(*, gateway_commit=None, credential=None):
             assert imported['state'] == 'IMPORTED'
             (EVIDENCE / 'fcm-import.json').write_bytes(quality.encode(imported))
         parents = {'web': parent['plan_sha256'], 'activation': service.activation.journal.read()['plan_sha256'], 'gateway': gateway['plan_sha256']}
-        planned = service.execute('foundation.plan', {'parents': parents})['foundation']['installation']
+        dev_confirmation = dev_setup(service) if dev_setup is not None else None
+        planned = service.execute('foundation.plan', {'parents': parents,
+            **({'dev_confirmation': dev_confirmation} if dev_confirmation is not None else {})})['foundation']['installation']
         foundation = shared.done(service.execute('foundation.apply', confirm(planned))['foundation']['installation'])
         parents['foundation'] = foundation['plan_sha256']
         planned = service.execute('gateway-service.plan', {'parents': parents})['gateway_service']['installation']

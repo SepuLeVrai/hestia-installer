@@ -24,17 +24,28 @@ def attached(http):
         config = strict_json_loads(h.f._read(fd, 'main.json', account.pw_gid))
         manifest = strict_json_loads(h.f._read(fd, 'staged.json', 0, mode=0o600))
     from installer import mobile_web_source as mobile
-    successor = http.spec.source_commit == mobile.COMMIT
-    exact_keys(config, {'environment', 'gateway_keys', 'canonical_contexts', 'canonical_distribution'}
+    successor = http.spec.source_commit == mobile.COMMIT and config.get('environment') == 'main'
+    environment = 'dev' if config.get('environment') == 'dev-bastien' else 'main'
+    paired = 'canonical_debug_subjects' in config
+    exact_keys(config, {'environment', 'gateway_keys', 'canonical_contexts'}
+               | ({'canonical_distribution'} if environment == 'main' else set())
+               | ({'canonical_debug_subjects'} if paired else set())
                | ({'public_origin', 'gateway_port'} if successor else set()))
     require(not successor or type(config['gateway_port']) is int and config['gateway_port'] == 9083, ErrorCode.SOURCE_DRIFT)
-    require(config['environment'] == 'main' and config['canonical_contexts'] is True
-            and config['canonical_distribution'] is True and type(config['gateway_keys']) is dict
+    require(config['environment'] == ('main' if environment == 'main' else 'dev-bastien') and config['canonical_contexts'] is True
+            and (environment == 'dev' or config['canonical_distribution'] is True) and type(config['gateway_keys']) is dict
             and len(config['gateway_keys']) == 1, ErrorCode.SOURCE_DRIFT)
-    kid, jwk = next(iter(config['gateway_keys'].items())); identity = public_identity('main', jwk)
+    kid, jwk = next(iter(config['gateway_keys'].items())); identity = public_identity(environment, jwk)
     require(kid == identity['kid'], ErrorCode.SOURCE_DRIFT)
+    dev = None
+    if paired:
+        require(environment == 'main', ErrorCode.SOURCE_DRIFT)
+        with h.fs._directory(root) as fd:
+            dev = strict_json_loads(h.f._read(fd, 'dev-target.json', account.pw_gid, limit=16384))
+        require(config['canonical_debug_subjects'] == dev['target']['debug_subjects'], ErrorCode.SOURCE_DRIFT)
     runtime = FoundationRuntime(Activation(http, manifest['web_plan_sha256']), identity,
-                                public_origin=config['public_origin'] if successor else None)
+                                public_origin=config['public_origin'] if successor else None,
+                                environment=environment, dev=dev)
     runtime.inspect()
     return runtime
 

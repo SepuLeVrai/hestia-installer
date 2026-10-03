@@ -118,7 +118,7 @@ class GatewayServiceProfileTests(unittest.TestCase):
     def test_distinct_names_never_allow_reused_web_uid_or_gid(self):
         from installer import gateway_service_runtime as native
         runtime = object.__new__(native.GatewayServiceRuntime)
-        runtime.profile = Mock(); runtime.web = Mock()
+        runtime.profile = Mock(dev=None); runtime.web = Mock()
         runtime.web.spec.service_user = 'web-fixture'
         runtime.profile.account.account.return_value = Mock(pw_uid=901, pw_gid=902)
         with patch.object(native.h, '_identity') as identity:

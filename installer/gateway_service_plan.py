@@ -29,9 +29,25 @@ class GatewayServiceOperation(Operation):
         super().__init__(StepSpec(name='gateway-service.' + role, operation='gateway-service.' + role, module='gateway',
             boundary='gateway-service.' + role, action=actions[role], dependencies=(previous,) if previous else (),
             resources=resources.get(role, ()), warnings=('Profil lié : ' + self.binding,
-                'MAIN uniquement ; les clés DEV préparées sont conservées pour un raccordement ultérieur.',
+                ('MAIN uniquement ; les clés DEV préparées sont conservées pour un raccordement ultérieur.' if 'dev' not in controller.profile()['binding'] else 'MAIN et DEV distincts ; distribution MAIN uniquement, DEV limité aux sujets explicitement autorisés.'),
                 'La sonde écrit uniquement des quotas, nonces et événements techniques. Aucun enrôlement.',
                 'Pas de démarrage automatique ni de réouverture après maintenance dans ce plan.')))
+
+    def probe(self):
+        value = probe.check(self.runtime.profile.identity['public_origin'])
+        if 'dev' in self.controller.profile()['binding']:
+            from installer import foundation_probe
+            dev = self.runtime.profile.dev
+            dev.owned()
+            value = {**value, 'state': 'GATEWAY_MAIN_DEV_VERIFIED', 'dev':
+                     foundation_probe.check_dev(self.controller.gateway.identities, dev.identity, self.runtime.profile.main)}
+            dev.owned()
+        return value
+
+    def expected(self):
+        if 'dev' not in self.controller.profile()['binding']: return probe.RESULT
+        from installer.foundation_probe import DEV_RESULT
+        return {**probe.RESULT, 'state': 'GATEWAY_MAIN_DEV_VERIFIED', 'dev': DEV_RESULT}
 
     def owner(self, context):
         require(context.spec == self.spec.as_dict(), ErrorCode.INCOMPATIBLE_STATE)
@@ -73,7 +89,7 @@ class GatewayServiceOperation(Operation):
                     time.sleep(.2)
             self.controller._write('started.json', {'owner': self.owner(context), 'state': self.runtime.state_binding()})
         else:
-            result = probe.check(self.runtime.profile.identity['public_origin']); self.runtime.owned()
+            result = self.probe(); self.runtime.owned()
             self.controller._write('verified.json', {'owner': self.owner(context), 'result': result, 'checked_at': now()})
         return self.receipt(context)
 
@@ -88,7 +104,7 @@ class GatewayServiceOperation(Operation):
         else:
             value = self.controller._read('verified.json')
             require(type(value) is dict and set(value) == {'owner', 'result', 'checked_at'}
-                    and value['owner'] == self.owner(context) and value['result'] == probe.RESULT, ErrorCode.INVALID_STATE)
+                    and value['owner'] == self.owner(context) and value['result'] == self.expected(), ErrorCode.INVALID_STATE)
         return True
 
     def validate(self, context): return self.current(context) and context.evidence == self.receipt(context).as_dict()
@@ -187,7 +203,7 @@ class GatewayServicePlan:
                     try:
                         runtime.owned()
                         require(self._read('started.json')['state'] == runtime.state_binding(), ErrorCode.SOURCE_DRIFT)
-                        result = probe.check(runtime.profile.identity['public_origin']); runtime.owned()
+                        result = GatewayServiceOperation(self, runtime, 'verify').probe(); runtime.owned()
                         self.availability = {**result, 'checked_at': now()}
                     except Exception: self.availability = {'state': 'GATEWAY_MAIN_UNAVAILABLE', 'checked_at': now()}
                 else:

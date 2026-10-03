@@ -1,13 +1,13 @@
 # Phase 6 - lots de finition
 
-Reprise du 3 octobre 2026 après le candidat FCM `f52c504`.
+Reprise du 4 octobre 2026 après le lot FCM qualifié `b9a3997`.
 Chaque lot se termine avec son code, ses preuves et son ZIP exact.
 La phase reste ouverte jusqu'à la qualification de tous les périmètres.
 
 | Lot | Résultat attendu | État de reprise |
 | --- | --- | --- |
-| FCM | Import privé, cockpit, service et boot qualifiés sur Web/Gateway réels | En cours : scénario navigateur et acquisition du paquet de recette |
-| DEV distinct | Identités MAIN/DEV séparées, profils, refus croisés et cockpit | À faire |
+| FCM | Import privé, cockpit, service et boot qualifiés sur Web/Gateway réels | Terminé, #15 fermé et ZIP livré |
+| DEV distinct | Identités MAIN/DEV séparées, profils, refus croisés et cockpit | Implémenté, qualification du candidat en cours, #16 |
 | Upgrade et restauration | Restauration originale, upgrade/rollback Gateway et reprise sans perte d'identité | À faire |
 | Recette 6C et intégration | Parcours composés, limites, intégration des commits qualifiés et package exact | À faire |
 
@@ -21,6 +21,10 @@ La phase reste ouverte jusqu'à la qualification de tous les périmètres.
   distinct de son raccordement Installer.
 
 ## FCM : correction des deux blocages observés
+
+Historique clos : final `b9a3997`, CI `37154464899`, `37154464814`,
+`37154464801` PASS ; recette `37153956770` PASS. Les paragraphes ci-dessous
+conservent les incidents résolus. Voir le [contrat DEV courant](DEV_CONTEXTS.md).
 
 Le candidat initial passe cœur, système et paquets. Le nouveau test navigateur
 attendait le sélecteur avant de rouvrir le formulaire après refresh. Le choix

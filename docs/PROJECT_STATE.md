@@ -1,3 +1,20 @@
+# Lot DEV distinct en qualification - 4 octobre 2026
+
+Le lot FCM #15 est terminé sur Installer `b9a3997ac310fdff3fe398051e099365032c6641`.
+Quality `37154464899`, système `37154464814` et paquets `37154464801` sont PASS :
+neuf jobs, 4 087 tests et 16 tests du gate. La recette native `37153956770` est
+PASS (sept tests) sur `6af8b12` ; les 491 fichiers autres que le test navigateur
+FCM corrigé et son document sont identiques au final. Le ZIP qualifié du lot 1
+et ses preuves exactes ont été livrés. Aucun ancien échec ne reste à relancer.
+
+Le candidat courant raccorde un Web DEV existant et distinct, avec consentement
+dans le cockpit, clés et sessions séparées et boot soumis au garde DEV.
+Les 23 nouveaux contrats locaux passent. Le contrôle Chromium et les campagnes
+globales/natives de ce candidat restent à obtenir. Voir [DEV_CONTEXTS.md](DEV_CONTEXTS.md).
+Le lot #16 reste ouvert jusqu'aux preuves ; #17 (upgrade/restauration) et #18
+(recette 6C/intégration) suivent. Aucune promotion de branche applicative ni
+clôture globale n'est effectuée. Les sections suivantes sont historiques.
+
 # Reprise par lots de finition - 3 octobre 2026
 
 La composition Web Mobile v2 est PASS dans la recette `37141785730`.

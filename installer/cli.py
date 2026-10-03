@@ -48,6 +48,8 @@ def build_parser() -> argparse.ArgumentParser:
     actions.add_argument("--report", action="store_true", help="lire le rapport non secret sans démarrer HTTPS")
     actions.add_argument("--register-managed-upgrade", type=Path, metavar="PROFILE.json",
                          help="vérifier et enregistrer un profil local géré/scellé pour le wizard upgrade, sans migration")
+    actions.add_argument("--register-dev-web", type=Path, metavar="PROFILE.json",
+                         help="enregistrer une cible DEV distincte déjà gérée, sans création ni adoption")
     parser.add_argument("--state-dir", type=Path, default=DEFAULT_STATE_ROOT,
                         help="répertoire privé persistant du journal (chemin absolu, mode 0700)")
     parser.add_argument(
@@ -89,6 +91,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if not ApplicationPlan(engine, github).restore() and not upgrade.restore():
             github.restore_registry()
+        if args.register_dev_web:
+            service = TransactionService(engine, github=github)
+            try: print(json.dumps(service.foundation.dev_target.register(args.register_dev_web), ensure_ascii=False, indent=2))
+            finally: service.close()
+            return 0
         if args.dry_run:
             existing = engine.report()
             plan = existing["plan"] if existing is not None else engine.dry_run()

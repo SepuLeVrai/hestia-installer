@@ -155,6 +155,56 @@ class MobileBootEpochTests(unittest.TestCase):
         self.command.assert_not_called()
 
 
+class DevMobileBootTests(unittest.TestCase):
+    setUp = MobileBootEnrollmentTests.setUp
+    enroll = MobileBootEnrollmentTests.enroll
+    boot_readers = MobileBootEnrollmentTests.boot_readers
+
+    def prepare(self, dev_states):
+        self.enroll()
+        start = self.boot_readers(['SERVING', 'SERVING'])
+        self.r.dev_foundation = Mock()
+        scope = SimpleNamespace(writer=lambda: nullcontext(),
+            observe=Mock(side_effect=[{'state': value} for value in dev_states]))
+        self.r.dev_foundation.target.activation.configuration.return_value = (scope, None)
+        return start
+
+    def test_open_dev_starts_owned_web_then_foundation_before_gateway(self):
+        start = self.prepare(['SERVING', 'SERVING'])
+        self.r.boot()
+        self.assertEqual([call.args[0] for call in start.call_args_list],
+            ['foundation', 'dev_php', 'dev_apache', 'dev_timer', 'dev_foundation', 'gateway'])
+        self.r.dev_foundation.target.activation.check.assert_called_once()
+
+    def test_closed_dev_stays_closed_and_main_still_starts(self):
+        start = self.prepare(['MAINTENANCE_REQUIRED'])
+        self.r.boot()
+        self.assertEqual([call.args[0] for call in start.call_args_list], ['foundation', 'gateway'])
+        self.r.dev_foundation.target.activation.check.assert_not_called()
+
+    def test_dev_gate_change_before_writer_refuses_all_dev_starts(self):
+        start = self.prepare(['SERVING', 'MAINTENANCE_REQUIRED'])
+        with self.assertRaises(InstallerError): self.r.boot()
+        self.assertEqual([call.args[0] for call in start.call_args_list], ['foundation'])
+        self.r.dev_foundation.target.activation.check.assert_not_called()
+
+
+class DevMobileBootEpochTests(unittest.TestCase):
+    setUp = MobileBootEpochTests.setUp
+
+    def test_dev_completed_start_never_replays_and_lost_reply_only_observes(self):
+        self.r.dev_foundation = Mock(unit='hestia-dev-foundation.service')
+        self.command.side_effect = OSError('lost reply')
+        with self.assertRaises(OSError): self.r.start('dev_foundation', self.epoch)
+        self.command.reset_mock(); self.command.side_effect = None
+        self.r.start('dev_foundation', self.epoch)
+        self.r.start('dev_foundation', self.epoch)
+        self.command.assert_not_called()
+        self.r.dev_foundation.stopped.assert_called_once()
+        self.r.dev_foundation.owned.assert_called_once()
+        self.assertIsNotNone(self.r.epoch._read('dev_foundation.json'))
+
+
 class MobileBootPlanTests(unittest.TestCase):
     def setUp(self):
         temp = TemporaryDirectory(); self.addCleanup(temp.cleanup); self.root = Path(temp.name)

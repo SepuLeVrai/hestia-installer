@@ -37,18 +37,20 @@ def raw_signature(der):
     return result
 
 
-def assertion(store, identity):
+def assertion(store, identity, *, environment="main"):
+    require(environment in ("main", "dev"), ErrorCode.INVALID_DATA)
+    target = "main" if environment == "main" else "dev-bastien"
     request_id, subject, device = (str(uuid.uuid4()) for _ in range(3))
-    body = {'request_id': request_id, 'mobile_subject_uuid': subject, 'device_id': device, 'environment': 'main'}
+    body = {'request_id': request_id, 'mobile_subject_uuid': subject, 'device_id': device, 'environment': target}
     raw = canonical_bytes(body); now = int(time.time())
     from hashlib import sha256
-    claims = {**body, 'iss': 'hestia-mobile-gateway', 'aud': 'hestia-internal-mobile:main',
+    claims = {**body, 'iss': 'hestia-mobile-gateway', 'aud': 'hestia-internal-mobile:' + target,
               'iat': now, 'exp': now + 30, 'jti': str(uuid.uuid4()), 'operation': 'access/check',
               'htm': 'POST', 'htu_path': PATH, 'body_sha256': sha256(raw).hexdigest()}
     signing = (_b64(canonical_bytes({'alg': 'ES256', 'typ': 'hestia-service+jwt', 'kid': identity['kid']}))
                + '.' + _b64(canonical_bytes(claims))).encode()
     with _private_directory(store.root, create=False) as directory:
-        handle = os.open('main.pem', os.O_RDONLY | _FILE_FLAGS, dir_fd=directory)
+        handle = os.open(environment + '.pem', os.O_RDONLY | _FILE_FLAGS, dir_fd=directory)
         try:
             _check_file(handle); key = os.read(handle, 4097)
             require(_public(key) == identity['public_jwk'], ErrorCode.SOURCE_DRIFT)
@@ -61,8 +63,9 @@ def assertion(store, identity):
     return body, raw, signing.decode() + '.' + _b64(raw_signature(result.stdout))
 
 
-def request(body, request_id, token):
-    connection = http.client.HTTPConnection('127.0.0.1', 9082, timeout=5)
+def request(body, request_id, token, *, port=9082):
+    require(type(port) is int and port in (9081, 9082), ErrorCode.INVALID_DATA)
+    connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
     try:
         headers = {'Host': 'hestia-internal-mobile.local', 'Content-Type': 'application/json',
                    'X-Request-ID': request_id, 'Connection': 'close'}
@@ -95,3 +98,30 @@ def check(store, identity):
     require(status == 401 and type(reply) is dict and type(reply.get('error')) is dict
             and reply['error'].get('code') == 'authentication_failed', ErrorCode.VALIDATION_FAILED)
     return dict(RESULT)
+
+
+def check_dev(store, identity, main_identity):
+    body, raw, token = assertion(store, identity, environment='dev')
+    status, reply = request(raw, body['request_id'], token, port=9081)
+    require(status == 200 and type(reply) is dict and reply.get('request_id') == body['request_id']
+            and type(reply.get('data')) is dict, ErrorCode.VALIDATION_FAILED)
+    data = reply['data']
+    require(set(data) == set(body) | {'mobile_enabled', 'account_active', 'device_active', 'environment_allowed'}
+            and all(data[k] == v for k, v in body.items()) and type(data['mobile_enabled']) is bool
+            and all(data[k] is False for k in ('account_active', 'device_active', 'environment_allowed')),
+            ErrorCode.VALIDATION_FAILED)
+    for supplied in (token, None):
+        status, reply = request(raw, body['request_id'], supplied, port=9081)
+        require(status == 401 and reply.get('error', {}).get('code') == 'authentication_failed', ErrorCode.VALIDATION_FAILED)
+    # Both directions must reject the other environment's real private key.
+    for source, env, port in ((main_identity, 'main', 9081), (identity, 'dev', 9082)):
+        body, raw, token = assertion(store, source, environment=env)
+        status, reply = request(raw, body['request_id'], token, port=port)
+        require(status in (401, 403) and type(reply.get('error')) is dict, ErrorCode.VALIDATION_FAILED)
+    return dict(DEV_RESULT)
+
+
+DEV_RESULT = {'state': 'FOUNDATION_DEV_VERIFIED', 'endpoint': '127.0.0.1:9081',
+              'signed_assertion': True, 'replay_rejected': True, 'unsigned_rejected': True,
+              'cross_context_rejected': True, 'gateway_service_available': False,
+              'public_mobile_available': False, 'boot_enabled': False}

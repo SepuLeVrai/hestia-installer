@@ -1,6 +1,6 @@
 """Additive Mobile boot enrollment, preserving all existing unit fragments.
 
-One private PID-1 service starts the two static, already-provisioned units.
+One private PID-1 service starts only the selected, already-provisioned units.
 Its volatile epoch journal prevents retries from replaying a completed start.
 """
 import os
@@ -53,6 +53,12 @@ class MobileBootRuntime(boot.BootRuntime):
         binding = profile['shared']['gateway_binding']
         self.foundation = FoundationRuntime.for_gateway(self.shared.boot.activation, binding['main'], binding['gateway_identity'])
         self.gateway = GatewayServiceRuntime.from_binding(self.foundation, binding)
+        self.foundation = self.gateway.foundation
+        self.dev_foundation = self.gateway.profile.dev
+        if self.dev_foundation is not None:
+            from installer.dev_target import DevBootUnit
+            for role in ('php', 'apache', 'timer'):
+                setattr(self, 'dev_' + role, DevBootUnit(self.dev_foundation.target, role))
         require(canonical_bytes(self.gateway.profile.binding()) == canonical_bytes(binding), ErrorCode.INCOMPATIBLE_STATE)
         self.root = self.layout.root / 'mobile-boot'
         self.target = 'hestia-' + self.layout.instance + '-mobile-boot.service'
@@ -102,6 +108,8 @@ class MobileBootRuntime(boot.BootRuntime):
         require(self.shared.ready(), ErrorCode.DEPENDENCY_BLOCKED)
         self.shared.boot.configuration(); self.shared.boot.live()
         self.gateway.owned()
+        if self.dev_foundation is not None:
+            self.dev_foundation.target.serving(); self.dev_foundation.owned()
 
     @staticmethod
     def epoch_identity():
@@ -112,6 +120,8 @@ class MobileBootRuntime(boot.BootRuntime):
 
     @staticmethod
     def process(runtime):
+        from installer.dev_target import DevBootUnit
+        if isinstance(runtime, DevBootUnit): return runtime.process()
         runtime.owned()
         pid = runtime.show()['MainPID']
         start = (Path('/proc') / pid / 'stat').read_text().rsplit(')', 1)[1].split()[19]
@@ -120,7 +130,7 @@ class MobileBootRuntime(boot.BootRuntime):
         return {'pid': pid, 'start': start}
 
     def start(self, role, epoch):
-        require(role in ('foundation', 'gateway'))
+        require(role in ('foundation', 'gateway', 'dev_foundation', 'dev_php', 'dev_apache', 'dev_timer'))
         runtime = getattr(self, role)
         owner = {'profile_sha256': digest(self.profile), 'epoch': epoch, 'role': role, 'unit': runtime.unit}
         attempt = self.epoch._read(role + '.attempt')
@@ -164,6 +174,17 @@ class MobileBootRuntime(boot.BootRuntime):
             from installer.transaction import StateJournal
             with StateJournal(self.epoch.root / 'lock.json').locked(create=True):
                 self.start('foundation', epoch)
+                if self.dev_foundation is not None:
+                    target = self.dev_foundation.target
+                    dev_scope, _ = target.activation.configuration()
+                    if dev_scope.observe()['state'] == 'SERVING':
+                        with dev_scope.writer():
+                            require(dev_scope.observe()['state'] == 'SERVING', ErrorCode.MANUAL_ACTION_REQUIRED)
+                            for role in ('dev_php', 'dev_apache', 'dev_timer', 'dev_foundation'):
+                                self.start(role, epoch)
+                            target.activation.check()
+                    # A closed DEV gate is never opened at boot. MAIN remains
+                    # usable; the absent DEV listener cannot fall back to MAIN.
                 require(scope.observe()['state'] == 'SERVING', ErrorCode.MANUAL_ACTION_REQUIRED)
                 self.start('gateway', epoch)
                 self.gateway.owned()

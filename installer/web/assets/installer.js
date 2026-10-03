@@ -733,39 +733,51 @@
   }
   function foundationForm() {
     const card = element("article", null, "wizard-card"); card.id = "foundation-main";
-    card.append(element("h2", "Raccordement Foundation MAIN"), hint("Canal interne sur 127.0.0.1:9082, protégé par les assertions signées et la maintenance du Web. DEV, Gateway, accès Mobile public et démarrage automatique restent à raccorder."));
+    const paired = !!foundation.profile?.dev;
+    const label = paired ? "MAIN et DEV" : "MAIN";
+    card.append(element("h2", "Raccordement Foundation " + label), hint("Canaux privés protégés par les assertions signées et la maintenance de chaque Web. MAIN conserve l'autorité d'enrôlement."));
     const document = foundation.installation;
     const action = (name, extra = {}) => {
       pendingAction = {action: "foundation." + name, payload: {confirmation: document.plan_sha256, confirm: true, ...extra}};
-      $("operation-title").textContent = "Raccorder Foundation MAIN ?";
-      $("operation-description").textContent = "Créer et démarrer le canal MAIN de ce plan, puis vérifier les assertions signées ? Le contrôle ajoute uniquement des nonces et événements techniques dans le Web.";
+      $("operation-title").textContent = "Raccorder Foundation " + label + " ?";
+      $("operation-description").textContent = "Créer et démarrer les canaux de ce plan, puis vérifier les signatures, les rejeux et les refus croisés si DEV est sélectionné ? Aucun appareil ni session n’est copié.";
       $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
     };
     if (!document) {
-      card.append(button("Préparer le plan MAIN", () => void run(async () => {
+      const selection = element("input"); selection.id = "foundation-dev"; selection.type = "checkbox";
+      const registered = foundation.dev_target;
+      if (registered?.target) {
+        card.append(field("Raccorder aussi le Web DEV enregistré", selection),
+          hint(registered.target.configuration.web.hostname + " - base distincte : " + registered.target.configuration.database.name));
+        card.append(hint("DEV est réservé aux identités explicitement autorisées. Les appareils de distribution restent sur MAIN."));
+      } else if (gateway.profile?.identity.dev_enabled) {
+        card.append(hint("La clé DEV est conservée. Enregistrez une cible Web DEV gérée avant de figer un plan à deux contextes."));
+      }
+      card.append(button("Préparer le plan Foundation", () => void run(async () => {
         foundation = (await api("/api/gateway/foundation/plan", {parents: {web: installation.plan_sha256,
-          activation: activation.installation.plan_sha256, gateway: gateway.preparation.plan_sha256}})).foundation;
+          activation: activation.installation.plan_sha256, gateway: gateway.preparation.plan_sha256},
+          ...(selection.checked ? {dev_confirmation: registered.confirmation} : {})})).foundation;
         show(5);
       }), "plan-foundation"));
     } else {
-      const status = element("p", "Raccordement MAIN : " + states[document.state]); status.id = "foundation-state"; status.dataset.state = document.state;
+      const status = element("p", "Raccordement " + label + " : " + states[document.state]); status.id = "foundation-state"; status.dataset.state = document.state;
       card.append(status);
       for (const spec of document.plan.steps) card.append(hint(spec.action));
       if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
       if (document.state === "DONE") {
         card.append(hint("Le contrôle de disponibilité est explicite et vaut pour cet instant."));
-        card.append(button("Vérifier Foundation MAIN", () => void run(async () => {
+        card.append(button("Vérifier Foundation " + label, () => void run(async () => {
           foundation = (await api("/api/gateway/foundation/check", {confirmation: document.plan_sha256, confirm: true})).foundation;
           show(5);
         }), "check-foundation"));
       } else {
-        if (document.approved_plan_sha256 === null) card.append(button("Raccorder MAIN", () => action("apply"), "apply-foundation", true));
-        else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre MAIN", () => action("resume"), "resume-foundation"));
+        if (document.approved_plan_sha256 === null) card.append(button("Raccorder " + label, () => action("apply"), "apply-foundation", true));
+        else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre " + label, () => action("resume"), "resume-foundation"));
         for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Réessayer : " + record.name, () => action("retry", {name: record.name}), "retry-" + record.name));
       }
       if (foundation.availability) {
-        const available = foundation.availability.state === "FOUNDATION_MAIN_VERIFIED";
-        const status = element("p", available ? "Foundation MAIN vérifiée : signature acceptée, rejeu et appel non signé refusés." : "Foundation MAIN indisponible. Aucun service n'a été redémarré.");
+        const available = ["FOUNDATION_MAIN_VERIFIED", "FOUNDATION_MAIN_DEV_VERIFIED"].includes(foundation.availability.state);
+        const status = element("p", available ? (paired ? "Foundation MAIN et DEV vérifiées : signatures distinctes et refus croisés contrôlés." : "Foundation MAIN vérifiée : signature acceptée, rejeu et appel non signé refusés.") : "Foundation MAIN indisponible. Aucun service n'a été redémarré.");
         status.id = "foundation-availability"; card.append(status);
       }
       technical(card, "Plan Foundation MAIN (non secret)", document.plan);
@@ -813,11 +825,13 @@
   }
   function gatewayServiceForm() {
     const card = element("article", null, "wizard-card"); card.id = "gatewayService-main";
-    card.append(element("h2", "Raccordement Gateway MAIN"), hint("Service local MAIN sur 127.0.0.1:9083. Son arrêt est coordonné avec la maintenance Web. DEV, accès Mobile public et démarrage automatique restent à raccorder."));
+    const paired = !!foundation.profile?.dev;
+    const label = paired ? "MAIN et DEV" : "MAIN";
+    card.append(element("h2", "Raccordement Gateway " + label), hint("Service privé sur 127.0.0.1:9083. La maintenance MAIN arrête Gateway ; DEV conserve son propre garde et ne se replie jamais sur MAIN."));
     const document = gatewayService.installation;
     const action = (name, extra = {}) => {
       pendingAction = {action: "gateway-service." + name, payload: {confirmation: document.plan_sha256, confirm: true, ...extra}};
-      $("operation-title").textContent = "Raccorder Gateway MAIN ?";
+      $("operation-title").textContent = "Raccorder Gateway " + label + " ?";
       $("operation-description").textContent = "Créer le compte privé, installer et démarrer Gateway, puis vérifier sa connexion signée à MAIN ? Le contrôle ajoute uniquement des quotas, nonces et événements techniques.";
       $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
     };
@@ -831,23 +845,23 @@
         show(5);
       }), "plan-gatewayService"));
     } else {
-      const status = element("p", "Raccordement MAIN : " + states[document.state]); status.id = "gatewayService-state"; status.dataset.state = document.state;
+      const status = element("p", "Raccordement " + label + " : " + states[document.state]); status.id = "gatewayService-state"; status.dataset.state = document.state;
       card.append(status);
       for (const spec of document.plan.steps) card.append(hint(spec.action));
       if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
       if (document.state === "DONE") {
         card.append(hint("Le contrôle de disponibilité est explicite et vaut pour cet instant."));
-        card.append(button("Vérifier Gateway MAIN", () => void run(async () => {
+        card.append(button("Vérifier Gateway " + label, () => void run(async () => {
           gatewayService = (await api("/api/gateway/service/check", {confirmation: document.plan_sha256, confirm: true})).gateway_service;
           show(5);
         }), "check-gatewayService"));
       } else {
-        if (document.approved_plan_sha256 === null) card.append(button("Raccorder MAIN", () => action("apply"), "apply-gatewayService", true));
-        else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre MAIN", () => action("resume"), "resume-gatewayService"));
+        if (document.approved_plan_sha256 === null) card.append(button("Raccorder " + label, () => action("apply"), "apply-gatewayService", true));
+        else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre " + label, () => action("resume"), "resume-gatewayService"));
         for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Réessayer : " + record.name, () => action("retry", {name: record.name}), "retry-" + record.name));
       }
       if (gatewayService.availability) {
-        const available = gatewayService.availability.state === "GATEWAY_MAIN_VERIFIED";
+        const available = ["GATEWAY_MAIN_VERIFIED", "GATEWAY_MAIN_DEV_VERIFIED"].includes(gatewayService.availability.state);
         const status = element("p", available ? "Gateway MAIN vérifiée : connexion signée active, origine incorrecte et en-têtes de transfert refusés." : "Gateway MAIN indisponible. Aucun service n'a été redémarré.");
         status.id = "gatewayService-availability"; card.append(status);
       }
@@ -1474,7 +1488,7 @@
         mobileActivation = result.mobile_activation || mobileActivation;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, sharedPreparation.plan_sha256, sharedPublic.installation?.revision, sharedPublic.verification, mobileBoot.installation?.revision, mobileBoot.verification, gateway.preparation?.revision, fcm, foundation.installation?.revision, gatewayService.installation?.revision, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, sharedPreparation.plan_sha256, sharedPublic.installation?.revision, sharedPublic.verification, mobileBoot.installation?.revision, mobileBoot.verification, gateway.preparation?.revision, fcm, foundation.installation?.revision, foundation.dev_target?.confirmation, gatewayService.installation?.revision, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
         const editingMobile = !serverBusy && !busy && ($("gateway-fcm")?.contains(document.activeElement) || $("fcm-credential")?.files.length || $("shared-public-form")?.contains(document.activeElement) || $("mobile-sql-credentials")?.contains(document.activeElement) || $("backup-sql-credentials")?.contains(document.activeElement) || $("preparation-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
         if (stamp !== lastRevision && !editingMobile) {
           lastRevision = stamp;

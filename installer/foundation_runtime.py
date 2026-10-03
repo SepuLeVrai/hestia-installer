@@ -24,34 +24,45 @@ PROPERTIES = ('Id', 'LoadState', 'FragmentPath', 'DropInPaths', 'NeedDaemonReloa
               'Result', 'Job', 'KillMode', 'Delegate', 'Restart', 'UnitFileState')
 
 
-def listeners():
+def listeners(port=PORT):
     result = []
     for family in ('tcp', 'tcp6'):
         for row in (Path('/proc/net') / family).read_text().splitlines()[1:]:
             fields = row.split()
             require(len(fields) >= 10, ErrorCode.INVALID_STATE)
-            if fields[3] == '0A' and int(fields[1].rsplit(':', 1)[1], 16) == PORT:
+            if fields[3] == '0A' and int(fields[1].rsplit(':', 1)[1], 16) == port:
                 result.append((family, fields[1], fields[9]))
     return result
 
 
-def free_port():
-    require(not listeners(), ErrorCode.MANUAL_ACTION_REQUIRED)
+def free_port(port=PORT):
+    require(not listeners(port), ErrorCode.MANUAL_ACTION_REQUIRED)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         # Match Apache's reuse policy without accepting an existing listener.
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(('127.0.0.1', PORT))
+        sock.bind(('127.0.0.1', port))
 
 
 class FoundationRuntime:
-    def __init__(self, activation, identity, *, public_origin=None):
+    def __init__(self, activation, identity, *, public_origin=None, environment="main", dev=None):
+        require(environment in ("main", "dev"), ErrorCode.INVALID_DATA)
+        self.environment, self.port = environment, (9082 if environment == "main" else 9081)
         self.activation = activation
         self.web = activation.runtime
-        require(self.web.spec.port == 9080 and self.web.spec.external_uploads
+        require(self.web.spec.port == (9080 if environment == "main" else 9084) and self.web.spec.external_uploads
                 and self.web.spec.maintenance_directory is not None, ErrorCode.INCOMPATIBLE_STATE)
-        require(identity == public_identity('main', identity['public_jwk']), ErrorCode.INCOMPATIBLE_STATE)
+        require(identity == public_identity(environment, identity['public_jwk']), ErrorCode.INCOMPATIBLE_STATE)
         self.identity = identity
-        if self.web.spec.source_commit == mobile.COMMIT:
+        self.dev = None
+        if dev is not None:
+            require(environment == 'main', ErrorCode.INCOMPATIBLE_STATE)
+            from installer.dev_target import DevTarget
+            require(type(dev) is dict and set(dev) == {'target', 'identity'}, ErrorCode.INVALID_STATE)
+            target = DevTarget(dev['target']).separate(self.web)
+            require(identity['thumbprint'] != dev['identity']['thumbprint'], ErrorCode.INCOMPATIBLE_STATE)
+            self.dev = FoundationRuntime(target.activation, dev['identity'], environment='dev')
+            self.dev.target = target
+        if self.web.spec.source_commit == mobile.COMMIT and environment == 'main':
             self.public_origin = validate_origin(public_origin)
         else:
             require(public_origin is None, ErrorCode.INCOMPATIBLE_STATE)
@@ -86,7 +97,7 @@ class FoundationRuntime:
         require(hashlib.sha1(b'blob ' + str(len(template)).encode() + b'\0' + template).hexdigest()
                 == 'cbc20981ebf4030faaac1ed62c5fb58161492919', ErrorCode.SOURCE_DRIFT)
         vhost = template.decode()
-        for key, value in {'HESTIA_INTERNAL_MOBILE_PORT': str(PORT), 'HESTIA_WEB_ROOT': str(self.web.spec.webroot),
+        for key, value in {'HESTIA_INTERNAL_MOBILE_PORT': str(self.port), 'HESTIA_WEB_ROOT': str(self.web.spec.webroot),
             'HESTIA_MOBILE_CONFIG': str(self.root / 'main.json'),
             'HESTIA_PHP_FPM_SOCKET': str(self.web.spec.root / 'run/php.sock'), 'APACHE_LOG_DIR': str(self.root / 'log')}.items():
             vhost = vhost.replace('${' + key + '}', value)
@@ -104,7 +115,7 @@ class FoundationRuntime:
             'LogLevel warn\nRequestReadTimeout header=3-5,MinRate=500 body=3-5,MinRate=500\n'
             '<Directory />\nAllowOverride None\nRequire all denied\n</Directory>\n' + vhost)
         unit = f'''[Unit]
-Description=HESTIA private MAIN Foundation
+Description=HESTIA private {self.environment.upper()} Foundation
 After={self.web.unit('php')}
 ConditionPathExists=!{self.web.spec.maintenance_directory}/maintenance.attempt
 [Service]
@@ -125,12 +136,17 @@ ReadWritePaths={self.root}/run {self.root}/log
 CapabilityBoundingSet=CAP_SETUID CAP_SETGID
 RestrictAddressFamilies=AF_UNIX AF_INET
 '''
-        config = {'environment': 'main', 'gateway_keys': {self.identity['kid']: self.identity['public_jwk']},
-                  'canonical_contexts': True, 'canonical_distribution': True}
+        config = {'environment': 'main' if self.environment == 'main' else 'dev-bastien',
+                  'gateway_keys': {self.identity['kid']: self.identity['public_jwk']}, 'canonical_contexts': True}
+        if self.environment == 'main': config['canonical_distribution'] = True
+        if self.dev is not None: config['canonical_debug_subjects'] = self.dev.target.value['debug_subjects']
         if self.public_origin is not None:
             config.update(public_origin=self.public_origin, gateway_port=9083)
-        return {self.root / 'apache.conf': apache.encode(), self.root / 'main.json': canonical_bytes(config),
-                self.fragment: unit.encode()}
+        files = {self.root / 'apache.conf': apache.encode(), self.root / 'main.json': canonical_bytes(config),
+                 self.fragment: unit.encode()}
+        if self.dev is not None:
+            files[self.root / 'dev-target.json'] = canonical_bytes({'target': self.dev.target.value, 'identity': self.dev.identity})
+        return files
 
     def host(self):
         self.activation.configuration()
@@ -154,7 +170,7 @@ RestrictAddressFamilies=AF_UNIX AF_INET
         require(value['LoadState'] == 'not-found' and value['FragmentPath'] == ''
                 and value['MainPID'] == value['ControlPID'] == '0' and value['Job'] == ''
                 and value['DropInPaths'] == '' and drain._empty_cgroup(self.unit), ErrorCode.MANUAL_ACTION_REQUIRED)
-        free_port()
+        free_port(self.port)
 
     def stage(self):
         self.absent(); account = self.host(); gid = account.pw_gid
@@ -185,7 +201,7 @@ RestrictAddressFamilies=AF_UNIX AF_INET
                 expected = (0, 0, 0o700) if path.name == 'control' else (0, gid, 0o750)
                 require((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == expected, ErrorCode.SOURCE_DRIFT)
                 if path == self.root:
-                    require(set(os.listdir(fd)) == {'run', 'log', 'control', 'apache.conf', 'main.json', 'staged.json'}, ErrorCode.SOURCE_DRIFT)
+                    require(set(os.listdir(fd)) == {'run', 'log', 'control', 'apache.conf', 'main.json', 'staged.json'} | ({'dev-target.json'} if self.dev is not None else set()), ErrorCode.SOURCE_DRIFT)
                     require(h.f._read(fd, 'staged.json', 0, mode=0o600) == canonical_bytes(self.manifest(gid)), ErrorCode.SOURCE_DRIFT)
         for path, raw in self.files(gid).items():
             with h.fs._directory(path.parent) as fd:
@@ -202,7 +218,7 @@ RestrictAddressFamilies=AF_UNIX AF_INET
         value = self.inspect()
         require(value['ActiveState'] == 'inactive' and value['SubState'] == 'dead'
                 and value['MainPID'] == '0' and drain._empty_cgroup(self.unit), ErrorCode.MANUAL_ACTION_REQUIRED)
-        free_port()
+        free_port(self.port)
 
     def owned(self, *, serving=True):
         require(type(serving) is bool, ErrorCode.INVALID_DATA)
@@ -221,8 +237,8 @@ RestrictAddressFamilies=AF_UNIX AF_INET
                     and (proc / 'cmdline').read_bytes().split(b'\0') == [b'/usr/sbin/apache2', b'-DFOREGROUND', b'-f', str(self.root / 'apache.conf').encode(), b'']
                     and (proc / 'cgroup').read_text().splitlines() == ['0::/system.slice/' + self.unit], ErrorCode.VALIDATION_FAILED)
             sockets = {os.readlink(fd) for fd in (proc / 'fd').iterdir()}
-            rows = listeners()
-            require(len(rows) == 1 and rows[0][:2] == ('tcp', f'0100007F:{PORT:04X}')
+            rows = listeners(self.port)
+            require(len(rows) == 1 and rows[0][:2] == ('tcp', f'0100007F:{self.port:04X}')
                     and 'socket:[' + rows[0][2] + ']' in sockets, ErrorCode.VALIDATION_FAILED)
             require(start == (proc / 'stat').read_text().rsplit(')', 1)[1].split()[19]
                     and self.show()['MainPID'] == value['MainPID'], ErrorCode.VALIDATION_FAILED)

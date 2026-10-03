@@ -49,7 +49,7 @@ class GatewayServiceRuntime:
     @classmethod
     def from_binding(cls, foundation, binding):
         profile = GatewayServiceProfile.from_binding(foundation, binding)
-        return cls(foundation, profile.identity, profile.key_directory,
+        return cls(profile.foundation, profile.identity, profile.key_directory,
                    release_commit=profile.selected_release['commit'], push=profile.push)
 
     def key_binding(self):
@@ -58,12 +58,15 @@ class GatewayServiceRuntime:
                 and report['receipt'] is not None
                 and report['receipt']['identities']['main'] == self.profile.main, ErrorCode.SOURCE_DRIFT)
         self.keys.verify()
+        if self.profile.dev is not None:
+            require(report['receipt']['identities'].get('dev') == self.profile.dev.identity, ErrorCode.SOURCE_DRIFT)
         if self.profile.push is not None:
             report = FcmCredentials(self.profile.key_directory.parent / 'fcm').verify()
             require(public_binding(report['profile'], report['receipt']) == self.profile.push, ErrorCode.SOURCE_DRIFT)
 
     def preflight(self):
         self.foundation.owned(); self.key_binding()
+        if self.profile.dev is not None: self.profile.dev.target.serving(); self.profile.dev.owned()
         with h.fs._directory(self.root.parent) as fd: h.fs._absent(fd, self.root.name)
         with h.fs._directory(drain.UNIT_ROOT) as fd:
             h.fs._absent(fd, self.unit); h.fs._absent(fd, self.unit + '.d')
@@ -81,6 +84,9 @@ class GatewayServiceRuntime:
         account = self.profile.account.account(); web = h._identity(self.web.spec.service_user)
         require(account.pw_uid != web.pw_uid and account.pw_gid != web.pw_gid,
                 ErrorCode.INCOMPATIBLE_STATE)
+        if self.profile.dev is not None:
+            dev = h._identity(self.profile.dev.web.spec.service_user)
+            require(account.pw_uid != dev.pw_uid and account.pw_gid != dev.pw_gid, ErrorCode.INCOMPATIBLE_STATE)
         return account
 
     def files(self):
@@ -168,6 +174,8 @@ class GatewayServiceRuntime:
 
     def inspect(self):
         self.foundation.inspect(); self.key_binding(); account = self.account()
+        if self.profile.dev is not None:
+            self.profile.dev.target.inspect(); self.profile.dev.inspect()
         for path, expected in ((self.root, (0, account.pw_gid, 0o750)), (self.root / 'control', (0, 0, 0o700))):
             with h.fs._directory(path) as fd:
                 info = os.fstat(fd)
