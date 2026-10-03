@@ -1,12 +1,14 @@
 """Only a sealed DEV permits a second SQL schema; old admission stays closed."""
 from copy import deepcopy
 from pathlib import Path
+import os
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
 
 from installer import dev_sql_peer as peer, sql_read_fence as fence
+from installer import coordinated_backup as backup
 from installer.dev_target import DevTarget
 from installer.model import InstallerError
 from dev_fixture import target_fixture
@@ -47,3 +49,46 @@ class DevSqlPeerTests(unittest.TestCase):
                 with self.assertRaises(fence.SqlReadFenceError):
                     with fence.acquire(None,None,self.database,None,None,peer_database=value):pass
             start.assert_not_called()
+
+
+class PairedBackupGuardTests(unittest.TestCase):
+    def setUp(self):
+        self.barrier = object.__new__(backup.hd.HttpDrainLease)
+        self.barrier._lease = SimpleNamespace(_directory=17)
+        self.web = object.__new__(backup.wf.WebFence)
+        self.web._barrier = self.barrier
+        self.web._pid, self.web._closed = os.getpid(), False
+        self.web._root, self.web._raw = 19, b'bound-native-journal'
+        self.http = self.enterContext(patch.object(backup.hd.HttpDrainLease, 'assert_held'))
+        self.enterContext(patch.object(backup.wf.fs, '_absent'))
+        self.load = self.enterContext(patch.object(backup.wf, '_load',
+            return_value=(self.web._raw, None, [{'flags': backup.wf.inode.IMMUTABLE}])))
+
+    def test_every_check_rechecks_http_and_rejects_later_inode_drift(self):
+        backup._paired_web_held(self.barrier, self.web)
+        self.load.return_value = (self.web._raw, None, [{'flags': 0}])
+        with self.assertRaisesRegex(backup.wf.WebFenceError, 'WEB_FENCE_CHANGED'):
+            backup._paired_web_held(self.barrier, self.web)
+        self.assertEqual(self.http.call_count, 2)
+        self.assertEqual(self.load.call_count, 2)
+
+    def test_http_drift_still_refuses_before_inode_observation(self):
+        self.http.side_effect = backup.hd.HttpDrainError('HTTP_DRAIN_PROFILE_CHANGED')
+        with self.assertRaisesRegex(backup.wf.WebFenceError, 'WEB_FENCE_UNAVAILABLE'):
+            backup._paired_web_held(self.barrier, self.web)
+        self.load.assert_not_called()
+
+    def test_foreign_barrier_or_caller_wrapper_cannot_replace_native_guard(self):
+        other = object.__new__(backup.hd.HttpDrainLease)
+        for barrier, web in ((other, self.web), (self.barrier, SimpleNamespace(
+                _barrier=self.barrier, assert_held=lambda: None))):
+            with self.assertRaisesRegex(backup.CoordinatedBackupError, 'COORDINATED_SERVICE_BARRIER_REQUIRED'):
+                backup._paired_web_held(barrier, web)
+        self.http.assert_not_called(); self.load.assert_not_called()
+
+    def test_closed_native_fence_never_reuses_an_earlier_pass(self):
+        backup._paired_web_held(self.barrier, self.web)
+        self.web._closed = True
+        with self.assertRaisesRegex(backup.wf.WebFenceError, 'WEB_FENCE_LEASE_REQUIRED'):
+            backup._paired_web_held(self.barrier, self.web)
+        self.assertEqual(self.http.call_count, 1)

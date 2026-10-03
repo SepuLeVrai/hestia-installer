@@ -62,11 +62,24 @@ def prove_sql_peer(*args, **kwargs):
                     assert str(error) == 'SQL_FENCE_SERVER_PROFILE_REJECTED'
             finally: sql.sql('DROP DATABASE hestia_unmanaged_peer')
         finally: service.close()
-    with READ_FENCE(*args, **kwargs) as held:
-        if first:
-            evidence.write_bytes(quality.encode({'registered_dev_admitted': True,
-                'foreign_third_schema_rejected': True, 'backup_scope': 'MAIN and Gateway only'}))
-        yield held
+    started = None
+    passed = False
+    try:
+        with READ_FENCE(*args, **kwargs) as held:
+            started = time.monotonic()
+            if first:
+                evidence.write_bytes(quality.encode({'registered_dev_admitted': True,
+                    'foreign_third_schema_rejected': True, 'backup_scope': 'MAIN and Gateway only'}))
+            yield held
+        passed = True
+    finally:
+        if started is not None:
+            path = EVIDENCE / 'dev-sql-windows.json'
+            windows = json.loads(path.read_bytes()) if path.exists() else []
+            windows.append({'seconds': round(time.monotonic() - started, 3), 'normal_release': passed})
+            path.write_bytes(quality.encode(windows))
+            print('DEV_SQL_WINDOW ' + json.dumps(windows[-1]), flush=True)
+    assert windows[-1]['normal_release'] and windows[-1]['seconds'] < 180
 
 
 def prepare_target(main):

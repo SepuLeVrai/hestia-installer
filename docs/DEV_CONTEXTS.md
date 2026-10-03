@@ -74,7 +74,7 @@ Le consentement au verrou global s'applique aussi à la suspension temporaire de
 
 ## Qualification et limites
 
-Le candidat ajoute 28 contrats locaux et un parcours Chromium HTTPS de sélection,
+Le candidat ajoute 32 contrats locaux et un parcours Chromium HTTPS de sélection,
 annulation, application et refresh. La recette composée utilise deux véritables
 bases SQL et le binaire Gateway exact ; elle conserve aussi sauvegarde,
 préparation, activation, FCM, QR, ACME privé et nouveau PID 1 du lot précédent.
@@ -89,6 +89,23 @@ historique exigeait une seule base. Le correctif conserve cette règle historiqu
 et ajoute un protocole v2 limité au DEV effectivement scellé. La recette corrigée
 doit prouver à la fois l'admission de cette paire et le refus d'un troisième
 schéma réel ; aucune suppression du contrôle ni exemption générale n'est ajoutée.
+
+Le gel `df4aaf1` passe ensuite les trois CI Installer (4 144 tests, 32 manifestes,
+501 fichiers). Le run natif `37160502888` prouve l'admission des deux bases et le
+refus réel d'une troisième, puis retourne `GATEWAY_BACKUP_WEB_INCOMPLETE`.
+L'artefact `11288150453` est conservé ; un diagnostic séparé sur les mêmes sources
+(`37161938912`) ne journalise que des codes fermés, sans variables ni secrets.
+
+Le candidat suivant évite une vérification HTTP redondante dans les checkpoints
+de sauvegarde avec DEV : le `WebFence` natif, lié par identité à la même barrière,
+revérifie déjà cette barrière puis ses propres inodes. Ce contrôle complet est
+exécuté à chaque checkpoint, sans cache ni observation persistée. Les autres
+fences restent contrôlés et le parcours historique sans DEV reste inchangé.
+Quatre contrats supplémentaires refusent une barrière étrangère, un wrapper,
+une barrière HTTP altérée, des inodes modifiés et une fence fermée.
+La recette enregistre chaque fenêtre SQL et exige une libération normale en
+moins de 180 secondes ; ni le délai natif ni le nombre de contrôles SQL ne sont
+augmentés. Ce candidat reste à qualifier sur les moteurs natifs.
 
 Le banc provisionne sa cible DEV séparément au port fixe avec le moteur Web
 qualifié. Ce montage de recette ne constitue pas un assistant fresh DEV produit.

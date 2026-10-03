@@ -21,6 +21,15 @@ bases (`SQL_FENCE_SERVER_PROFILE_REJECTED`). Un protocole SQL v2 admet désormai
 la seule base DEV scellée, avec refus conservé des bases étrangères et preuve
 native négative ajoutée. Le nouveau gel reste à qualifier.
 
+Le gel SQL `df4aaf1` passe les trois CI : 4 144 tests et 32 manifestes sur 501
+fichiers. La recette `37160502888` prouve le garde SQL de la paire, mais échoue
+ensuite sur une sauvegarde composée incomplète. Le diagnostic natif ciblé reste
+en cours. Le candidat courant élimine le double contrôle de la même barrière
+HTTP uniquement dans la sauvegarde avec DEV, en conservant le contrôle natif
+complet à chaque checkpoint et la limite SQL de 180 secondes. Quatre contrats
+supplémentaires et une mesure native de chaque fenêtre accompagnent ce changement.
+Le lot #16 reste ouvert et le ZIP qualifié reste à produire.
+
 # Reprise par lots de finition - 3 octobre 2026
 
 La composition Web Mobile v2 est PASS dans la recette `37141785730`.

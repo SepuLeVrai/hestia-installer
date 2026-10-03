@@ -97,6 +97,17 @@ def _files_unchanged(snapshot, lease, cancel):
         raise CoordinatedBackupError('COORDINATED_FILES_CHANGED') from None
 
 
+def _paired_web_held(barrier, web):
+    """One fresh, complete check through the exact native Web fence.
+
+    Its assert_held() always checks its own HTTP barrier before its inodes.
+    No prior observation, caller-supplied wrapper, or foreign barrier qualifies.
+    """
+    require(type(barrier) is hd.HttpDrainLease and type(web) is wf.WebFence
+            and web._barrier is barrier, 'COORDINATED_SERVICE_BARRIER_REQUIRED')
+    web.assert_held()
+
+
 class CoordinatedBackup:
     def __init__(self, runtime: p.PhpRuntime, source: Path, *, repository: str, commit: str):
         require(repository == p.WEB_REPOSITORY, 'SOURCE_PIN_MISMATCH')
@@ -117,12 +128,15 @@ class CoordinatedBackup:
         configuration_fence = None
         web_fence = None
         external_fence = None
+        peer = None
         def held():
             _held(maintenance)
+            paired_web = peer is not None and web_fence is not None
             if service_barrier is not None:
                 require(type(service_barrier) is hd.HttpDrainLease and service_barrier._lease is maintenance,
                         'COORDINATED_SERVICE_BARRIER_REQUIRED')
-                service_barrier.assert_held()
+                if paired_web: _paired_web_held(service_barrier, web_fence)
+                else: service_barrier.assert_held()
                 require(type(scheduler_observation) is sa.SchedulerObservation,
                         'COORDINATED_SCHEDULER_OBSERVATION_REQUIRED')
                 scheduler_observation.assert_held()
@@ -139,7 +153,7 @@ class CoordinatedBackup:
             if fence is not None: fence.assert_held()
             if configuration is not None: configuration.assert_held()
             if configuration_fence is not None: configuration_fence.assert_held()
-            if web_fence is not None: web_fence.assert_held()
+            if web_fence is not None and not paired_web: web_fence.assert_held()
             if external_fence is not None: external_fence.assert_held()
         try:
             require(confirmed is True and allow_global_read_lock is True, 'COORDINATED_CONSENT_REQUIRED')
