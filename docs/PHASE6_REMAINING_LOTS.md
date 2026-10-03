@@ -39,5 +39,17 @@ L'autorisation Google et la réception téléphone restent des preuves externes
 distinctes. Le compte synthétique ne permet pas de les déclarer PASS.
 
 Une seule campagne utile par gel ; les preuves historiques sont conservées.
+
+Le premier correctif `6af8b12` a passé les 32 tests bridge. Le test natif FCM
+enchaînait trop tôt après la fermeture du dialogue : l'état attendu restait
+inchangé pendant le refus asynchrone, et le formulaire pouvait être recréé après
+la sélection du fichier suivant. Le scénario attend désormais la réponse 409
+et son message avant de poursuivre. Les fichiers vides et supérieurs à 16 Kio
+doivent être refusés sans dialogue ni requête d'import supplémentaire.
+
+Une tentative système Debian 13 a refusé une population systemd modifiée pendant
+la lecture (`DISCOVERY_CHANGED_DURING_READ`). Sa preuve est conservée ; seul ce
+job est relancé sur le même commit, sans changer le garde ni ses assertions.
+
 Voir [le contrat FCM](FCM_PRIVATE_IMPORT.md) et
 [les acquis de composition](PHASE6_COMPLETION.md).

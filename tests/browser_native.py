@@ -58,14 +58,21 @@ class NativeBrowserTests(legacy.BrowserWizardTests):
         self.page.locator('#fcm-credential').set_input_files({**upload, 'buffer': json.dumps(value).encode()})
         self.page.wait_for_timeout(1750)
         self.assertEqual(self.page.locator('#fcm-credential').evaluate('(node) => node.files.length'), 1)
-        self.page.locator('#import-fcm').click(); self.dialog()
+        self.page.locator('#import-fcm').click()
+        with self.page.expect_response(lambda response: response.url.endswith('/api/gateway/fcm/import')) as rejected:
+            self.dialog()
+        self.assertEqual(rejected.value.status, 409)
+        expect(self.page.locator('#wizard-message')).to_contain_text('Les contrôles ne sont pas tous validés')
         expect(self.page.locator('#wizard-form')).to_have_attribute('aria-busy', 'false')
         expect(self.page.locator('#fcm-state')).to_have_attribute('data-state', 'AWAITING_IMPORT')
         self.assertFalse((self.service.fcm.store.root / 'server.json').exists())
-        self.page.locator('#fcm-credential').set_input_files({**upload, 'buffer': b'x' * 16385})
-        self.page.locator('#import-fcm').click()
-        expect(self.page.locator('#operation-dialog')).not_to_be_visible()
-        expect(self.page.locator('#wizard-message')).to_contain_text('16 Kio')
+        imports = sum(path.endswith('/api/gateway/fcm/import') for path in self.paths)
+        for size in (0, 16385):
+            self.page.locator('#fcm-credential').set_input_files({**upload, 'buffer': b'x' * size})
+            self.page.locator('#import-fcm').click()
+            expect(self.page.locator('#operation-dialog')).not_to_be_visible()
+            expect(self.page.locator('#wizard-message')).to_contain_text('16 Kio')
+            self.assertEqual(sum(path.endswith('/api/gateway/fcm/import') for path in self.paths), imports)
 
     def setUp(self):
         test_httpd.HTTPSBootstrapTests.setUp(self)
