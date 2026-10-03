@@ -110,7 +110,7 @@ class MobilePreparationPlan:
             require(type(credentials) is dict and set(credentials) == CREDENTIALS, ErrorCode.SECRET_REQUIRED)
             validate_credentials(credentials)
             require(payload['allow_global_read_lock'] is True, ErrorCode.CONFIRMATION_REQUIRED)
-            fresh = FreshProfile(profile['instance']); draft = self.application.read()
+            draft = self.application.read(); fresh = FreshProfile.from_draft(draft)
             self.last_error = None
             try:
                 http = fresh.http(draft['configuration']); account, _, _, _ = http._inspect_configuration(); scope = http._scope(account)
@@ -121,7 +121,7 @@ class MobilePreparationPlan:
                 value['secrets'] = {'database_password': credentials['database_password'], 'admin_password': '', 'openai_api_key': ''}
                 authority = SqlAuthorityCredentials(credentials['authority_user'], credentials['authority_password'])
                 source = AcquireOperation(self.parent.journal.path.parent, 'web',
-                    SourceSpec(WEB_REPOSITORY, STORAGE_COMMIT, STORAGE_COMMIT), None).path / 'tree'
+                    SourceSpec(WEB_REPOSITORY, fresh.source_commit, fresh.source_commit), None).path / 'tree'
                 native = NativePreparation(http, scope, profile['lease_id'], self.backup.backups(profile),
                     replace(fresh.runtime(), timeout_seconds=120), source, value, authority)
                 if approved is None: self._write('approved.json', {'confirmation': digest(profile)})

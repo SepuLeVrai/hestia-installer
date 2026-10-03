@@ -215,9 +215,10 @@ def acquire(plan, barrier, gateway, runtime, source, payload, authority, confirm
             gid, web, directory, conf, webfd, inc = f._open(runtime, config, lease.scope.directory.parent.parent, stack)
             require(directory == lease.scope.directory.parent and gid == lease.scope.web_gid
                 and web == plan.runtime.spec.webroot, 'MOBILE_DATA_INSTANCE_MISMATCH')
-            current = f.FinalizationStep(runtime, source, repository=p.WEB_REPOSITORY, commit=a.STORAGE_COMMIT)
+            commit = plan.runtime.source_commit
+            current = f.FinalizationStep(runtime, source, repository=p.WEB_REPOSITORY, commit=commit)
             database, loader, ca = f._prepared(config, value, directory, conf, gid)
-            completed = f._completed(conf, webfd, inc, gid, commit=a.STORAGE_COMMIT)
+            completed = f._completed(conf, webfd, inc, gid, commit=commit)
             require(database['host'] == '127.0.0.1' and database['tls_required'] is False and ca is None
                 and f._json_read(conf, 'state.json', gid)['migration_retained'] is False,
                 'MOBILE_DATA_PROFILE_REJECTED')
@@ -226,7 +227,7 @@ def acquire(plan, barrier, gateway, runtime, source, payload, authority, confirm
             def envelope():
                 current._sources(web); current._pending_edits(conf)
                 require(f._prepared(config, value, directory, conf, gid) == (database, loader, ca)
-                    and f._completed(conf, webfd, inc, gid, commit=a.STORAGE_COMMIT) == completed,
+                    and f._completed(conf, webfd, inc, gid, commit=commit) == completed,
                     'MOBILE_DATA_ENVELOPE_CHANGED')
             schedulers = stack.enter_context(a.sa.acquire())
             with control.external._configuration() as locked:
@@ -247,9 +248,9 @@ def acquire(plan, barrier, gateway, runtime, source, payload, authority, confirm
                     'web_backup_sha256': control.profile()['web_backup']['manifest_sha256']}
                 files._new(slotfd, 'attempt.json', p._json({'state': 'DATA_ADMISSION_STARTED', 'action': action,
                     'partial_chmod_explicitly_reclosed': reclosed, **binding}))
-                with a.c.rf.acquire(runtime, source, database, ca, authority, cancel=cancel) as fence:
+                with a.c.rf.acquire(runtime, source, database, ca, authority, cancel=cancel, commit=commit) as fence:
                     fence.assert_held()
-                    recheck = a.c._recheck(runtime, source, database, ca, authority, slot, archives.sql, cancel)
+                    recheck = a.c._recheck(runtime, source, database, ca, authority, slot, archives.sql, cancel, commit=commit)
                     fence.assert_held(); schedulers.assert_held(); control.live(locked=locked)
                     archives.expected = _transition_envelope(archives, control)
                     envelope(); archives.check(); locked.assert_held(); fence.assert_held()

@@ -59,9 +59,10 @@ def _release(state,native,barrier,runtime,source,payload,authority,record,cancel
         with ExitStack() as stack:
             gid,web,directory,conf,webfd,inc=f._open(runtime,config,lease.scope.directory.parent.parent,stack)
             require(directory==lease.scope.directory.parent and gid==lease.scope.web_gid and web==native.http.spec.webroot)
-            current=f.FinalizationStep(runtime,source,repository=p.WEB_REPOSITORY,commit=a.STORAGE_COMMIT)
+            commit = native.http.source_commit
+            current=f.FinalizationStep(runtime,source,repository=p.WEB_REPOSITORY,commit=commit)
             database,loader,ca=f._prepared(config,value,directory,conf,gid)
-            completed=f._completed(conf,webfd,inc,gid,commit=a.STORAGE_COMMIT)
+            completed=f._completed(conf,webfd,inc,gid,commit=commit)
             require(database['host']=='127.0.0.1' and database['tls_required'] is False and ca is None
                 and f._json_read(conf,'state.json',gid)['migration_retained'] is False,
                 'MOBILE_ACTIVATION_PROFILE_REJECTED')
@@ -70,7 +71,7 @@ def _release(state,native,barrier,runtime,source,payload,authority,record,cancel
             def envelope():
                 current._sources(web);current._pending_edits(conf)
                 require(f._prepared(config,value,directory,conf,gid)==(database,loader,ca)
-                    and f._completed(conf,webfd,inc,gid,commit=a.STORAGE_COMMIT)==completed)
+                    and f._completed(conf,webfd,inc,gid,commit=commit)==completed)
             schedulers=stack.enter_context(a.sa.acquire())
             # Same real native file locks/checker as the old lease wrapper.
             # Only the final coordinator retains these locks across gate release.
@@ -85,8 +86,8 @@ def _release(state,native,barrier,runtime,source,payload,authority,record,cancel
                 binding={'version':1,'instance':lease.scope.instance,'lease_id':lease.lease_id,
                     'resume_plan_sha256':state.confirmation,'observation_id':name}
                 files._new(slotfd,'attempt.json',p._json({'state':'FINAL_ADMISSION_STARTED',**binding}))
-                with a.c.rf.acquire(runtime,source,database,ca,authority,cancel=cancel) as fence:
-                    recheck=a.c._recheck(runtime,source,database,ca,authority,slot,archives.sql,cancel)
+                with a.c.rf.acquire(runtime,source,database,ca,authority,cancel=cancel,commit=commit) as fence:
+                    recheck=a.c._recheck(runtime,source,database,ca,authority,slot,archives.sql,cancel,commit=commit)
                     window=ActivationWindow(control,fence,schedulers,locked,check_files,archives,envelope,record)
                     window.assert_held()
                     if record is None:record=t.ActivationRecord.begin(window,native);window.record=record

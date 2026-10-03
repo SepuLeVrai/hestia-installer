@@ -12,6 +12,7 @@ import re
 from installer.model import strict_json_loads
 from installer.storage_inventory import StorageRequirements, PRODUCERS
 from installer.web_releases import STORAGE_COMMIT, get_release
+from installer import mobile_web_source as mobile
 
 CHANNELS = ('systemd_system', 'systemd_user', 'cron_system', 'cron_users', 'queued_jobs', 'external_launchers')
 COVERAGE_STATES = ('unknown', 'unreadable', 'partial', 'observed')
@@ -155,7 +156,7 @@ class LauncherRequirements:
 def _target(value):
     require(type(value) is LauncherTarget)
     require(type(value.instance) is str and re.fullmatch('[a-f0-9]{32}', value.instance) is not None)
-    require(value.source_commit == STORAGE_COMMIT and type(value.source_commit) is str, 'LAUNCHER_SOURCE_MISMATCH')
+    require(type(value.source_commit) is str and value.source_commit in (STORAGE_COMMIT, mobile.COMMIT), 'LAUNCHER_SOURCE_MISMATCH')
     release = get_release(value.source_commit)
     require(type(value.source_tree) is str and value.source_tree == release.tree, 'LAUNCHER_SOURCE_MISMATCH')
     web, conf, gate = (_path(v) for v in (value.webroot, value.configuration, value.maintenance))

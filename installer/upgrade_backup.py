@@ -189,8 +189,8 @@ def _tail(path: Path, size: int = 8192) -> dict:
     return strict_json_loads(lines[-1])
 
 
-def _worker_stage(runtime: p.PhpRuntime, source: Path, stage: Path, ca: bytes | None) -> None:
-    p._copy_bundle(source,stage,runtime.worker_gid,f.ENGINE_FILES,f.ENGINE_SHA256,'backup_bridge.php')
+def _worker_stage(runtime: p.PhpRuntime, source: Path, stage: Path, ca: bytes | None, *, commit=f.WEB_COMMIT) -> None:
+    p._copy_bundle(source,stage,runtime.worker_gid,f.ENGINE_FILES,f.engine_digest(commit),'backup_bridge.php')
     with fs._directory(stage) as fd:
         f._write(fd,'sql_accounts_policy.php',p._read_file(Path(__file__).parent/'private/sql_accounts_policy.php'),runtime.worker_gid)
         f._write(fd,'trigger_definer.php',p._read_file(Path(__file__).parent/'private/trigger_definer.php'),runtime.worker_gid)
@@ -198,10 +198,10 @@ def _worker_stage(runtime: p.PhpRuntime, source: Path, stage: Path, ca: bytes | 
             f._write(fd,'ca.pem',ca,runtime.worker_gid)
 
 
-def _restore(runtime: p.PhpRuntime, source: Path, slot: Path, request_id: str, sha256: str, cancel=None, *, rescue: bool = False) -> dict:
+def _restore(runtime: p.PhpRuntime, source: Path, slot: Path, request_id: str, sha256: str, cancel=None, *, rescue: bool = False, commit=f.WEB_COMMIT) -> dict:
     with tempfile.TemporaryDirectory(prefix='bv-', dir=runtime.run_root) as tmp:
         stage = Path(tmp)
-        _worker_stage(runtime,source,stage,None)
+        _worker_stage(runtime,source,stage,None,commit=commit)
         target = stage/'database.ndjson'
         # Independent COPY, never a link to the durable archive or to the source DB.
         shutil.copyfile(slot/'database.ndjson',target)
@@ -339,7 +339,7 @@ class UpgradeBackup:
                 _new_file(slot/'fresh.attempt',journal)
                 with tempfile.TemporaryDirectory(prefix='be-',dir=self.runtime.run_root) as tmp:
                     stage=Path(tmp)
-                    _worker_stage(self.runtime,self.source,stage,ca)
+                    _worker_stage(self.runtime,self.source,stage,ca,commit=self.release.commit)
                     target={k:database[k] for k in ('host','port','name','tls_required','tls_ca_file','tls_ca_sha256')}
                     if ca is not None:
                         target['tls_ca_file']=str(stage/'ca.pem')
@@ -377,8 +377,8 @@ class UpgradeBackup:
                 restored_journal,_=_file(slot/'journal-restore-check')
                 require(hmac.compare_digest(restored_journal,journal),'BACKUP_FILE_RESTORE_MISMATCH')
                 (slot/'journal-restore-check').unlink()
-                verified=(_restore(self.runtime,self.source,slot,run_id,sql_sha,cancel) if orphan is None
-                    else _restore(self.runtime,self.source,slot,run_id,sql_sha,cancel,rescue=True))
+                verified=(_restore(self.runtime,self.source,slot,run_id,sql_sha,cancel,commit=self.release.commit) if orphan is None
+                    else _restore(self.runtime,self.source,slot,run_id,sql_sha,cancel,rescue=True,commit=self.release.commit))
                 require(verified['logical_sha256']==last['logical_sha256'] and verified['tables']==last['tables']
                     and verified['rows']==last['rows'] and _hash(slot/'database.ndjson')==sql_sha,'BACKUP_RESTORE_MISMATCH')
                 require(cancel is None or not cancel.is_set(),'BACKUP_INTERRUPTED')

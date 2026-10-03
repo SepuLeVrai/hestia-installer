@@ -24,6 +24,7 @@ from installer.operations import Operation, OperationContext, OperationRegistry,
 from installer.service_identity import ServiceIdentity, ServiceIdentityOperation
 from installer.transaction import _FILE_FLAGS, _check_file, _private_directory
 from installer.web_releases import STORAGE_COMMIT
+from installer import mobile_web_source as mobile
 
 FILENAME = 'application.json'
 LIMIT = 16384
@@ -41,8 +42,8 @@ def _read(fd):
         value = strict_json_loads(raw)
         require(canonical_bytes(value) == raw, ErrorCode.INVALID_STATE)
         exact_keys(value, {'version', 'revision', 'instance', 'configuration'})
-        integer(value['version'], 1, 1); integer(value['revision'], 1, 1000000)
-        profile = FreshProfile(value['instance'])
+        integer(value['version'], 1, 2); integer(value['revision'], 1, 1000000)
+        profile = FreshProfile.from_draft(value)
         inputs = a.WebInputs(value['configuration'])
         config = inputs.configuration
         require(config['mode'] == 'fresh' and config['web'] == profile.web(config['web']['hostname'])
@@ -84,8 +85,11 @@ def validate_credentials(values):
 
 class FreshProfile:
     """Versioned server-owned layout, independent of mutable host account IDs."""
-    def __init__(self, instance):
+    def __init__(self, instance, version=1):
         require(type(instance) is str and re.fullmatch(r'[a-f0-9]{32}', instance) is not None)
+        integer(version, 1, 2)
+        self.version = version
+        self.source_commit = mobile.COMMIT if version == 2 else STORAGE_COMMIT
         self.instance = instance
         self.identity = ServiceIdentity(instance)
         self.worker = ServiceIdentity(a.digest(['php-worker', instance])[:32])
@@ -93,6 +97,10 @@ class FreshProfile:
         self.config_root = Path('/var/lib/hst-config-' + instance)
         self.webroot = Path('/srv/hst-' + instance)
         self.port = 9080
+
+    @classmethod
+    def from_draft(cls, draft):
+        return cls(draft['instance'], draft['version'])
 
     def web(self, hostname):
         return {'hostname': hostname, 'webroot': str(self.webroot), 'service_user': self.identity.user}
@@ -108,7 +116,8 @@ class FreshProfile:
         return h.HttpRuntime(h.RuntimeSpec(self.instance, self.root / 'http', self.webroot,
             self.identity.user, configuration['web']['hostname'], self.port, '8.4',
             ProxyIngress('127.0.0.2', ('127.0.0.1/32',)), external_uploads=True,
-            maintenance_directory=self.config_root / db.fs.configuration_slot(configuration) / 'maintenance'))
+            maintenance_directory=self.config_root / db.fs.configuration_slot(configuration) / 'maintenance',
+            source_commit=self.source_commit if self.version == 2 else None))
 
 
 class HostPrerequisites(Operation):
@@ -205,8 +214,8 @@ class BoundFactory(Operation):
 
 
 def composition(engine, github, draft):
-    profile = FreshProfile(draft['instance']); inputs = a.WebInputs(draft['configuration'])
-    source = SourceSpec(db.p.WEB_REPOSITORY, STORAGE_COMMIT, STORAGE_COMMIT)
+    profile = FreshProfile.from_draft(draft); inputs = a.WebInputs(draft['configuration'])
+    source = SourceSpec(db.p.WEB_REPOSITORY, profile.source_commit, profile.source_commit)
     acquire = AcquireOperation(engine.journal.path.parent, 'web', source, github.access)
     source_root = acquire.path / 'tree'
     acquire.spec = replace(acquire.spec, dependencies=('web.host-profile',))
@@ -217,15 +226,15 @@ def composition(engine, github, draft):
                           action='Créer le worker PHP séparé du compte Web', dependencies=(identity.spec.name,))
     directories = ProfileDirectories(profile)
     deployment = deploy.WebDeploymentOperation(deploy.WebDeployment(deploy.DeploymentSpec(source_root,
-        profile.webroot, profile.root / 'deployment', commit=STORAGE_COMMIT)))
+        profile.webroot, profile.root / 'deployment', commit=profile.source_commit)))
     deployment.spec = replace(deployment.spec, dependencies=(directories.spec.name,), source=source)
     def database(*, planning):
         return a.DatabasePreparationOperation(db.DatabaseStep(profile.runtime(planning=planning), source_root,
-            repository=db.p.WEB_REPOSITORY, commit=db.WEB_COMMIT), inputs, config_root=profile.config_root,
+            repository=db.p.WEB_REPOSITORY, commit=mobile.COMMIT if profile.version == 2 else db.WEB_COMMIT), inputs, config_root=profile.config_root,
             dependencies=(deployment.spec.name,))
     def finalization(*, planning):
         return a.FinalizationOperation(f.FinalizationStep(profile.runtime(planning=planning), source_root,
-            repository=db.p.WEB_REPOSITORY, commit=STORAGE_COMMIT, instance=profile.instance), inputs,
+            repository=db.p.WEB_REPOSITORY, commit=profile.source_commit, instance=profile.instance), inputs,
             config_root=profile.config_root)
     http = profile.http(inputs.configuration)
     stage = h.HttpRuntimeOperation(http)
@@ -272,11 +281,13 @@ class ApplicationPlan:
         for name in sorted(names):
             try: self.engine.secrets.require(name)
             except InstallerError: missing.append(name.removeprefix('web.'))
-        return {'draft': draft, 'missing_credentials': missing, 'profile': 'fresh-storage-staged-v1',
+        return {'draft': draft, 'missing_credentials': missing,
+                'profile': 'fresh-mobile-staged-v2' if draft and draft['version'] == 2 else 'fresh-storage-staged-v1',
                 'application_installed': False, 'services_started': False}
 
     def save(self, payload):
-        exact_keys(payload, {'revision', 'configuration', 'credentials'})
+        exact_keys(payload, {'revision', 'configuration', 'credentials'} | ({'profile'} if 'profile' in payload else set()))
+        require(payload.get('profile', 'fresh-storage-staged-v1') in ('fresh-storage-staged-v1', 'fresh-mobile-staged-v2'))
         integer(payload['revision'], 0, 999999)
         choices = payload['configuration']
         exact_keys(choices, {'hostname', 'database', 'administrator', 'assistant'})
@@ -291,7 +302,8 @@ class ApplicationPlan:
             current = _read(locked.directory_fd)
             require(payload['revision'] == (current['revision'] if current else 0), ErrorCode.BUSY)
             instance = current['instance'] if current else secrets.token_hex(16)
-            profile = FreshProfile(instance)
+            version = (2 if payload['profile'] == 'fresh-mobile-staged-v2' else 1) if 'profile' in payload else (current['version'] if current else 1)
+            profile = FreshProfile(instance, version)
             value = {'version': 1, 'mode': 'fresh', 'web': profile.web(choices['hostname']),
                 'database': {**choices['database'], 'host': '127.0.0.1', 'port': 3306, 'tls_ca_file': None},
                 'administrator': choices['administrator'], 'assistant': choices['assistant'],
@@ -299,7 +311,7 @@ class ApplicationPlan:
             temporary = SecretVault()
             for name, secret in credentials.items(): temporary.put('web.' + name, secret)
             inputs = a.WebInputs.capture(value, temporary)
-            result = {'version': 1, 'revision': payload['revision'] + 1, 'instance': instance, 'configuration': inputs.configuration}
+            result = {'version': version, 'revision': payload['revision'] + 1, 'instance': instance, 'configuration': inputs.configuration}
             temporary.reject_in(result); self.engine.secrets.reject_in(result)
             # Validate against every persisted public field before accepting new secrets.
             from installer.wizard import WizardDraft
@@ -338,12 +350,14 @@ class ApplicationPlan:
             require(self.owns(existing) and self.read()['revision'] == revision, ErrorCode.PLAN_EXISTS)
             self.restore(); return existing
         HostPrerequisites().check()
-        selected = self.github.access.select(['web'], {'web': STORAGE_COMMIT})
-        require(selected['web'].commit_sha == STORAGE_COMMIT, ErrorCode.SOURCE_DRIFT)
+        selected_draft = self.read(); require(selected_draft is not None, ErrorCode.NOT_PLANNED)
+        commit = FreshProfile.from_draft(selected_draft).source_commit
+        selected = self.github.access.select(['web'], {'web': commit})
+        require(selected['web'].commit_sha == commit, ErrorCode.SOURCE_DRIFT)
         with self.engine.journal.locked(create=True) as locked:
             require(locked.read() is None, ErrorCode.PLAN_EXISTS)
             draft = _read(locked.directory_fd)
-            require(draft is not None and draft['revision'] == revision, ErrorCode.BUSY)
+            require(draft is not None and draft['revision'] == revision and draft == selected_draft, ErrorCode.BUSY)
             registry = composition(self.engine, self.github, draft)
             document = initial_document(build_plan(registry.specs(), mode='fresh'))
             self.engine.secrets.reject_in(document)

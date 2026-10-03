@@ -113,7 +113,10 @@ class FoundationPlan:
     def profile(self):
         value = self._read('profile.json')
         if value is not None:
-            exact_keys(value, {'parents', 'draft_sha256', 'identity'})
+            exact_keys(value, {'parents', 'draft_sha256', 'identity'} | ({'public_origin'} if 'public_origin' in value else set()))
+            if 'public_origin' in value:
+                from installer.gateway_identity import public_origin
+                public_origin(value['public_origin'])
             exact_keys(value['parents'], {'web', 'activation', 'gateway'})
             require(all(type(v) is str and len(v) == 64 and all(c in '0123456789abcdef' for c in v)
                         for v in [*value['parents'].values(), value['draft_sha256']]), ErrorCode.INVALID_STATE)
@@ -136,12 +139,14 @@ class FoundationPlan:
         value = {'parents': {'web': web_sha, 'activation': active['plan_sha256'], 'gateway': prepared['plan_sha256']},
                  'draft_sha256': sha(canonical_bytes(self.application.read())),
                  'identity': report['receipt']['identities']['main']}
+        if self.application.read()['version'] == 2:
+            value['public_origin'] = report['profile']['public_origin']
         return value, activation
 
     def engine(self, parent):
         value, activation = self.parents(parent)
         require(self.profile() == value, ErrorCode.INCOMPATIBLE_STATE)
-        runtime = FoundationRuntime(activation, value['identity'])
+        runtime = FoundationRuntime(activation, value['identity'], public_origin=value.get('public_origin'))
         operations = []; previous = None
         for role in ('stage', 'start', 'verify'):
             operation = FoundationOperation(self, runtime, role, previous)

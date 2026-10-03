@@ -1,3 +1,24 @@
+# Successeur Web Mobile v2 en qualification - 3 octobre 2026
+
+Le checkpoint Installer `f8c004c38bff2fc97ad203a7ea12a9515f32aea9` est qualifié :
+trois CI Installer PASS (`37120410610`, `37120410606`, `37120410605`) et recette
+native composée PASS `37119330868`. Cette dernière vérifie Web/Gateway réels,
+ACME privé, SIGKILL du processus de certificat terminé, renouvellement, nouveau
+PID 1, login Web et bootstrap signé. Le contrôleur cockpit survit au SIGKILL ;
+aucun reboot noyau ni certificat public Let's Encrypt n'est revendiqué.
+
+Le candidat suivant raccorde le Web `a21fc758fc4c1de9580a953ec07f459f54609874`,
+Quality Web PASS `37119716962`, à un profil fresh explicite v2. Acquisition,
+déploiement, SQL, finalisation, HTTP, sauvegarde/admissions et boot conservent
+le commit sélectionné. Les sélecteurs et empreintes historiques sont conservés.
+La configuration Foundation lie origine QR et Gateway 9083 ; FPM reçoit le
+chemin privé fixe. Aucune autorisation de migration SQL ne vient du catalogue.
+
+Ce candidat n'est pas encore le défaut du cockpit et sa qualification native
+reste à obtenir. DEV distinct, FCM, upgrade/rollback et recette globale 6C
+restent ouverts. Aucun ancien résultat ne qualifie implicitement le candidat.
+Voir [PHASE6_COMPLETION.md](PHASE6_COMPLETION.md).
+
 # Chantier de clôture phase 6 - 3 octobre 2026
 
 Reprise sur le commit 6B11 qualifié `dc0dca3ae0d33baafa136f002b2fdeff7f6095a8`.

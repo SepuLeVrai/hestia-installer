@@ -51,7 +51,7 @@ class MobileBootRuntime(boot.BootRuntime):
         require(profile['parents']['web'] == self.shared.value['preparation']['parents']['web'], ErrorCode.INCOMPATIBLE_STATE)
         self.layout, self.http = self.shared.layout, self.shared.http
         binding = profile['shared']['gateway_binding']
-        self.foundation = FoundationRuntime(self.shared.boot.activation, binding['main'])
+        self.foundation = FoundationRuntime.for_gateway(self.shared.boot.activation, binding['main'], binding['gateway_identity'])
         self.gateway = GatewayServiceRuntime(self.foundation, binding['gateway_identity'], binding['key_directory'])
         require(canonical_bytes(self.gateway.profile.binding()) == canonical_bytes(binding), ErrorCode.INCOMPATIBLE_STATE)
         self.root = self.layout.root / 'mobile-boot'

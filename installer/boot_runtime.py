@@ -34,7 +34,7 @@ class BootRuntime:
     def __init__(self, profile):
         self.profile = profile
         self.application = profile['application']
-        self.layout = app.FreshProfile(self.application['instance'])
+        self.layout = app.FreshProfile.from_draft(self.application)
         self.http = self.layout.http(self.application['configuration'])
         self.activation = activation.Activation(self.http, profile['parents']['preparation'])
         self.sql = sql.MariaDB(profile['sql']['instance'], profile['sql']['packages_sha256'])

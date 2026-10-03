@@ -16,6 +16,7 @@ from installer.operations import Operation, OperationContext, OperationRegistry,
 from installer.package_plan import PackagePlan
 from installer.transaction import StateJournal, _private_directory, _FILE_FLAGS, _check_file
 from installer.web_releases import STORAGE_COMMIT
+from installer import mobile_web_source as mobile
 
 
 class BinaryAcquisition(Operation):
@@ -228,7 +229,7 @@ class GatewayPlan:
     def _parent(document):
         require(ApplicationPlan.owns(document) and document['state'] == 'DONE', ErrorCode.DEPENDENCY_BLOCKED)
         require(any(s.get('source', {}).get('repository') == 'SepuLeVrai/hestia-nexus-avv'
-                    and s['source']['commit_sha'] == STORAGE_COMMIT for s in document['plan']['steps']),
+                    and s['source']['commit_sha'] in (STORAGE_COMMIT, mobile.COMMIT) for s in document['plan']['steps']),
                 ErrorCode.INCOMPATIBLE_STATE)
         return document['plan_sha256']
 

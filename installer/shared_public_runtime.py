@@ -91,7 +91,7 @@ class SharedPublic(old.Profile):
         self.shared = SharedMobileTLS(self.web.value, selected['gateway_identity'], tuple(selected['client_networks']))
         self.layout, self.http, self.boot = self.web.layout, self.web.http, self.web.boot
         binding = value['gateway_binding']
-        foundation = FoundationRuntime(self.boot.activation, binding['main'])
+        foundation = FoundationRuntime.for_gateway(self.boot.activation, binding['main'], binding['gateway_identity'])
         expected_gateway = GatewayServiceProfile(foundation, selected['gateway_identity'], binding['key_directory']).binding()
         require(canonical_bytes(binding) == canonical_bytes(expected_gateway), ErrorCode.INCOMPATIBLE_STATE)
         self.public = self.web.public / 'shared'

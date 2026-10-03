@@ -161,16 +161,17 @@ class _Archives:
         raw, self.coordinated = _json(self.slot, 'coordinated.json')
         require(f._sha(raw) == self.web['manifest_sha256'])
         self.raw = raw; value = self.coordinated; lease = control.lease
+        commit = control.data._runtime.source_commit
         self.target = f._sha(p._json([database['host'], database['port'], database['name'].lower()]))
         require(value['instance'] == lease.scope.instance and value['lease_id'] == lease.lease_id
-            and value['source_commit'] == STORAGE_COMMIT and value['target_sha256'] == self.target
+            and value['source_commit'] == commit and value['target_sha256'] == self.target
             and value['service_barrier']['profile_sha256'] == f._sha(control.barrier._profile))
         self.sql = value['sql_backup']; self.sql_slot = self.slot / 'sql' / _id(self.sql['backup_id'])
         self.sql_raw, self.manifest = _json(self.sql_slot, 'manifest.json')
         manifest = self.manifest
         require(f._sha(self.sql_raw) == self.sql['manifest_sha256']
-            and manifest['source_commit'] == STORAGE_COMMIT
-            and manifest['runtime_sha256'] == f.get_release(STORAGE_COMMIT).runtime_sha256
+            and manifest['source_commit'] == commit
+            and manifest['runtime_sha256'] == f.get_release(commit).runtime_sha256
             and manifest['source_webroot'] == str(control.data._runtime.spec.webroot)
             and manifest['source_configuration'] == str(lease.scope.directory.parent)
             and manifest['source_state_root'] == str(runtime.state_root)
@@ -257,9 +258,10 @@ def acquire(control, runtime, source, payload, authority, confirmation, *, confi
             gid, web, directory, conf, webfd, inc = f._open(runtime, config, config_root, stack)
             require(directory == lease.scope.directory.parent and gid == lease.scope.web_gid
                 and web == control.data._runtime.spec.webroot, 'MOBILE_ADMISSION_INSTANCE_MISMATCH')
-            current = f.FinalizationStep(runtime, source, repository=p.WEB_REPOSITORY, commit=STORAGE_COMMIT)
+            commit = control.data._runtime.source_commit
+            current = f.FinalizationStep(runtime, source, repository=p.WEB_REPOSITORY, commit=commit)
             database, loader, ca = f._prepared(config, value, directory, conf, gid)
-            completed = f._completed(conf, webfd, inc, gid, commit=STORAGE_COMMIT)
+            completed = f._completed(conf, webfd, inc, gid, commit=commit)
             require(database['host'] == '127.0.0.1' and database['tls_required'] is False and ca is None
                 and f._json_read(conf, 'state.json', gid)['migration_retained'] is False,
                 'MOBILE_ADMISSION_PROFILE_REJECTED')
@@ -268,7 +270,7 @@ def acquire(control, runtime, source, payload, authority, confirmation, *, confi
             def envelope():
                 current._sources(web); current._pending_edits(conf)
                 require(f._prepared(config, value, directory, conf, gid) == (database, loader, ca)
-                    and f._completed(conf, webfd, inc, gid, commit=STORAGE_COMMIT) == completed,
+                    and f._completed(conf, webfd, inc, gid, commit=commit) == completed,
                     'MOBILE_ADMISSION_ENVELOPE_CHANGED')
             archives = _Archives(control, runtime, database, document, cancel)
             envelope(); archives.check()
@@ -286,9 +288,9 @@ def acquire(control, runtime, source, payload, authority, confirmation, *, confi
                 'web_backup_sha256': control.profile()['web_backup']['manifest_sha256'],
                 'gateway_release_sha256': control.profile()['gateway_release_sha256']}
             files._new(slotfd, 'attempt.json', p._json({'state': 'ADMISSION_STARTED', **binding}))
-            fence = stack.enter_context(c.rf.acquire(runtime, source, database, ca, authority, cancel=cancel))
+            fence = stack.enter_context(c.rf.acquire(runtime, source, database, ca, authority, cancel=cancel, commit=commit))
             fence.assert_held()
-            recheck = c._recheck(runtime, source, database, ca, authority, slot, archives.sql, cancel)
+            recheck = c._recheck(runtime, source, database, ca, authority, slot, archives.sql, cancel, commit=commit)
             result = {'state': 'CURRENT_SQL_FILES_OBSERVED_ACTIVITY_CLOSED', **binding,
                 'observation_id': name, 'sql_recheck': recheck, 'sql_read_fence_max_seconds': 180,
                 'live_sql_read_fence_required': True, 'valid_after_window_close': False,

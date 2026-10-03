@@ -213,7 +213,7 @@ class ActivationPlan:
         require(self.application.owns(parent) and parent['state'] == 'DONE', ErrorCode.NOT_PLANNED)
         self.application.restore()
         draft = self.application.read()
-        activation = Activation(app.FreshProfile(draft['instance']).http(draft['configuration']), parent['plan_sha256'])
+        activation = Activation(app.FreshProfile.from_draft(draft).http(draft['configuration']), parent['plan_sha256'])
         engine = TransactionEngine(self.journal, registry(activation))
         current = engine.report()
         if current is not None:

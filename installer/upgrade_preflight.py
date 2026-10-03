@@ -93,10 +93,10 @@ def _response(code: int, raw: bytes, request: dict) -> dict:
         raise UpgradePreflightError('PROTOCOL_REJECTED') from None
 
 
-def _inventory(runtime: p.PhpRuntime, source: Path, database: dict, ca: bytes | None, cancel=None) -> dict:
+def _inventory(runtime: p.PhpRuntime, source: Path, database: dict, ca: bytes | None, cancel=None, *, commit=WEB_COMMIT) -> dict:
     with tempfile.TemporaryDirectory(prefix='upgrade-inspect-', dir=runtime.run_root) as tmp:
         stage = Path(tmp)
-        p._copy_bundle(source, stage, runtime.worker_gid, f.ENGINE_FILES, f.ENGINE_SHA256, 'upgrade_inventory_bridge.php')
+        p._copy_bundle(source, stage, runtime.worker_gid, f.ENGINE_FILES, f.engine_digest(commit), 'upgrade_inventory_bridge.php')
         with fs._directory(stage) as fd:
             f._write(fd, 'sql_accounts_policy.php', p._read_file(Path(__file__).parent / 'private/sql_accounts_policy.php'), runtime.worker_gid)
             if ca is not None:
@@ -168,7 +168,7 @@ class UpgradePreflight:
                          'UPGRADE_ASSISTANT_INVALID')
                 before = f._probe(self.runtime, config, directory, gid, active=True, cancel=cancel)
                 _require(before['key_configured'] is bool(key), 'UPGRADE_ASSISTANT_INVALID')
-                inventory = _inventory(self.runtime, self.source, database, ca, cancel)
+                inventory = _inventory(self.runtime, self.source, database, ca, cancel, commit=self.release.commit)
                 after = f._probe(self.runtime, config, directory, gid, active=True, cancel=cancel)
                 _require(before == after and inventory['assistant_setting'] is after['setting_enabled'], 'UPGRADE_TARGET_CHANGED')
                 source._sources(web)

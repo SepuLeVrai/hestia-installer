@@ -27,6 +27,7 @@ from installer.operations import Operation, Recovery, RecoveryDecision
 from installer.preflight import read_os_release
 from installer.proxy_ingress import ProxyIngress
 from installer.web_releases import STORAGE_COMMIT
+from installer import mobile_web_source as mobile
 
 EXTENSIONS = ('mysqlnd', 'pdo', 'mysqli', 'pdo_mysql', 'ctype', 'iconv', 'fileinfo',
               'mbstring', 'curl', 'dom', 'simplexml', 'xml', 'xmlreader', 'xmlwriter', 'zip', 'gd', 'tokenizer')
@@ -64,8 +65,12 @@ class RuntimeSpec:
     ingress: ProxyIngress | None = field(default=None, repr=False)
     external_uploads: bool = False
     maintenance_directory: Path | None = field(default=None, repr=False)
+    source_commit: str | None = None
 
     def __post_init__(self):
+        require(self.source_commit is None or type(self.source_commit) is str
+                and self.source_commit == mobile.COMMIT and self.external_uploads is True
+                and self.maintenance_directory is not None, 'SOURCE_PIN_MISMATCH')
         require(self.ingress is None or type(self.ingress) is ProxyIngress, 'HTTP_RUNTIME_INPUT_REJECTED')
         require(type(self.external_uploads) is bool and
                 (not self.external_uploads or self.maintenance_directory is not None), 'HTTP_RUNTIME_INPUT_REJECTED')
@@ -162,6 +167,10 @@ class HttpRuntime:
     def __repr__(self):
         return '<HttpRuntime private initially gated provisioner>'
 
+    @property
+    def source_commit(self):
+        return self.spec.source_commit or (STORAGE_COMMIT if self.spec.external_uploads else f.WEB_COMMIT)
+
     def unit(self, role):
         require(role in ('apache', 'php'), 'HTTP_RUNTIME_INPUT_REJECTED')
         return 'hestia-' + self.spec.instance + '-' + role + '.service'
@@ -195,7 +204,7 @@ class HttpRuntime:
         return account, extension
 
     def _verify_sealed_slot(self, account):
-        release = f.get_release(STORAGE_COMMIT if self.spec.external_uploads else f.WEB_COMMIT)
+        release = f.get_release(self.source_commit)
         require(f._runtime_digest(self.spec.webroot) == release.runtime_sha256, 'SOURCE_PIN_MISMATCH')
         directory, gid = self.spec.maintenance_directory.parent, account.pw_gid
         require(directory.name == fs.configuration_slot({'web': {'webroot': str(self.spec.webroot)}}),
@@ -229,6 +238,8 @@ class HttpRuntime:
         spec = self.spec; root, web = str(spec.root), str(spec.webroot)
         gate = str(self._scope(account).directory)
         upload_environment = f'env[HESTIA_UPLOAD_STORAGE] = {root}/data/uploads\n' if spec.external_uploads else ''
+        mobile_environment = (f'env[HESTIA_MOBILE_FOUNDATION_CONFIG] = {spec.root.parent}/foundation/main.json\n'
+                              if spec.source_commit == mobile.COMMIT else '')
         # FPM rejects an empty env[...] value. clear_env=yes and no declaration
         # leave the Web proxy list absent after Apache has canonicalized it.
         trusted_proxies = '' if spec.ingress is not None else 'env[HESTIA_TRUSTED_PROXIES] = 127.0.0.1/32\n'
@@ -264,7 +275,7 @@ env[TMP] = {root}/data/tmp
 env[TEMP] = {root}/data/tmp
 env[HOME] = {root}/data/tmp
 env[HESTIA_IMPORT_STORAGE] = {root}/data/imports
-{trusted_proxies}{upload_environment}php_admin_value[auto_prepend_file] = {gate}/request_guard.php
+{trusted_proxies}{upload_environment}{mobile_environment}php_admin_value[auto_prepend_file] = {gate}/request_guard.php
 php_admin_value[session.save_handler] = files
 php_admin_value[session.save_path] = {root}/data/sessions
 php_admin_value[session.gc_maxlifetime] = 43200

@@ -12,7 +12,8 @@ import stat
 import subprocess
 
 from installer import http_runtime as h, system_drain as drain
-from installer.gateway_identity import public_identity
+from installer.gateway_identity import public_identity, public_origin as validate_origin
+from installer import mobile_web_source as mobile
 from installer.model import ErrorCode, canonical_bytes, require
 
 PORT = 9082
@@ -43,16 +44,26 @@ def free_port():
 
 
 class FoundationRuntime:
-    def __init__(self, activation, identity):
+    def __init__(self, activation, identity, *, public_origin=None):
         self.activation = activation
         self.web = activation.runtime
         require(self.web.spec.port == 9080 and self.web.spec.external_uploads
                 and self.web.spec.maintenance_directory is not None, ErrorCode.INCOMPATIBLE_STATE)
         require(identity == public_identity('main', identity['public_jwk']), ErrorCode.INCOMPATIBLE_STATE)
         self.identity = identity
+        if self.web.spec.source_commit == mobile.COMMIT:
+            self.public_origin = validate_origin(public_origin)
+        else:
+            require(public_origin is None, ErrorCode.INCOMPATIBLE_STATE)
+            self.public_origin = None
         self.root = self.web.spec.root.parent / 'foundation'
         self.unit = 'hestia-' + self.web.spec.instance + '-foundation.service'
         self.fragment = drain.UNIT_ROOT / self.unit
+
+    @classmethod
+    def for_gateway(cls, activation, identity, gateway_identity):
+        origin = gateway_identity['public_origin'] if activation.runtime.spec.source_commit == mobile.COMMIT else None
+        return cls(activation, identity, public_origin=origin)
 
     def show(self):
         h.p._safe_path(Path('/usr/bin/systemctl'), directory=False, system=True)
@@ -116,6 +127,8 @@ RestrictAddressFamilies=AF_UNIX AF_INET
 '''
         config = {'environment': 'main', 'gateway_keys': {self.identity['kid']: self.identity['public_jwk']},
                   'canonical_contexts': True, 'canonical_distribution': True}
+        if self.public_origin is not None:
+            config.update(public_origin=self.public_origin, gateway_port=9083)
         return {self.root / 'apache.conf': apache.encode(), self.root / 'main.json': canonical_bytes(config),
                 self.fragment: unit.encode()}
 

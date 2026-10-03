@@ -1,5 +1,6 @@
 """Closed source identities; a recognized release is not permission to upgrade."""
 from dataclasses import dataclass
+from installer import mobile_web_source as mobile
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ _RELEASES = (
                'b2205c6f7b326b0692e57942f282260669e3ec147daf3dc9f18c546782c7eb0f', False),
     WebRelease(STORAGE_COMMIT, '783be5abdcd5e13addefe96d743eee3a97b7a6de', 1843,
                '42c99a13f41b50a5263c69d14557dd088b5787b40ffdc51873b8d61ea1bc8edb', True),
+    WebRelease(mobile.COMMIT, mobile.TREE, mobile.FILES, mobile.RUNTIME_SHA256, True),
 )
 
 

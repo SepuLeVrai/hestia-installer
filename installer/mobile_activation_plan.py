@@ -182,7 +182,7 @@ class MobileActivationPlan:
                 validate_credentials(credentials)
                 if action == 'apply': require(set(credentials) == CREDENTIALS, ErrorCode.SECRET_REQUIRED)
                 if credentials: require(payload['allow_global_read_lock'] is True, ErrorCode.CONFIRMATION_REQUIRED)
-            fresh = FreshProfile(profile['instance']); draft = self.application.read()
+            draft = self.application.read(); fresh = FreshProfile.from_draft(draft)
             http = fresh.http(draft['configuration']); backups = self.backups(profile)
             self.availability = None; self.last_error = None
             try:
@@ -197,7 +197,7 @@ class MobileActivationPlan:
                     authority = native.a.c.d.SqlAuthorityCredentials(credentials['authority_user'], credentials['authority_password'])
                     runtime = replace(fresh.runtime(), timeout_seconds=120)
                     source = AcquireOperation(self.parent.journal.path.parent, 'web',
-                        SourceSpec(native.p.WEB_REPOSITORY, STORAGE_COMMIT, STORAGE_COMMIT), None).path / 'tree'
+                        SourceSpec(native.p.WEB_REPOSITORY, fresh.source_commit, fresh.source_commit), None).path / 'tree'
                     account, _, _, _ = http._inspect_configuration(); scope = http._scope(account)
                     if attempt is None: self._write('approved.json', {'confirmation': digest(profile)})
                     record = read_private(backups / ('mobile-activation-' + profile['lease_id']), 'plan.json')

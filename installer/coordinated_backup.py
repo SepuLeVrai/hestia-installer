@@ -59,7 +59,7 @@ def _held(lease: m.MaintenanceLease) -> None:
         raise CoordinatedBackupError('COORDINATED_MAINTENANCE_REQUIRED') from None
 
 
-def _recheck(runtime, source, database, ca, authority, slot, expected, cancel):
+def _recheck(runtime, source, database, ca, authority, slot, expected, cancel, *, commit=f.WEB_COMMIT):
     """Second real read-only export under the same bounded global-read-lock policy.
 
     It uses the existing canonical exporter, not a weaker row-count comparison.
@@ -67,7 +67,7 @@ def _recheck(runtime, source, database, ca, authority, slot, expected, cancel):
     """
     with tempfile.TemporaryDirectory(prefix='bc-', dir=runtime.run_root) as tmp:
         stage = Path(tmp)
-        sql._worker_stage(runtime, source, stage, ca)
+        sql._worker_stage(runtime, source, stage, ca, commit=commit)
         target = {k: database[k] for k in ('host', 'port', 'name', 'tls_required', 'tls_ca_file', 'tls_ca_sha256')}
         if ca is not None:
             target['tls_ca_file'] = str(stage / 'ca.pem')
@@ -202,7 +202,7 @@ class CoordinatedBackup:
                     web_fence = stack.enter_context(wf.acquire(service_barrier, confirmed=True))
                     external_fence = stack.enter_context(ef.acquire(maintenance, confirmed=True))
                     configuration._bind_external(external_fence)
-                    fence = stack.enter_context(rf.acquire(self.runtime, self.source, database, ca, authority, cancel=cancel))
+                    fence = stack.enter_context(rf.acquire(self.runtime, self.source, database, ca, authority, cancel=cancel, commit=self.release.commit))
                     held()
                 backup_id = os.urandom(16).hex()
                 slot = backup_root / backup_id
@@ -227,7 +227,7 @@ class CoordinatedBackup:
                 # Re-restore saved data after SQL validation, detecting damage to its blobs.
                 snapshot.restore_new(slot / 'data-proof', maintenance, cancel=cancel)
                 shutil.rmtree(slot / 'data-proof')
-                recheck = _recheck(self.runtime, self.source, database, ca, authority, slot, restored, cancel)
+                recheck = _recheck(self.runtime, self.source, database, ca, authority, slot, restored, cancel, commit=self.release.commit)
                 held()
                 _files_unchanged(snapshot, maintenance, cancel)
                 current._sources(web)

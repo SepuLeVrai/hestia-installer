@@ -60,7 +60,7 @@ class ProvisionedBackup:
             inode_fence=stack.enter_context(inf.acquire(data_fence,confirmed=True))
             inventory=files.DataInventory(tuple((name.replace('-','_'),spec.root/'data'/name)
                 for name in (*h.DATA,'uploads')),account.pw_uid,account.pw_gid)
-            coordinator=c.CoordinatedBackup(self._runtime,self._source,repository=p.WEB_REPOSITORY,commit=STORAGE_COMMIT)
+            coordinator=c.CoordinatedBackup(self._runtime,self._source,repository=p.WEB_REPOSITORY,commit=self._http.source_commit)
             web_backup=coordinator.create_and_verify(payload,authority,config_root=config_root,backup_root=backup_root,
                 inventory=inventory,maintenance=barrier.maintenance_lease,confirmed=True,
                 allow_global_read_lock=True,cancel=cancel,service_barrier=barrier,

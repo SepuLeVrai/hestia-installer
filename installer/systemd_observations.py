@@ -176,7 +176,7 @@ class SystemdObserver:
             definitions[unit] = [{'path': str(path), 'sha256': l._sha(files[path])} for path in paths]
         spec = self.runtime.spec; target = None
         if spec.external_uploads:
-            target = l._target(l.LauncherTarget(spec.instance, l.STORAGE_COMMIT, l.get_release(l.STORAGE_COMMIT).tree,
+            target = l._target(l.LauncherTarget(spec.instance, self.runtime.source_commit, l.get_release(self.runtime.source_commit).tree,
                 str(spec.webroot), str(spec.maintenance_directory.parent), str(spec.maintenance_directory),
                 account.pw_uid, account.pw_gid, provenance['host_id'], provenance['boot_id']))
         return {'instance': spec.instance, 'root': str(spec.root), 'webroot': str(spec.webroot),

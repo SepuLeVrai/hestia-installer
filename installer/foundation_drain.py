@@ -23,13 +23,18 @@ def attached(http):
     with h.fs._directory(root) as fd:
         config = strict_json_loads(h.f._read(fd, 'main.json', account.pw_gid))
         manifest = strict_json_loads(h.f._read(fd, 'staged.json', 0, mode=0o600))
-    exact_keys(config, {'environment', 'gateway_keys', 'canonical_contexts', 'canonical_distribution'})
+    from installer import mobile_web_source as mobile
+    successor = http.spec.source_commit == mobile.COMMIT
+    exact_keys(config, {'environment', 'gateway_keys', 'canonical_contexts', 'canonical_distribution'}
+               | ({'public_origin', 'gateway_port'} if successor else set()))
+    require(not successor or type(config['gateway_port']) is int and config['gateway_port'] == 9083, ErrorCode.SOURCE_DRIFT)
     require(config['environment'] == 'main' and config['canonical_contexts'] is True
             and config['canonical_distribution'] is True and type(config['gateway_keys']) is dict
             and len(config['gateway_keys']) == 1, ErrorCode.SOURCE_DRIFT)
     kid, jwk = next(iter(config['gateway_keys'].items())); identity = public_identity('main', jwk)
     require(kid == identity['kid'], ErrorCode.SOURCE_DRIFT)
-    runtime = FoundationRuntime(Activation(http, manifest['web_plan_sha256']), identity)
+    runtime = FoundationRuntime(Activation(http, manifest['web_plan_sha256']), identity,
+                                public_origin=config['public_origin'] if successor else None)
     runtime.inspect()
     return runtime
 

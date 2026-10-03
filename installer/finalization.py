@@ -23,6 +23,7 @@ from installer import database_config as fs
 from installer import database_step as dbstep
 from installer import php_transport as p
 from installer.web_releases import get_release
+from installer import mobile_web_source as mobile
 from installer.model import strict_json_loads
 from installer.transaction import _private_directory
 from installer.web_config import validate_web_configuration
@@ -236,11 +237,17 @@ def _response(code: int, raw: bytes, request: dict, *, probe: bool) -> dict:
         raise FinalizationError('PROTOCOL_REJECTED') from None
 
 
+def engine_digest(commit=WEB_COMMIT):
+    # get_release is deliberately closed. An unknown selector cannot fall back.
+    get_release(commit)
+    return mobile.FINALIZATION_ENGINE_SHA256 if commit == mobile.COMMIT else ENGINE_SHA256
+
+
 def _sql(runtime: p.PhpRuntime, source: Path, database: dict, payload: dict, config: dict, ca: bytes | None,
-         *, desired: bool, mutate: bool, cancel=None) -> dict:
+         *, desired: bool, mutate: bool, cancel=None, commit=WEB_COMMIT) -> dict:
     with tempfile.TemporaryDirectory(prefix='finalization-sql-', dir=runtime.run_root) as tmp:
         stage = Path(tmp)
-        p._copy_bundle(source, stage, runtime.worker_gid, ENGINE_FILES, ENGINE_SHA256, 'finalization_bridge.php')
+        p._copy_bundle(source, stage, runtime.worker_gid, ENGINE_FILES, engine_digest(commit), 'finalization_bridge.php')
         with fs._directory(stage) as fd:
             _write(fd, 'sql_accounts_policy.php', p._read_file(Path(__file__).parent / 'private/sql_accounts_policy.php'), runtime.worker_gid)
             if ca is not None:
@@ -352,7 +359,7 @@ class FinalizationStep:
                     fs._absent(fd, name)
                 database, loader, ca = _prepared(config, payload, directory, conf, gid)
                 _database_receipt(self.runtime, database)
-                initial = _sql(self.runtime, self.source, database, payload, config, ca, desired=False, mutate=False, cancel=cancel)
+                initial = _sql(self.runtime, self.source, database, payload, config, ca, desired=False, mutate=False, cancel=cancel, commit=self.release.commit)
                 require(initial['assistant_enabled'] is False, 'DATABASE_NOT_PREPARED')
                 require(cancel is None or not cancel.is_set(), 'INTERRUPTED')
                 nonce = self.instance if self.instance is not None else os.urandom(16).hex()
@@ -363,7 +370,7 @@ class FinalizationStep:
                 key = payload['secrets']['openai_api_key'] if config['assistant']['desired_enabled'] else ''
                 _write(conf, 'assistant.json', p._json({'version': 1, 'openai_api_key': key}), gid, mode=0o660)
                 desired = bool(config['assistant']['desired_enabled'])
-                _sql(self.runtime, self.source, database, payload, config, ca, desired=desired, mutate=True, cancel=cancel)
+                _sql(self.runtime, self.source, database, payload, config, ca, desired=desired, mutate=True, cancel=cancel, commit=self.release.commit)
                 observed = _probe(self.runtime, config, directory, gid, active=False, cancel=cancel)
                 require(observed['setting_enabled'] is desired and observed['key_configured'] is bool(key)
                         and observed['assistant_enabled'] is desired, 'FINALIZATION_COHERENCE_FAILED')

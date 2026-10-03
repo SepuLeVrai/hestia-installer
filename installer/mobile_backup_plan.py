@@ -61,7 +61,7 @@ class MobileBackupPlan:
         receipt = read_private(slot, 'verified.json')
         if receipt is None: return None
         require(type(receipt) is dict and receipt.get('state') == 'MOBILE_BACKUP_RESTORE_VERIFIED'
-                and receipt.get('source_commit') == STORAGE_COMMIT
+                and receipt.get('source_commit') == FreshProfile.from_draft(self.application.read()).source_commit
                 and type(receipt.get('backup_id')) is str and re.fullmatch('[a-f0-9]{32}', receipt['backup_id'])
                 and receipt.get('gateway_snapshot_id') == slot.name, ErrorCode.INVALID_STATE)
         for key in ('database_restoration_verified', 'registered_data_restoration_verified',
@@ -124,7 +124,7 @@ class MobileBackupPlan:
             require(type(credentials) is dict and set(credentials) == CREDENTIALS, ErrorCode.SECRET_REQUIRED)
             validate_credentials(credentials)
             require(payload['allow_global_read_lock'] is True, ErrorCode.CONFIRMATION_REQUIRED)
-            fresh = FreshProfile(profile['instance']); draft = self.application.read()
+            draft = self.application.read(); fresh = FreshProfile.from_draft(draft)
             http = fresh.http(draft['configuration']); backups = self.backups(profile)
             self.last_error = None
             try:
@@ -151,7 +151,7 @@ class MobileBackupPlan:
                 authority = native.d.SqlAuthorityCredentials(credentials['authority_user'], credentials['authority_password'])
                 runtime = replace(fresh.runtime(), timeout_seconds=120)
                 source = AcquireOperation(self.parent.journal.path.parent, 'web',
-                    SourceSpec(native.p.WEB_REPOSITORY, STORAGE_COMMIT, STORAGE_COMMIT), None).path / 'tree'
+                    SourceSpec(native.p.WEB_REPOSITORY, fresh.source_commit, fresh.source_commit), None).path / 'tree'
                 operation = native.ProvisionedBackup(runtime, source, http, SessionCleaner(http))
                 report = operation.create_and_verify(value, authority, config_root=fresh.config_root, backup_root=backups,
                     confirmed=True, allow_global_read_lock=True, recover_lease_id=lease['lease_id']).report()

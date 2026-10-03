@@ -19,6 +19,7 @@ from installer import database_step as d
 from installer import finalization as f
 from installer import php_transport as p
 from installer import upgrade_preflight as u
+from installer import mobile_web_source as mobile
 
 WEB_COMMIT = '46c03060625d4d53c675474b11aaa33007d9aad7'
 WEB_TREE = 'aaac278270e0fd1169396945916dfe997ae078bf'
@@ -67,23 +68,26 @@ def digest(files: dict[str, bytes], names: list[str]) -> str:
 
 
 def inspect(root: Path, commit: str = WEB_COMMIT) -> dict:
-    if commit not in (WEB_COMMIT, STORAGE_COMMIT):
+    if commit not in (WEB_COMMIT, STORAGE_COMMIT, mobile.COMMIT):
         raise ValueError('Unknown source commit')
-    expected_tree = STORAGE_TREE if commit == STORAGE_COMMIT else WEB_TREE
+    expected_tree = mobile.TREE if commit == mobile.COMMIT else STORAGE_TREE if commit == STORAGE_COMMIT else WEB_TREE
     tree, files = snapshot(root)
     checks = [{'name': 'git_tree', 'expected': expected_tree, 'actual': tree, 'ok': tree == expected_tree}]
     vendor = [name for name in files if name.startswith('vendor/')]
     for module in (p, d, f):
         actual = digest(files, [*module.ENGINE_FILES, *vendor])
-        checks.append({'name': module.__name__ + '.ENGINE_SHA256', 'expected': module.ENGINE_SHA256,
-                       'actual': actual, 'ok': actual == module.ENGINE_SHA256})
+        expected = ({p: mobile.PHP_ENGINE_SHA256, d: mobile.DATABASE_ENGINE_SHA256,
+                     f: mobile.FINALIZATION_ENGINE_SHA256}[module] if commit == mobile.COMMIT else module.ENGINE_SHA256)
+        checks.append({'name': module.__name__ + '.ENGINE_SHA256', 'expected': expected,
+                       'actual': actual, 'ok': actual == expected})
     names = [name for name in files if not set(Path(name).parts).intersection(f._SKIPPED)
              and (name.startswith('vendor/') or Path(name).suffix.lower() in f._SUFFIXES
                   or Path(name).name in ('.htaccess', '.user.ini', 'composer.json', 'composer.lock'))]
     actual = digest(files, names)
     for module in (f, u):
-        checks.append({'name': module.__name__ + '.RUNTIME_SHA256', 'expected': STORAGE_RUNTIME if commit == STORAGE_COMMIT else module.RUNTIME_SHA256,
-                       'actual': actual, 'ok': actual == (STORAGE_RUNTIME if commit == STORAGE_COMMIT else module.RUNTIME_SHA256)})
+        expected = mobile.RUNTIME_SHA256 if commit == mobile.COMMIT else STORAGE_RUNTIME if commit == STORAGE_COMMIT else module.RUNTIME_SHA256
+        checks.append({'name': module.__name__ + '.RUNTIME_SHA256', 'expected': expected,
+                       'actual': actual, 'ok': actual == expected})
     after_tree, after_files = snapshot(root)
     stable = tree == after_tree and files == after_files
     return {'suite': 'Exact Web source pins', 'web_commit': commit, 'git_tree': tree,

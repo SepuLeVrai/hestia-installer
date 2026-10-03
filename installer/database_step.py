@@ -15,6 +15,7 @@ from pathlib import Path
 
 from installer import database_config as fs
 from installer import php_transport as p
+from installer import mobile_web_source as mobile
 from installer.model import strict_json_loads
 from installer.transaction import _private_directory
 from installer.web_config import validate_web_configuration
@@ -161,8 +162,13 @@ def _response(code: int, raw: bytes, request: dict) -> dict:
         raise DatabaseStepError("PROTOCOL_REJECTED") from None
 
 
-def _snapshot(runtime: p.PhpRuntime, source: Path, stage: Path, ca: bytes | None):
-    p._copy_bundle(source, stage, runtime.worker_gid, ENGINE_FILES, ENGINE_SHA256, "database_step_bridge.php")
+def engine_digest(commit):
+    require(type(commit) is str and commit in (WEB_COMMIT, mobile.COMMIT), 'SOURCE_PIN_MISMATCH')
+    return mobile.DATABASE_ENGINE_SHA256 if commit == mobile.COMMIT else ENGINE_SHA256
+
+
+def _snapshot(runtime: p.PhpRuntime, source: Path, stage: Path, ca: bytes | None, *, commit=WEB_COMMIT):
+    p._copy_bundle(source, stage, runtime.worker_gid, ENGINE_FILES, engine_digest(commit), "database_step_bridge.php")
     helpers = [(name, p._read_file(Path(__file__).parent / "private" / name))
                for name in ("sql_accounts_policy.php", "trigger_definer.php")]
     for name, content in (*helpers, ("ca.pem", ca)):
@@ -203,9 +209,10 @@ def _configuration_files(child: int, directory: Path, gid: int, config: dict, pa
 class DatabaseStep:
     """A private orchestrator API. No registered HTTP/plan action or shell facade."""
     def __init__(self, runtime: p.PhpRuntime, source: Path, *, repository: str, commit: str):
-        require(repository == p.WEB_REPOSITORY and commit == WEB_COMMIT
+        require(repository == p.WEB_REPOSITORY and commit in (WEB_COMMIT, mobile.COMMIT)
                 and re.fullmatch(r"[a-f0-9]{40}", commit) is not None, "SOURCE_PIN_MISMATCH")
         self.runtime, self.source = runtime, Path(source)
+        self.commit = commit
 
     def audit(self, payload: dict, migration: p.ProvisioningCredentials, *, cancel=None) -> dict:
         config = _configuration(payload, migration, None, fresh=False, confirmed=False)
@@ -214,7 +221,7 @@ class DatabaseStep:
             ca = _ca(config)
             require(cancel is None or not cancel.is_set(), "INTERRUPTED")
             with tempfile.TemporaryDirectory(prefix="database-audit-", dir=self.runtime.run_root) as tmp:
-                stage = Path(tmp); _snapshot(self.runtime, self.source, stage, ca)
+                stage = Path(tmp); _snapshot(self.runtime, self.source, stage, ca, commit=self.commit)
                 request = _request(config, payload, migration, None, _target(config, stage / "ca.pem" if ca is not None else None, ca), False)
                 code, raw = p._exchange(p._command(self.runtime, stage), p._json(request), stage, self.runtime.timeout_seconds, cancel)
                 return _response(code, raw, request)
@@ -246,7 +253,7 @@ class DatabaseStep:
                     fs._directory(webroot / "includes") as includesfd, \
                     tempfile.TemporaryDirectory(prefix="database-prepare-", dir=self.runtime.run_root) as tmp:
                 fs._absent(webfd, "install.lock"); fs._absent(includesfd, "db.php"); fs._absent(rootfd, slot)
-                stage = Path(tmp); _snapshot(self.runtime, self.source, stage, ca)
+                stage = Path(tmp); _snapshot(self.runtime, self.source, stage, ca, commit=self.commit)
                 request = _request(config, payload, migration, authority, _target(config, stage / "ca.pem" if ca is not None else None, ca), True)
                 require(cancel is None or not cancel.is_set(), "INTERRUPTED")
                 # Reserve the Web slot and database identity durably before the first SQL mutation.

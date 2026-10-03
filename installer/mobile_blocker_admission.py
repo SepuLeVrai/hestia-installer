@@ -178,9 +178,10 @@ def acquire(state, barrier, gateway, runtime, source, payload, authority, confir
             gid, web, directory, conf, webfd, inc = f._open(runtime, config, lease.scope.directory.parent.parent, stack)
             require(directory == lease.scope.directory.parent and gid == lease.scope.web_gid
                 and web == state.runtime.spec.webroot, 'MOBILE_BLOCKER_INSTANCE_MISMATCH')
-            current = f.FinalizationStep(runtime, source, repository=p.WEB_REPOSITORY, commit=a.STORAGE_COMMIT)
+            commit = state.runtime.source_commit
+            current = f.FinalizationStep(runtime, source, repository=p.WEB_REPOSITORY, commit=commit)
             database, loader, ca = f._prepared(config, value, directory, conf, gid)
-            completed = f._completed(conf, webfd, inc, gid, commit=a.STORAGE_COMMIT)
+            completed = f._completed(conf, webfd, inc, gid, commit=commit)
             require(database['host'] == '127.0.0.1' and database['tls_required'] is False and ca is None
                 and f._json_read(conf, 'state.json', gid)['migration_retained'] is False,
                 'MOBILE_BLOCKER_PROFILE_REJECTED')
@@ -189,7 +190,7 @@ def acquire(state, barrier, gateway, runtime, source, payload, authority, confir
             def envelope():
                 current._sources(web); current._pending_edits(conf)
                 require(f._prepared(config, value, directory, conf, gid) == (database, loader, ca)
-                    and f._completed(conf, webfd, inc, gid, commit=a.STORAGE_COMMIT) == completed,
+                    and f._completed(conf, webfd, inc, gid, commit=commit) == completed,
                     'MOBILE_BLOCKER_ENVELOPE_CHANGED')
             schedulers = stack.enter_context(a.sa.acquire())
             with control.external._configuration() as locked:
@@ -204,9 +205,9 @@ def acquire(state, barrier, gateway, runtime, source, payload, authority, confir
                     'resume_plan_sha256': confirmation, 'file_plan_sha256': document['plan_sha256'],
                     'web_backup_sha256': control.profile()['web_backup']['manifest_sha256']}
                 files._new(slotfd, 'attempt.json', p._json({'state': 'BLOCKER_ADMISSION_STARTED', 'action': action, **binding}))
-                with a.c.rf.acquire(runtime, source, database, ca, authority, cancel=cancel) as fence:
+                with a.c.rf.acquire(runtime, source, database, ca, authority, cancel=cancel, commit=commit) as fence:
                     fence.assert_held()
-                    recheck = a.c._recheck(runtime, source, database, ca, authority, slot, archives.sql, cancel)
+                    recheck = a.c._recheck(runtime, source, database, ca, authority, slot, archives.sql, cancel, commit=commit)
                     window = BlockerWindow(control, fence, schedulers, locked, archives, envelope, slot, {})
                     window.assert_held()  # Full current native admission before the first durable intent.
                     state._execute(action, window)

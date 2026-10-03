@@ -189,9 +189,10 @@ def acquire(external, barrier, data, gateway, runtime, source, payload, authorit
             gid, web, directory, conf, webfd, inc = f._open(runtime, config, lease.scope.directory.parent.parent, stack)
             require(directory == lease.scope.directory.parent and gid == lease.scope.web_gid
                 and web == data._runtime.spec.webroot, 'MOBILE_EXTERNAL_INSTANCE_MISMATCH')
-            current = f.FinalizationStep(runtime, source, repository=p.WEB_REPOSITORY, commit=a.STORAGE_COMMIT)
+            commit = data._runtime.source_commit
+            current = f.FinalizationStep(runtime, source, repository=p.WEB_REPOSITORY, commit=commit)
             database, loader, ca = f._prepared(config, value, directory, conf, gid)
-            completed = f._completed(conf, webfd, inc, gid, commit=a.STORAGE_COMMIT)
+            completed = f._completed(conf, webfd, inc, gid, commit=commit)
             require(database['host'] == '127.0.0.1' and database['tls_required'] is False and ca is None
                 and f._json_read(conf, 'state.json', gid)['migration_retained'] is False,
                 'MOBILE_EXTERNAL_PROFILE_REJECTED')
@@ -200,7 +201,7 @@ def acquire(external, barrier, data, gateway, runtime, source, payload, authorit
             def envelope():
                 current._sources(web); current._pending_edits(conf)
                 require(f._prepared(config, value, directory, conf, gid) == (database, loader, ca)
-                    and f._completed(conf, webfd, inc, gid, commit=a.STORAGE_COMMIT) == completed,
+                    and f._completed(conf, webfd, inc, gid, commit=commit) == completed,
                     'MOBILE_EXTERNAL_ENVELOPE_CHANGED')
             schedulers = stack.enter_context(a.sa.acquire())
             # The old shared configuration context must already have exited.
@@ -223,9 +224,9 @@ def acquire(external, barrier, data, gateway, runtime, source, payload, authorit
                     'file_transaction_sha256': f._sha(a.canonical_bytes(document)),
                     'web_backup_sha256': control.profile()['web_backup']['manifest_sha256']}
                 files._new(slotfd, 'attempt.json', p._json({'state': 'EXTERNAL_ADMISSION_STARTED', 'action': action, **binding}))
-                fence = stack.enter_context(a.c.rf.acquire(runtime, source, database, ca, authority, cancel=cancel))
+                fence = stack.enter_context(a.c.rf.acquire(runtime, source, database, ca, authority, cancel=cancel, commit=commit))
                 fence.assert_held()
-                recheck = a.c._recheck(runtime, source, database, ca, authority, slot, archives.sql, cancel)
+                recheck = a.c._recheck(runtime, source, database, ca, authority, slot, archives.sql, cancel, commit=commit)
                 # Reobserve the complete native/files/archive state after export
                 # and immediately before authorizing the external-only effect.
                 fence.assert_held(); schedulers.assert_held(); control.live(locked=locked)

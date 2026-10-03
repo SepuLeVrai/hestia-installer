@@ -10,6 +10,7 @@ from installer.gateway_identity import profile as identity_profile, public_ident
 from installer.gateway_release import release, sha
 from installer.model import ErrorCode, canonical_bytes, require
 from installer.service_identity import ServiceIdentity
+from installer import mobile_web_source as mobile
 
 PORT = 9083
 
@@ -22,6 +23,8 @@ class GatewayServiceProfile:
         self.identity = dict(identity)
         self.main = public_identity('main', foundation.identity['public_jwk'])
         require(foundation.identity == self.main, ErrorCode.INCOMPATIBLE_STATE)
+        if self.web.spec.source_commit == mobile.COMMIT:
+            require(foundation.public_origin == identity['public_origin'], ErrorCode.INCOMPATIBLE_STATE)
         self.root = self.web.spec.root.parent / 'gateway-service'
         self.unit = 'hestia-' + self.web.spec.instance + '-gateway.service'
         self.key_directory = Path(key_directory)

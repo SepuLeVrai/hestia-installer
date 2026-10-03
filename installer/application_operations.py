@@ -203,7 +203,8 @@ class DatabasePreparationOperation(_BoundOperation):
             database, _, ca = f._prepared(config, payload, directory, conf, gid)
             f._database_receipt(self.controller.runtime, database)
             result = f._sql(self.controller.runtime, self.controller.source, database, payload, config, ca,
-                            desired=False, mutate=False)
+                            desired=False, mutate=False,
+                            commit=db.mobile.COMMIT if self.controller.commit == db.mobile.COMMIT else f.WEB_COMMIT)
             require(result == {'database_verified': True, 'assistant_enabled': False}, ErrorCode.VALIDATION_FAILED)
         return {'state': 'DATABASE_CONFIGURATION_READY', 'application_installed': False}
 

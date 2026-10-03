@@ -29,9 +29,10 @@ ou une preuve de disponibilité publique depuis Internet.
 
 - [x] Cockpit `2f7a33bca0325b25880e7f90960774c14b92b667` : trois CI PASS,
   3971 exécutions, neuf jobs, huit artefacts et 475 fichiers exacts vérifiés.
-- [ ] Recette composée avec Web/Gateway réels et ACME privé.
-- [ ] Interruptions natives et nouveau PID 1 avec les gardes composés.
-- [ ] Boot Mobile et restauration originale.
+- [x] Recette composée avec Web/Gateway réels et ACME privé, run `37119330868`.
+- [x] SIGKILL du processus d'effet certificat après reçu durable et nouveau PID 1.
+- [x] Boot Mobile du profil historique, login Web et bootstrap signé après boot.
+- [ ] Restauration originale et upgrade/rollback Gateway.
 - [ ] DEV distinct, origine/sonde Web configurables et FCM.
 - [ ] Recette globale 6C et preuves terrain distinctes.
 
@@ -58,7 +59,22 @@ Les routes `/api/mobile/boot/{plan,apply,resume,retry,check}` suivent les gardes
 HTTPS et les verrous existants. GET/rapport restent historiques. Le contrôle
 explicite atteste la configuration actuelle, sans prouver un reboot effectif.
 La recette composée est étendue au reboot réel et au bootstrap signé après
-reboot ; cette qualification reste à obtenir sur ce candidat.
+redémarrage de PID 1 ; elle est désormais PASS sur
+`f8c004c38bff2fc97ad203a7ea12a9515f32aea9`, arbre
+`d21b87c351d73a06969d161db9e5bb45dad5d1f8`, 481 fichiers.
+Le run `37119330868` constate également deux renouvellements ACME réels,
+le worker de renouvellement installé et un PID NGINX conservé lors du reload.
+L'artefact `11272553912` a pour SHA-256
+`2694da65b6a6a4866e8861a85cf25dbe4d12d28cdb390e96b8fb8a90bc509e18`.
+Le test tue le processus d'effet après sa fin durable ; le contrôleur reste
+vivant et une reprise explicite observe le reçu sans nouvelle émission.
+La réinvocation du worker boot conserve les processus de la même époque.
+
+Les trois CI Installer de ce même commit sont PASS : Quality `37120410610`,
+système `37120410606`, paquets `37120410605`. Le run natif précédent
+`37111502971` avait passé navigateur/SIGKILL mais échoué sur une mauvaise
+invocation du renouvellement dans la recette. Cette invocation a été corrigée
+sans étendre les rôles autorisés par le contrôleur produit.
 
 ## Correction HTTP-01 issue de la recette composée
 
@@ -67,5 +83,26 @@ challenge Mobile. Le vhost Mobile refusait l'autorité HTTP contenant le port
 standard explicite (`mobile.example.test:80`), contrairement au vhost Web.
 Le compilateur accepte désormais le domaine exact avec ou sans `:80` et
 continue à refuser les autres ports et autorités. Un contrôle NGINX natif
-sert un jeton sentinelle sous les deux formes ; la recette ACME doit confirmer
-le parcours entier. Aucun échec partiel de certificat n'est rejoué.
+sert un jeton sentinelle sous les deux formes ; la recette ACME `37119330868`
+confirme le parcours entier. Aucun échec partiel de certificat n'est rejoué.
+
+## Successeur Web Mobile explicite
+
+Le Web `a21fc758fc4c1de9580a953ec07f459f54609874` est qualifié par les quatre
+jobs de Quality `37119716962` : PHP 8.3/8.4, MariaDB fresh/replay/upgrade et
+Apache. Il inclut les correctifs publiés de main et la configuration privée
+optionnelle `public_origin`/`gateway_port`. Le QR ignore les paramètres client
+et les en-têtes Host/forwarded ; la sonde reste fermée à 127.0.0.1.
+
+Le profil Installer `fresh-mobile-staged-v2` sélectionne ce commit exact.
+Le profil v1 et ses sceaux gardent leur source d'origine. Le nouveau schéma
+implique des empreintes SQL distinctes : elles sont mesurées sur l'archive
+complète, avec l'arbre Git, les modes et les 1848 fichiers vérifiés. Un commit
+connu du registre fresh n'autorise pas une transition SQL dans le catalogue
+upgrade. Aucun sélecteur inconnu ne retombe sur les anciens moteurs.
+
+Le plan Foundation v2 reprend l'origine de l'identité Gateway approuvée et
+fixe la sonde au port 9083. Le FPM v2 utilise son `foundation/main.json` privé,
+également contrôlé par les lecteurs de sauvegarde et boot. Les fragments v1
+gardent leurs octets. Le choix v2 reste explicite dans l'API de préparation ;
+il ne devient pas le défaut du cockpit avant qualification native.
