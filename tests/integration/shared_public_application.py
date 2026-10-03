@@ -208,7 +208,7 @@ class Verify(unittest.TestCase):
         leaves = {str(p): p.read_bytes() for p in (web_leaf, mobile_leaf)}
         for argv in (runtime.web.certbot(renew=True), runtime.shared.certbot(renew=True)):
             native.old.command([*argv, '--force-renewal'], timeout=840)
-        runtime.control('start', 'renew')
+        native.old.command(['/usr/bin/systemctl', '--no-pager', '--no-ask-password', 'start', '--', runtime.web.unit('renew')], timeout=1800)
         self.assertEqual(runtime.web.systemctl('show', 'https')['MainPID'], pid)
         for path, before in leaves.items(): self.assertNotEqual(Path(path).read_bytes(), before)
         runtime.web.certificate(); runtime.mobile.verify(); public.login(self)
