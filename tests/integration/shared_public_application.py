@@ -2,7 +2,8 @@
 """Real Web/Gateway/Certbot composition, exclusively in disposable Debian CI.
 
 Public parent code is frozen separately. No ACME, SQL, Gateway, Apache or
-systemd observation is mocked. Only a completed certificate reply is lost.
+systemd observation is mocked. A certificate effect process is killed after its
+durable completion; the live cockpit must recover without issuing it again.
 """
 import argparse
 from contextlib import ExitStack
@@ -13,8 +14,10 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import socket
 import ssl
+import subprocess
 import sys
 import time
 import traceback
@@ -29,6 +32,7 @@ import public_tls_systemd as public
 from github_fixture import confirm
 from installer import shared_public_runtime as native
 from installer.gateway_service_probe import PATH
+from installer.operations import OperationContext, SecretVault
 
 EVIDENCE = Path('/evidence')
 ORIGIN = 'https://mobile.example.test'
@@ -69,12 +73,36 @@ def setup():
     finally: service.close()
 
 
+def cut_certificate():
+    value = json.load(sys.stdin)
+    runtime = native.SharedPublic(value['profile'])
+    operation = native.SharedOperation(runtime, 'certificate', 'shared.public.handoff')
+    assert value['spec'] == operation.spec.as_dict() and not value['spec']['requires_secrets']
+    context = OperationContext(value['installation_id'], value['spec'], value['evidence'], SecretVault())
+    # O_EXCL also makes a repeated issuance fail the recipe after recovery.
+    with (EVIDENCE / 'certificate-effect-started.json').open('x') as output:
+        output.write(json.dumps({'pid': os.getpid(), 'profile_sha256': runtime.digest}))
+        output.flush(); os.fsync(output.fileno())
+    operation.apply(context)
+    with (EVIDENCE / 'certificate-effect-completed.json').open('x') as output:
+        output.write(json.dumps({'pid': os.getpid(), 'receipt': runtime._read('certificate.json'),
+            'leaf_sha256': hashlib.sha256((runtime.shared.acme_root / 'live/hestia-mobile/cert.pem').read_bytes()).hexdigest()}))
+        output.flush(); os.fsync(output.fileno())
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
 def serve():
     original = native.SharedOperation.apply
     def lost_reply(operation, context):
-        result = original(operation, context)
-        if operation.phase == 'certificate': raise OSError('Disposable completed certificate reply lost')
-        return result
+        if operation.phase != 'certificate': return original(operation, context)
+        result = subprocess.run([sys.executable, '-B', str(Path(__file__).resolve()), '--phase', 'cut-certificate'],
+            input=quality.encode({'profile': operation.runtime.value, 'installation_id': context.installation_id,
+                'spec': context.spec, 'evidence': context.evidence}), timeout=900, check=False)
+        assert result.returncode == -signal.SIGKILL, result.returncode
+        assert (EVIDENCE / 'certificate-effect-completed.json').is_file()
+        (EVIDENCE / 'certificate-effect-killed.json').write_bytes(quality.encode({'returncode': result.returncode,
+            'effect_process_killed': True, 'cockpit_process_survived': True}))
+        raise OSError('Disposable completed certificate process killed')
     def diagnostic(callback):
         def invoke(*args, **kwargs):
             try: return callback(*args, **kwargs)
@@ -110,6 +138,16 @@ class Browser(unittest.TestCase):
             page.locator('#apply-shared-public').click(); page.locator('#operation-dialog button[value=confirm]').click()
             expect(page.locator('#shared-public-state')).to_have_attribute('data-state', 'FAILED')
             document = state()['installation']; failed = [r for r in document['steps'] if r['state'] == 'FAILED']
+            if [r['name'] for r in failed] == ['shared.public.enroll']:
+                # The first session-cleaner oneshot may finish during the
+                # strict unit audit. Only explicit no-intent recovery can pass;
+                # an ambiguous effect must remain manual and fail this test.
+                (EVIDENCE / 'shared-enroll-precondition-refused.json').write_bytes(quality.encode(document))
+                page.reload(); page.locator('#retry-shared-public').click(); page.locator('#operation-dialog button[value=confirm]').click()
+                expect(page.locator('#shared-public-state')).to_have_attribute('data-state', 'PLANNED')
+                page.locator('#resume-shared-public').click(); page.locator('#operation-dialog button[value=confirm]').click()
+                expect(page.locator('#shared-public-state')).to_have_attribute('data-state', 'FAILED')
+                document = state()['installation']; failed = [r for r in document['steps'] if r['state'] == 'FAILED']
             self.assertEqual([r['name'] for r in failed], ['shared.public.certificate'])
             self.assertEqual(document['last_error_redacted'], 'OPERATION_FAILED', document['last_error_redacted'])
             page.reload(); page.locator('#retry-shared-public').click(); page.locator('#operation-dialog button[value=confirm]').click()
@@ -148,6 +186,13 @@ class Verify(unittest.TestCase):
         service = fixture.service(); self.addCleanup(service.close)
         control = service.shared_public; document = control.journal.read(); self.assertEqual(document['state'], 'DONE')
         _, runtime = control.engine(service.engine.report())
+        killed = json.loads((EVIDENCE / 'certificate-effect-killed.json').read_bytes())
+        self.assertEqual(killed, {'returncode': -signal.SIGKILL, 'effect_process_killed': True, 'cockpit_process_survived': True})
+        started = json.loads((EVIDENCE / 'certificate-effect-started.json').read_bytes())
+        completed = json.loads((EVIDENCE / 'certificate-effect-completed.json').read_bytes())
+        self.assertEqual(started['pid'], completed['pid']); self.assertEqual(started['profile_sha256'], runtime.digest)
+        self.assertEqual(completed['receipt'], runtime._read('certificate.json'))
+        self.assertEqual(completed['leaf_sha256'], hashlib.sha256((runtime.shared.acme_root / 'live/hestia-mobile/cert.pem').read_bytes()).hexdigest())
         public.login(self)
         status, body, _ = mobile_request(); self.assertEqual((status, json.loads(body)), (200, {'status': 'ok'}))
         token = native.gateway_service_probe._b64(os.urandom(32))
@@ -206,12 +251,13 @@ class Restart(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(); parser.add_argument('--phase', required=True, choices=('setup', 'serve', 'browser', 'verify', 'restart'))
+    parser = argparse.ArgumentParser(); parser.add_argument('--phase', required=True, choices=('setup', 'serve', 'cut-certificate', 'browser', 'verify', 'restart'))
     phase = parser.parse_args().phase
     if os.environ.get('HESTIA_SHARED_APPLICATION_TEST') != '1' or os.geteuid() != 0: raise RuntimeError('Disposable opt-in required')
     if phase != 'browser' and Path('/proc/1/comm').read_text().strip() != 'systemd': raise RuntimeError('Real PID 1 required')
     if phase == 'setup': setup(); sys.exit(0)
     if phase == 'serve': serve(); sys.exit(0)
+    if phase == 'cut-certificate': cut_certificate(); sys.exit(0)
     before = quality.snapshot(ROOT)
     result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase({'browser': Browser, 'verify': Verify, 'restart': Restart}[phase]))
     stable = quality.snapshot(ROOT) == before
