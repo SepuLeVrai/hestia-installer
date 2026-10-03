@@ -1,5 +1,6 @@
 ARG DEBIAN=13
 FROM debian:${DEBIAN}-slim
+ARG DEBIAN
 ENV DEBIAN_FRONTEND=noninteractive container=docker
 RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d \
     && chmod 0755 /usr/sbin/policy-rc.d \

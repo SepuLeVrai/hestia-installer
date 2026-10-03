@@ -103,3 +103,13 @@ Suite : recette composée avec Web/Gateway réels et ACME privé, reprise après
 interruptions aux frontières natives, puis raccordement du cockpit. Le boot
 Mobile, DEV/FCM, les APK et 6C restent ouverts. Aucun SQL, `schema.sql` ou
 `install.php` modifié. Aucune promotion main/dev/dev-Bastien dans ce lot.
+
+## Correction de la première fixture
+
+Le premier gel `413c3de51d9829ee94f420aca2085c933a033afe` a échoué dans la
+nouvelle recette système avant les effets du transfert : l'argument Docker
+Debian, déclaré avant `FROM`, n'était pas disponible dans l'étape d'installation
+conditionnelle de Certbot. L'image ne contenait donc pas `certbot.timer`.
+L'argument est redéclaré dans le stage. Le nouveau scénario passe en début de
+campagne pour rendre ses échecs rapides à diagnostiquer. Aucun garde produit ni
+assertion n'est retiré ; une nouvelle qualification du gel corrigé est requise.

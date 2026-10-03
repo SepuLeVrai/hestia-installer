@@ -144,7 +144,7 @@ class SharedSystemd(unittest.TestCase):
                     with Path('/evidence/shared-public-operation-error.txt').open('a') as output: traceback.print_exc(file=output)
                     raise
             return checked
-        with patch.object(cls.r.boot,'configuration'),patch.object(cls.r.boot,'live'),patch.object(cls.r,'gateway'),patch.object(cls.r,'network_ready'),patch.object(s.old,'command',side_effect=acquire),patch.object(s.gateway_service_probe,'check'),patch.object(s.SharedOperation,'apply',diagnostic(s.SharedOperation.apply)):
+        with patch.object(cls.r.boot,'configuration'),patch.object(cls.r.boot,'live'),patch.object(cls.r,'gateway'),patch.object(cls.r,'network_ready'),patch.object(s.old,'command',side_effect=acquire),patch.object(s.gateway_service_probe,'check'),patch.object(s.SharedOperation,'apply',diagnostic(s.SharedOperation.apply)),patch.object(s.SharedOperation,'prepare',diagnostic(s.SharedOperation.prepare)),patch.object(s.SharedOperation,'current',diagnostic(s.SharedOperation.current)):
             result=cls.engine.apply(cls.document['plan_sha256'])
         if result['state']!='DONE':
             Path('/evidence/shared-public-failed-journal.json').write_bytes(canonical_bytes(result))
