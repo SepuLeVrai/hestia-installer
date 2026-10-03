@@ -78,7 +78,7 @@ qui réouvrirait un frontal ou restaurerait un ancien certificat.
 
 ## Qualification et limites
 
-38 nouveaux contrats obligatoires couvrent les profils fermés, les sources figées,
+41 nouveaux contrats obligatoires couvrent les profils fermés, les sources figées,
 les ressources et copies, le consentement distinct, l'ordre des effets, les refus
 avant publication, les reprises, les permissions et les deux renouvellements.
 Les 30 contrats 6B10 et les 10 contrats de composition restent conservés.
@@ -113,3 +113,10 @@ conditionnelle de Certbot. L'image ne contenait donc pas `certbot.timer`.
 L'argument est redéclaré dans le stage. Le nouveau scénario passe en début de
 campagne pour rendre ses échecs rapides à diagnostiquer. Aucun garde produit ni
 assertion n'est retiré ; une nouvelle qualification du gel corrigé est requise.
+
+Le deuxième gel `9e7ef55e5b3c2f7b78d860392d30f09d409fea6b` a atteint l'enrôlement
+et refusé la configuration composée de 63 routes (environ 95 Ko), trop grande
+pour le helper historique de 16 Ko. Le successeur dispose maintenant d'une
+écriture privée exclusive et d'une lecture bornées à 256 Ko, sans modifier la
+limite des helpers antérieurs. Trois contrats sur les vrais fichiers couvrent
+le round-trip, la borne, les chemins, les liens et les écritures partielles.

@@ -95,6 +95,27 @@ class PrivateStateTests(unittest.TestCase):
 
     def write(self, name, value): self.r._write(name, value)
 
+    def test_real_composed_configuration_exceeds_old_bound_and_roundtrips_exactly(self):
+        raw = self.r.files()['ready-https.conf']; self.assertGreater(len(raw), 16384)
+        with s._private_directory(self.r.root, create=True) as fd:
+            self.r.write_configuration(fd, 'ready-https.conf', raw)
+            self.assertEqual(s.f._read(fd, 'ready-https.conf', 0, mode=0o600, limit=s.CONFIG_LIMIT), raw)
+            with self.assertRaises(Exception): s.f._read(fd, 'ready-https.conf', 0, mode=0o600)
+
+    def test_configuration_writer_rejects_oversize_and_paths_before_creating_any_file(self):
+        with s._private_directory(self.r.root, create=True) as fd:
+            for name, raw in (('large.conf', b'x'*(s.CONFIG_LIMIT+1)), ('../foreign.conf', b'x'), ('.', b'x')):
+                with self.assertRaises(InstallerError): self.r.write_configuration(fd, name, raw)
+            self.assertEqual(os.listdir(fd), [])
+
+    def test_configuration_writer_never_repairs_partial_files_or_follows_links(self):
+        with s._private_directory(self.r.root, create=True) as fd:
+            self.r.write_configuration(fd, 'partial.conf', b'partial')
+            with self.assertRaises(FileExistsError): self.r.write_configuration(fd, 'partial.conf', b'complete')
+            self.assertEqual(s.f._read(fd, 'partial.conf', 0, mode=0o600), b'partial')
+            os.symlink('partial.conf', 'linked.conf', dir_fd=fd)
+            with self.assertRaises(FileExistsError): self.r.write_configuration(fd, 'linked.conf', b'new')
+
     def test_bundle_preserves_frozen_source_set_and_rejects_worker_code_or_extra_file(self):
         self.r.copy_bundle(); self.r.bundle()
         before = {p: p.read_bytes() for p in self.r.root.rglob('*') if p.is_file()}

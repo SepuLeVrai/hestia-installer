@@ -19,10 +19,11 @@ from installer.model import ErrorCode, Receipt, ResourceSpec, StepSpec, canonica
 from installer.operations import Operation, OperationRegistry, Recovery, RecoveryDecision
 from installer.shared_mobile_tls import SharedMobileTLS, CERT_NAME
 from installer.shared_public_plan import candidate, digest
-from installer.transaction import StateJournal, _private_directory
+from installer.transaction import StateJournal, _private_directory, _FILE_FLAGS, _check_file
 
 f, fs, h, boot = old.f, old.fs, old.h, old.boot
 PHASES = ('enroll', 'handoff', 'certificate', 'dry-run', 'publish', 'renewal', 'verify')
+CONFIG_LIMIT = 262144
 
 
 def code_identity(): return {name: f._sha(raw) for name, raw in boot.code_files().items()}
@@ -137,6 +138,22 @@ class SharedPublic(old.Profile):
 
     def binding(self, context): return self.web.binding(context) | {'profile_sha256': self.digest}
 
+    @staticmethod
+    def write_configuration(fd, name, raw):
+        # The composed 63-route configuration exceeds the historical 16 KiB
+        # data helper. Keep that helper unchanged; this private writer is bounded
+        # separately and can only create, never replace or repair, a file.
+        require(type(raw) is bytes and len(raw) <= CONFIG_LIMIT, ErrorCode.INVALID_DATA)
+        require(type(name) is str and re.fullmatch('[A-Za-z0-9_.-]+', name) and name not in ('.', '..'))
+        handle = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _FILE_FLAGS, 0o600, dir_fd=fd)
+        try:
+            os.fchmod(handle, 0o600); _check_file(handle); fs._no_acl(handle)
+            require(os.fstat(handle).st_gid == 0, ErrorCode.UNSAFE_STATE_PATH)
+            with os.fdopen(handle, 'wb', closefd=False) as stream:
+                stream.write(raw); stream.flush(); os.fsync(handle)
+            os.fsync(fd)
+        finally: os.close(handle)
+
     def absent(self):
         self.web.configuration(); self.web.enabled(); self.boot.configuration(); self.boot.live(); self.gateway(); self.network_ready()
         require(all(self.web.running(role) for role in ('http', 'https', 'timer')), ErrorCode.VALIDATION_FAILED)
@@ -155,14 +172,14 @@ class SharedPublic(old.Profile):
                 os.mkdir(path.name, 0o755, dir_fd=fd); os.chmod(path.name, 0o755, dir_fd=fd); os.fsync(fd)
         with _private_directory(self.shared.root, create=True) as fd: f._write(fd, 'certbot.ini', b'', 0, mode=0o600)
         with _private_directory(self.root, create=False) as fd:
-            for name, raw in self.files().items(): f._write(fd, name, raw, 0, mode=0o600)
+            for name, raw in self.files().items(): self.write_configuration(fd, name, raw)
         self._write('enroll.json', self.binding(context))
 
     def enrolled(self):
         self.completed('enroll'); self.bundle(); self.web.bundle(); self.web.enabled()
         account = self.identity.account()
         with _private_directory(self.root, create=False) as fd:
-            for name, raw in self.files().items(): require(f._read(fd, name, 0, mode=0o600) == raw, ErrorCode.SOURCE_DRIFT)
+            for name, raw in self.files().items(): require(f._read(fd, name, 0, mode=0o600, limit=CONFIG_LIMIT) == raw, ErrorCode.SOURCE_DRIFT)
         with _private_directory(self.web.root, create=False) as fd:
             for name, raw in self.web.files().items(): require(f._read(fd, name, 0, mode=0o600) == raw, ErrorCode.SOURCE_DRIFT)
         with _private_directory(self.shared.root, create=False) as fd:
