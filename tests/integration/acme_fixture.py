@@ -20,7 +20,8 @@ ROOT = Path('/fixture'); ROOT.mkdir(mode=0o700)
 CA = '172.30.85.2'; TARGET = '172.30.85.10'
 PRODUCTION = 'acme-v02.api.letsencrypt.org'; STAGING = 'acme-staging-v02.api.letsencrypt.org'
 subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '7', '-subj', '/CN=HESTIA disposable ACME endpoint',
-    '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'subjectAltName=DNS:' + PRODUCTION + ',DNS:' + STAGING + ',DNS:localhost,IP:127.0.0.1,IP:' + CA,
+    '-addext', 'basicConstraints=critical,CA:TRUE', '-addext', 'keyUsage=critical,keyCertSign,cRLSign,digitalSignature',
+    '-addext', 'subjectAltName=DNS:' + PRODUCTION + ',DNS:' + STAGING + ',DNS:localhost,IP:127.0.0.1,IP:' + CA,
     '-keyout', str(ROOT / 'endpoint.key'), '-out', str(ROOT / 'endpoint.crt')], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 (ROOT / 'endpoint.key').chmod(0o600)
 config = {'pebble': {'listenAddress': '0.0.0.0:14000', 'managementListenAddress': '0.0.0.0:15000',
@@ -34,7 +35,7 @@ def dns_response(data):
     while data[index]:
         length = data[index]; index += 1; labels.append(data[index:index + length].decode()); index += length
     index += 1; kind, cls = struct.unpack('!HH', data[index:index + 4]); end = index + 4
-    name = '.'.join(labels).lower(); address = TARGET if name == 'hestia.example.test' else CA if name in (PRODUCTION, STAGING) else None
+    name = '.'.join(labels).lower(); address = TARGET if name in ('hestia.example.test', 'mobile.example.test') else CA if name in (PRODUCTION, STAGING) else None
     answer = b''
     if kind == 1 and cls == 1 and address:
         answer = b'\xc0\x0c' + struct.pack('!HHIH', 1, 1, 10, 4) + socket.inet_aton(address)
