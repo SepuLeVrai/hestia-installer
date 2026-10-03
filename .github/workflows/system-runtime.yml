@@ -27,6 +27,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Read the exact frozen public parent for successor qualification
+        if: matrix.debian == '13'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: 14d7a8ca26e8c7f7a5c4f07acc5848fd452fd15f
+          path: frozen-public-parent
       - name: Build disposable PID-1 systemd from official Debian packages
         env:
           DEBIAN_VERSION: ${{ matrix.debian }}
@@ -162,6 +169,18 @@ jobs:
           docker exec -e HESTIA_SHARED_MOBILE_TLS_TEST=1 hestia-system-runtime \
             python3 /opt/hestia-installer/tests/integration/shared_mobile_tls_nginx.py \
             --report /evidence/shared-mobile-tls.json 2>&1 | tee evidence/shared-mobile-tls.log
+      - name: Exercise successor units with the frozen parent and two certificate lineages
+        if: matrix.debian == '13'
+        run: |
+          set -Eeuo pipefail
+          git -C frozen-public-parent rev-parse HEAD > "$RUNNER_TEMP/frozen-public-parent-commit.txt"
+          test "$(cat "$RUNNER_TEMP/frozen-public-parent-commit.txt")" = 14d7a8ca26e8c7f7a5c4f07acc5848fd452fd15f
+          docker exec hestia-system-runtime mkdir /opt/frozen-public-parent
+          docker cp frozen-public-parent/installer hestia-system-runtime:/opt/frozen-public-parent/installer
+          docker cp "$RUNNER_TEMP/frozen-public-parent-commit.txt" hestia-system-runtime:/opt/frozen-public-parent-commit.txt
+          docker exec -e HESTIA_SHARED_PUBLIC_TEST=1 hestia-system-runtime \
+            python3 /opt/hestia-installer/tests/integration/shared_public_systemd.py \
+            --report /evidence/shared-public-systemd.json 2>&1 | tee evidence/shared-public-systemd.log
       - name: Preserve non-secret evidence and remove disposable container
         if: always()
         run: |

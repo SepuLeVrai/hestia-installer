@@ -1,3 +1,19 @@
+# Point 6B11 - 3 octobre 2026 - transfert et renouvellement du frontal commun
+
+Reprise sur 6B10 `14d7a8ca26e8c7f7a5c4f07acc5848fd452fd15f`, ses trois CI PASS
+et ses preuves conservées. Nouveau cycle interne en sept étapes, confirmation
+séparée, bundle successeur, copies des originaux, transfert explicite des quatre
+unités et du garde Apache, certificat Mobile distinct et renouvellement commun.
+L'ancien bundle et les sources boot sont conservés. Effet incomplet manuel,
+réponse perdue réconciliée sans replay. 38 contrats obligatoires supplémentaires
+et dix scénarios systemd Debian 13 ajoutés sans retirer les régressions.
+
+Qualification du gel courant à établir dans le checkpoint. La nouvelle recette
+isole le frontal avec des dépendances applicatives de fixture ; elle ne vaut pas
+qualification ACME/Gateway/Web complète. Cockpit et boot Mobile encore ouverts,
+aucun SQL ni APK modifié, aucune promotion. Voir
+[SHARED_PUBLIC_LIFECYCLE.md](SHARED_PUBLIC_LIFECYCLE.md). Phase 6 ouverte.
+
 # Point 6B10 - 3 octobre 2026 - parent public figé et plan de transfert
 
 Reprise sur 6B9e qualifié (`fef341b732f7fbe3f2d64ab434d424facf3a1823`).

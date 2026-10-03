@@ -158,6 +158,9 @@ def overlay_evidence(scope, fragment_sha256):
     require(value['backend_fragment_sha256'] == fragment_sha256, ErrorCode.INVALID_STATE)
     with _private_directory(profile.root, create=False) as fd:
         require(f._read(fd, 'apache-public.conf', 0, mode=0o600) == profile.apache_include(), ErrorCode.INVALID_STATE)
+    from installer.shared_public_runtime import overlay
+    successor = overlay(profile, scope, fragment_sha256)
+    if successor is not None: return successor
     with fs._directory(profile.dropin.parent) as fd:
         require(f._read(fd, profile.dropin.name, 0, mode=0o644) == profile.apache_dropin(), ErrorCode.INVALID_STATE)
     return {'path': str(profile.dropin), 'profile_sha256': profile.digest,

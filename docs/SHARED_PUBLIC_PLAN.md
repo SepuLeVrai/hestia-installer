@@ -85,3 +85,11 @@ ce pré-plan comme autorisation de déploiement. Ajouter ensuite l'action cockpi
 les interruptions/reprises natives et la recette ACME/Gateway/Web composée.
 Boot Mobile, DEV/FCM et 6C restent ouverts. Aucun SQL, `schema.sql`, `install.php`
 ou APK modifié par ce lot. Phase 6 toujours ouverte.
+
+## Successeur 6B11
+
+Le cycle interne dispose désormais d'un registre et d'un consentement distincts,
+avec transfert des unités, garde Apache successeur et renouvellement commun.
+Le présent pré-plan conserve son contrat sans effet. Voir
+[SHARED_PUBLIC_LIFECYCLE.md](SHARED_PUBLIC_LIFECYCLE.md) pour les effets, la reprise
+et les limites de qualification ; aucun raccordement cockpit dans ce lot.
