@@ -55,6 +55,8 @@
   let boot = {installation: null, availability: null};
   let acmePackages = {profile: null, acquisition: null, installation: null, selection: null};
   let publicTLS = {installation: null, availability: null};
+  let sharedPreparation = {plan: null, plan_sha256: null};
+  let sharedPublic = {installation: null, verification: null};
   let gateway = {preparation: null, profile: null};
   let foundation = {installation: null, profile: null, availability: null};
   let gatewayService = {installation: null, profile: null, availability: null};
@@ -602,6 +604,7 @@
     if (isApplication() && !isUpgrade() && gateway.preparation?.state === "DONE" && activation.installation?.state === "DONE") foundationForm();
     if (isApplication() && !isUpgrade() && foundation.installation?.state === "DONE") gatewayServiceForm();
     if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") { mobileBackupForm(); if (mobileBackup.state === "DONE") mobilePreparationForm(); mobileActivationForm(); }
+    if (sharedPreparation.plan || (publicTLS.installation?.state === "DONE" && gatewayService.installation?.state === "DONE")) sharedPublicForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
@@ -1060,6 +1063,70 @@
     $("operation-description").textContent = "Ouvrir les ports 80 et 443, demander le certificat Let's Encrypt en acceptant ses conditions de service, tester puis programmer son renouvellement ? Apache sera brièvement placé en maintenance et remis en service. Relisez le domaine et les réseaux autorisés dans le plan.";
     $("operation-dialog").showModal();
   }
+  function sharedPublicForm() {
+    const card = element("article", null, "wizard-card"); card.id = "shared-public";
+    card.append(element("h2", "Accès HTTPS Mobile"), hint("Web et Mobile partagent les ports 80 et 443 avec des domaines, certificats et règles d'accès distincts."));
+    const document = sharedPublic.installation;
+    const action = (name, extra = {}) => {
+      pendingAction = {action: "shared-public." + name, payload: {confirmation: document.plan_sha256, confirm: true, ...extra}};
+      $("operation-title").textContent = "Confirmer l'accès HTTPS Mobile";
+      $("operation-description").textContent = "Transférer le frontal Web, demander le certificat Mobile et activer leur renouvellement commun ? Deux bascules interrompent brièvement les connexions publiques. En cas d'échec avant la fin, le renouvellement peut rester suspendu et nécessiter une intervention. Relisez les domaines et les réseaux autorisés.";
+      $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+    };
+    if (!sharedPreparation.plan) {
+      const form = element("form"); form.id = "shared-public-form";
+      const access = element("select"); access.id = "shared-public-access";
+      for (const [value, label] of [["allowlist", "Limiter aux réseaux indiqués"], ["public", "Autoriser tous les clients IPv4"]]) {
+        const option = element("option", label); option.value = value; access.append(option);
+      }
+      const networks = element("input"); networks.id = "shared-public-networks"; networks.maxLength = 600;
+      networks.placeholder = "203.0.113.0/24, 198.51.100.7/32";
+      form.append(field("Accès Mobile", access), field("Réseaux IPv4 Mobile autorisés (CIDR)", networks));
+      const submit = element("button", "Préparer l'accès Mobile"); submit.type = "submit"; submit.id = "prepare-shared-public";
+      submit.disabled = busy || serverBusy; form.append(submit);
+      form.addEventListener("submit", (event) => { event.preventDefault(); void run(async () => {
+        const client_networks = access.value === "public" ? ["0.0.0.0/0"] : [...new Set(networks.value.split(",").map((x) => x.trim()).filter(Boolean))].sort();
+        sharedPreparation = (await api("/api/mobile/public/preparation/plan", {public_sha256: publicTLS.installation.plan_sha256,
+          gateway_sha256: gateway.preparation.plan_sha256, client_networks})).shared_public_preparation;
+        show(5); message("Choix Mobile enregistrés. Préparez puis confirmez le plan d'exécution.");
+      }); });
+      card.append(form);
+    } else {
+      const selected = sharedPreparation.plan;
+      card.append(element("p", "Mobile : " + selected.gateway_identity.public_origin),
+        element("p", "Réseaux Mobile : " + selected.client_networks.join(", ")));
+      if (!document) {
+        card.append(button("Relire le plan d'accès Mobile", () => void run(async () => {
+          sharedPublic = (await api("/api/mobile/public/plan", {preparation_sha256: sharedPreparation.plan_sha256})).shared_public;
+          show(5);
+        }), "plan-shared-public"));
+      } else {
+        const status = element("p", "Accès Mobile : " + states[document.state]); status.id = "shared-public-state";
+        status.dataset.state = document.state; card.append(status);
+        for (const spec of document.plan.steps) {
+          const record = document.steps.find((row) => row.name === spec.name);
+          card.append(element("p", spec.action + " : " + states[record.state]));
+        }
+        technical(card, "Plan d'accès Mobile", document.plan);
+        if (document.approved_plan_sha256 === null) card.append(button("Activer l'accès Mobile", () => action("apply"), "apply-shared-public", true));
+        else if (document.steps.some((row) => ["RUNNING", "PLANNED"].includes(row.state))) card.append(button("Reprendre l'accès Mobile", () => action("resume"), "resume-shared-public"));
+        for (const record of document.steps.filter((row) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(row.state))) {
+          card.append(button("Vérifier la reprise de cette opération", () => action("retry", {name: record.name}), "retry-shared-public"));
+        }
+        if (document.state === "DONE") {
+          card.append(hint("Le plan est terminé. Actualiser cette page ne vérifie pas la disponibilité actuelle."));
+          card.append(button("Contrôler le frontal maintenant", () => void run(async () => {
+            sharedPublic = (await api("/api/mobile/public/check", {confirmation: document.plan_sha256, confirm: true})).shared_public;
+            show(5);
+          }), "check-shared-public"));
+        }
+        if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
+      }
+    }
+    const checked = sharedPublic.verification;
+    const live = hint(checked ? "Frontal et services liés contrôlés le " + checked.checked_at : "Aucun contrôle actuel effectué dans cette session.");
+    live.id = "shared-public-verification"; card.append(live); content.append(card);
+  }
   function publicTLSForm() {
     const card = element("article", null, "wizard-card"); card.id = "public-tls";
     card.append(element("h2", "Accès HTTPS et renouvellement"), hint("Le domaine Web doit pointer vers ce serveur en IPv4, sans enregistrement AAAA. Les ports 80 et 443 doivent être disponibles et accessibles depuis Internet. Le port 80 reste ouvert pour HTTP-01 et redirige les autres requêtes vers HTTPS."));
@@ -1095,14 +1162,15 @@
       if (document.approved_plan_sha256 === null) card.append(button("Valider l'accès HTTPS", () => publicTLSAction("apply"), "apply-public-tls", true));
       else if (document.steps.some((s) => ["RUNNING", "PLANNED"].includes(s.state))) card.append(button("Reprendre le plan HTTPS", () => publicTLSAction("resume"), "resume-public-tls"));
       for (const record of document.steps.filter((s) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(s.state))) card.append(button("Vérifier la reprise du frontal", () => publicTLSAction("retry", {name: record.name}), "retry-public-tls"));
-      if (document.state === "DONE") {
+      if (document.state === "DONE" && !sharedPublic.installation?.approved_plan_sha256) {
         card.append(hint("Configuration du serveur terminée : HTTPS, démarrage automatique et renouvellement sont configurés."));
         card.append(button("Vérifier HTTPS maintenant", () => void run(async () => {
           publicTLS = (await api("/api/web/public-tls/check", {confirmation: document.plan_sha256, confirm: true})).public_tls;
           show(5); message("Vérification HTTPS terminée.");
         }), "check-public-tls"));
       }
-      if (publicTLS.availability) card.append(hint((publicTLS.availability.state === "PUBLIC_TLS_AVAILABLE" ? "HTTPS disponible" : "Disponibilité HTTPS à contrôler") + " — " + publicTLS.availability.checked_at));
+      if (sharedPublic.installation?.approved_plan_sha256) card.append(hint("Le frontal est désormais suivi dans la carte Accès HTTPS Mobile."));
+      else if (publicTLS.availability) card.append(hint((publicTLS.availability.state === "PUBLIC_TLS_AVAILABLE" ? "HTTPS disponible" : "Disponibilité HTTPS à contrôler") + " - " + publicTLS.availability.checked_at));
       if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
     }
     content.append(card);
@@ -1152,6 +1220,9 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action.startsWith("shared-public.")) {
+        sharedPublic = (await api("/api/mobile/public/" + action.action.slice(14), action.payload)).shared_public;
+        show(5);
       } else if (action.action.startsWith("mobile-preparation.")) {
         try {
           mobilePreparation = (await api("/api/mobile/preparation/" + action.action.slice(19), action.payload)).mobile_preparation;
@@ -1212,6 +1283,8 @@
     boot = result.boot || {installation: null, availability: null};
     acmePackages = result.acme_packages || {profile: null, acquisition: null, installation: null, selection: null};
     publicTLS = result.public_tls || {installation: null, availability: null};
+    sharedPreparation = result.shared_public_preparation || {plan: null, plan_sha256: null};
+    sharedPublic = result.shared_public || {installation: null, verification: null};
     gateway = result.gateway || {preparation: null, profile: null};
     foundation = result.foundation || {installation: null, profile: null, availability: null};
     gatewayService = result.gateway_service || {installation: null, profile: null, availability: null};
@@ -1285,6 +1358,8 @@
         boot = result.boot || boot;
         acmePackages = result.acme_packages || acmePackages;
         publicTLS = result.public_tls || publicTLS;
+        sharedPreparation = result.shared_public_preparation || sharedPreparation;
+        sharedPublic = result.shared_public || sharedPublic;
         gateway = result.gateway || gateway;
         foundation = result.foundation || foundation;
         gatewayService = result.gateway_service || gatewayService;
@@ -1293,8 +1368,8 @@
         mobileActivation = result.mobile_activation || mobileActivation;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, gateway.preparation?.revision, foundation.installation?.revision, gatewayService.installation?.revision, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
-        const editingMobile = !serverBusy && !busy && ($("mobile-sql-credentials")?.contains(document.activeElement) || $("backup-sql-credentials")?.contains(document.activeElement) || $("preparation-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, sharedPreparation.plan_sha256, sharedPublic.installation?.revision, sharedPublic.verification, gateway.preparation?.revision, foundation.installation?.revision, gatewayService.installation?.revision, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const editingMobile = !serverBusy && !busy && ($("shared-public-form")?.contains(document.activeElement) || $("mobile-sql-credentials")?.contains(document.activeElement) || $("backup-sql-credentials")?.contains(document.activeElement) || $("preparation-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
         if (stamp !== lastRevision && !editingMobile) {
           lastRevision = stamp;
           installation = result.installation;

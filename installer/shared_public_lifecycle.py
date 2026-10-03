@@ -1,6 +1,6 @@
-"""Internal lifecycle with consent distinct from the historical preparation.
+"""Public lifecycle with consent distinct from the historical preparation.
 
-No cockpit route is exposed. Read-only status never runs a native observation.
+The cockpit exposes explicit mutations; reads never run a native observation.
 The main transaction lock serializes this controller with existing workflows.
 """
 from installer import shared_public_runtime as native
@@ -18,6 +18,7 @@ class SharedPublicLifecycle:
         self.parent = preparation.parent
         self.root = preparation.root / 'lifecycle'
         self.journal = StateJournal(self.root / 'transaction/state.json')
+        self.verification = None
 
     def profile(self):
         value = self._read('profile.json')
@@ -28,7 +29,7 @@ class SharedPublicLifecycle:
         value, document = self.profile(), self.journal.read()
         return {'installation': document, 'profile_sha256': None if value is None else digest(value),
             'historical_only': True, 'current_admission': False, 'public_mobile_available': False,
-            'boot_mobile_enabled': False, 'phase6_complete': False}
+            'boot_mobile_enabled': False, 'phase6_complete': False, 'verification': self.verification}
 
     def binding(self, parent):
         require(parent is not None and parent['state'] == 'DONE', ErrorCode.DEPENDENCY_BLOCKED)
@@ -72,12 +73,15 @@ class SharedPublicLifecycle:
                 engine, runtime = self.engine(parent); document = engine.report()
                 require(document is not None, ErrorCode.NOT_PLANNED)
                 require(payload['confirmation'] == document['plan_sha256'], ErrorCode.CONFIRMATION_REQUIRED)
+                self.verification = None
                 # Validate completed steps before the engine skips them. A
                 # stopped/changed successor can never be silently restarted.
                 for spec, record in zip(document['plan']['steps'], document['steps']):
                     if record['state'] == 'DONE':
                         require(engine.registry.get(spec).validate(engine._context(document, spec, record)), ErrorCode.SOURCE_DRIFT)
-                if action == 'check': require(document['state'] == 'DONE', ErrorCode.DEPENDENCY_BLOCKED)
+                if action == 'check':
+                    require(document['state'] == 'DONE', ErrorCode.DEPENDENCY_BLOCKED)
+                    self.verification = {'state': 'SHARED_PUBLIC_VERIFIED', 'checked_at': native.old.now()}
                 else:
                     scope = runtime.http._scope(runtime.layout.identity.account())
                     with scope.writer():

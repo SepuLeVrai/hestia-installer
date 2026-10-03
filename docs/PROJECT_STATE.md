@@ -1,3 +1,12 @@
+# Chantier de clôture phase 6 - 3 octobre 2026
+
+Reprise sur le commit 6B11 qualifié `dc0dca3ae0d33baafa136f002b2fdeff7f6095a8`.
+Raccordement du cycle public au cockpit : choix Mobile indépendant, plan et
+confirmation distincts, suivi des sept étapes, reprise et contrôle explicite.
+Contrats HTTPS et parcours navigateur ajoutés. Qualification du nouveau gel
+à obtenir ; recette composée, boot/restauration et DEV/FCM encore en cours.
+Voir [PHASE6_COMPLETION.md](PHASE6_COMPLETION.md). Phase 6 toujours ouverte.
+
 # Point 6B11 - 3 octobre 2026 - transfert et renouvellement du frontal commun
 
 Reprise sur 6B10 `14d7a8ca26e8c7f7a5c4f07acc5848fd452fd15f`, ses trois CI PASS

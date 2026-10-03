@@ -386,6 +386,42 @@ class BrowserWizardTests(unittest.TestCase):
         self.page.locator("#rollback-github-web").click(); self.dialog()
         expect(self.page.locator("#execution-state")).to_have_attribute("data-state", "ROLLED_BACK")
 
+    def shared_public_fixture(self):
+        from shared_public_fixture import attach
+        fixture = attach(self, self.service)
+        self.refresh(); self.step(5)
+        return fixture
+
+    def prepare_shared_public(self):
+        self.page.locator('#shared-public-networks').fill('127.0.0.10/32')
+        self.page.locator('#prepare-shared-public').click()
+        self.page.locator('#plan-shared-public').click()
+        expect(self.page.locator('#shared-public-state')).to_have_attribute('data-state', 'PLANNED')
+
+    def test_shared_public_separate_consent_cancel_completion_and_historical_refresh(self):
+        fixture = self.shared_public_fixture(); self.prepare_shared_public()
+        self.assertEqual(fixture.calls, [])
+        self.page.locator('#apply-shared-public').click(); self.dialog('cancel')
+        self.assertIsNone(self.service.shared_public.journal.read()['approved_plan_sha256'])
+        self.assertEqual(fixture.calls, [])
+        self.page.locator('#apply-shared-public').click(); self.dialog()
+        expect(self.page.locator('#shared-public-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual(fixture.calls, ['enroll', 'handoff', 'certificate', 'dry-run', 'publish', 'renewal', 'verify'])
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#shared-public-state')).to_have_attribute('data-state', 'DONE')
+        expect(self.page.locator('#shared-public-verification')).to_contain_text('Aucun contrôle actuel')
+        self.assertEqual(len(fixture.calls), 7)
+        self.page.locator('#check-shared-public').click()
+        expect(self.page.locator('#shared-public-verification')).to_contain_text('Frontal et services liés contrôlés')
+        self.assertEqual(len(fixture.calls), 7)
+
+    def test_shared_public_focused_networks_survive_poll_and_no_automatic_execution(self):
+        fixture = self.shared_public_fixture()
+        self.page.locator('#shared-public-networks').fill('192.0.2.0/24')
+        self.page.wait_for_timeout(1750)
+        expect(self.page.locator('#shared-public-networks')).to_have_value('192.0.2.0/24')
+        self.assertEqual(fixture.calls, []); self.assertIsNone(self.service.shared_public.profile())
+
     def preparation_fixture(self):
         import test_mobile_preparation_plan as fixtures
         fixture = fixtures.MobilePreparationPlanTests('test_plan_reads_are_repeatable_without_native_observation')
