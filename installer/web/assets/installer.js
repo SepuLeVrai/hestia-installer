@@ -61,6 +61,8 @@
   let gateway = {preparation: null, profile: null};
   let foundation = {installation: null, profile: null, availability: null};
   let gatewayService = {installation: null, profile: null, availability: null};
+  let fcm = {state: "NOT_PLANNED", profile: null, receipt: null, availability: null};
+  const fcmGatewayCommit = "33927821bbda57a2c10791d0523eaf3b254c8c9e";
   let mobilePreparation = {state: "NOT_PLANNED", profile: null, steps: []};
   let mobileBackup = {state: "NOT_PLANNED", profile: null, backup: null};
   let mobileActivation = {state: "NOT_PLANNED", profile: null, steps: [], availability: null};
@@ -109,7 +111,7 @@
   async function api(path, payload, binaryPlan) {
     const options = {method: payload === undefined ? "GET" : "POST", cache: "no-store", credentials: "same-origin"};
     if (payload !== undefined) {
-      options.headers = {"Content-Type": binaryPlan ? "application/zip" : "application/json", "X-Hestia-CSRF": csrf};
+      options.headers = {"Content-Type": binaryPlan && path !== "/api/gateway/fcm/import" ? "application/zip" : "application/json", "X-Hestia-CSRF": csrf};
       if (binaryPlan) options.headers["X-Hestia-Plan"] = binaryPlan;
       options.body = binaryPlan ? payload : JSON.stringify(payload);
     }
@@ -475,6 +477,13 @@
       inputs[name] = node; form.append(field(label, node)); return node;
     }
     input("hostname", "Nom DNS du Web", saved?.web.hostname || "", "text", true, 253);
+    const webProfile = element("select"); webProfile.id = "application-profile";
+    for (const [value, label] of [["fresh-storage-staged-v1", "Web historique"], ["fresh-mobile-staged-v2", "Web avec origine Mobile dédiée"]]) {
+      const option = element("option", label); option.value = value; webProfile.append(option);
+    }
+    webProfile.value = application.profile || "fresh-storage-staged-v1";
+    webProfile.addEventListener("change", () => { applicationDirty = true; controls(); });
+    form.append(field("Profil Web", webProfile));
     const mode = element("select"); mode.id = "application-database-mode";
     for (const [value, text] of [["managed", "Créer une base et ses comptes SQL"], ["existing_local", "Utiliser une base locale vide et ses comptes existants"]]) {
       const option = element("option", text); option.value = value; mode.append(option);
@@ -507,7 +516,7 @@
       event.preventDefault(); if (busy || serverBusy || !form.reportValidity()) return;
       const credentials = {};
       for (const name of Object.keys(credentialLabels)) if (inputs[name].value) credentials[name] = inputs[name].value;
-      const payload = {revision: application.draft?.revision || 0, configuration: {
+      const payload = {revision: application.draft?.revision || 0, profile: webProfile.value, configuration: {
         hostname: inputs.hostname.value, database: {mode: mode.value, name: inputs["database-name"].value, user: inputs["database-user"].value},
         administrator: {first_name: inputs["first-name"].value, last_name: inputs["last-name"].value, email: inputs.email.value},
         assistant: {action: assistant.value}}, credentials};
@@ -602,6 +611,7 @@
     if (isApplication() && !isUpgrade() && boot.installation?.state === "DONE") acmePackagesForm();
     if (isApplication() && !isUpgrade() && acmePackages.installation?.state === "DONE") publicTLSForm();
     if (isApplication() && !isUpgrade() && installation.state === "DONE") gatewayForm();
+    if (gateway.preparation?.state === "DONE" && gateway.profile?.release.commit === fcmGatewayCommit) fcmForm();
     if (isApplication() && !isUpgrade() && gateway.preparation?.state === "DONE" && activation.installation?.state === "DONE") foundationForm();
     if (isApplication() && !isUpgrade() && foundation.installation?.state === "DONE") gatewayServiceForm();
     if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") { mobileBackupForm(); if (mobileBackup.state === "DONE") mobilePreparationForm(); mobileActivationForm(); }
@@ -649,17 +659,20 @@
       const origin = element("input"); origin.id = "gateway-origin"; origin.type = "url"; origin.required = true;
       origin.maxLength = 261;
       const dev = element("input"); dev.id = "gateway-dev"; dev.type = "checkbox";
+      const push = element("input"); push.id = "gateway-push"; push.type = "checkbox";
       const acquisition = element("select"); acquisition.id = "gateway-acquisition";
       for (const [value, label] of [["github", "Télécharger depuis GitHub Actions"], ["package", "Importer le ZIP binaire qualifié"]]) {
         const option = element("option", label); option.value = value; acquisition.append(option);
       }
-      form.append(field("Origine HTTPS publique Mobile", origin), field("Préparer aussi une identité DEV distincte", dev), field("Obtenir le paquet Gateway", acquisition));
+      form.append(field("Origine HTTPS publique Mobile", origin), field("Préparer aussi une identité DEV distincte", dev),
+        field("Préparer les notifications push FCM", push), field("Obtenir le paquet Gateway", acquisition));
       const submit = element("button", "Préparer le plan Gateway"); submit.id = "plan-gateway"; submit.type = "submit"; form.append(submit);
       form.addEventListener("submit", (event) => {
         event.preventDefault(); if (!form.reportValidity() || busy || serverBusy) return;
         void run(async () => {
           gateway = (await api("/api/gateway/preparation/plan", {web_plan_sha256: installation.plan_sha256,
             public_origin: origin.value, dev_enabled: dev.checked,
+            ...(push.checked ? {release_commit: fcmGatewayCommit} : {}),
             ...(acquisition.value === "package" ? {acquisition: "package"} : {})})).gateway; show(5);
         });
       }); card.append(form);
@@ -759,6 +772,45 @@
     }
     content.append(card);
   }
+  function fcmForm() {
+    const card = element("article", null, "wizard-card"); card.id = "gateway-fcm";
+    card.append(element("h2", "Notifications push FCM"));
+    if (!fcm.profile && !gatewayService.profile) {
+      const form = element("form"); form.id = "fcm-project-form";
+      const project = element("input"); project.id = "fcm-project"; project.required = true; project.maxLength = 63;
+      project.pattern = "[a-z][a-z0-9-]{4,61}[a-z0-9]"; form.append(field("Identifiant du projet Firebase", project));
+      const submit = element("button", "Préparer l'import FCM"); submit.id = "plan-fcm"; submit.type = "submit"; form.append(submit);
+      form.addEventListener("submit", (event) => { event.preventDefault(); if (!form.reportValidity() || busy || serverBusy) return;
+        void run(async () => { fcm = (await api("/api/gateway/fcm/plan", {gateway_plan_sha256: gateway.preparation.plan_sha256,
+          project_id: project.value})).fcm; show(5); });
+      }); card.append(form);
+    }
+    if (fcm.profile) {
+      card.append(element("p", "Projet Firebase : " + fcm.profile.project_id));
+      const status = element("p", fcm.receipt ? "Credential privé conservé." : "Credential à importer.");
+      status.id = "fcm-state"; status.dataset.state = fcm.state; card.append(status);
+      if (!fcm.receipt && !gatewayService.profile) {
+        const form = element("form"); form.id = "fcm-import-form";
+        const file = element("input"); file.type = "file"; file.id = "fcm-credential"; file.accept = ".json,application/json"; file.required = true;
+        form.append(field("Compte de service Firebase (JSON privé)", file), hint("La clé reste privée sur ce serveur. Elle doit correspondre au projet sélectionné."));
+        const submit = element("button", "Importer le credential FCM"); submit.id = "import-fcm"; submit.type = "submit"; form.append(submit);
+        form.addEventListener("submit", (event) => {
+          event.preventDefault(); if (busy || serverBusy || !form.reportValidity()) return;
+          const selected = file.files[0]; if (!selected || selected.size < 1 || selected.size > 16384) { message("Le JSON FCM doit faire au plus 16 Kio.", true); return; }
+          file.value = ""; pendingAction = {action: "fcm.import", payload: {confirmation: fcm.confirmation}, file: selected};
+          $("operation-title").textContent = "Conserver ce credential FCM ?";
+          $("operation-description").textContent = "Vérifier le projet " + fcm.profile.project_id + " et conserver sa clé privée sur ce serveur ? Aucun push ne sera envoyé pendant l'import.";
+          $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+        }); card.append(form);
+      }
+      if (fcm.receipt) card.append(button("Contrôler le credential privé", () => void run(async () => {
+        fcm = (await api("/api/gateway/fcm/check", {confirmation: fcm.confirmation, confirm: true})).fcm; show(5);
+      }), "check-fcm"));
+      const check = element("p", fcm.availability ? "Credential contrôlé le " + fcm.availability.checked_at : "Aucun contrôle du credential dans cette session.");
+      check.id = "fcm-verification"; card.append(check, hint("L'autorisation Google et la réception sur un téléphone se vérifient séparément."));
+    }
+    content.append(card);
+  }
   function gatewayServiceForm() {
     const card = element("article", null, "wizard-card"); card.id = "gatewayService-main";
     card.append(element("h2", "Raccordement Gateway MAIN"), hint("Service local MAIN sur 127.0.0.1:9083. Son arrêt est coordonné avec la maintenance Web. DEV, accès Mobile public et démarrage automatique restent à raccorder."));
@@ -770,6 +822,9 @@
       $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
     };
     if (!document) {
+      if (gateway.profile?.release.commit === fcmGatewayCommit && !fcm.receipt) {
+        card.append(hint("Importez d'abord le credential FCM pour le lier au service.")); content.append(card); return;
+      }
       card.append(button("Préparer le plan MAIN", () => void run(async () => {
         gatewayService = (await api("/api/gateway/service/plan", {parents: {web: installation.plan_sha256,
           activation: activation.installation.plan_sha256, gateway: gateway.preparation.plan_sha256, foundation: foundation.installation.plan_sha256}})).gateway_service;
@@ -1284,6 +1339,10 @@
       } else if (action.action.startsWith("gateway-service.")) {
         gatewayService = (await api("/api/gateway/service/" + action.action.slice(16), action.payload)).gateway_service;
         show(5);
+      } else if (action.action === "fcm.import") {
+        try { fcm = (await api("/api/gateway/fcm/import", action.file, action.payload.confirmation)).fcm; }
+        finally { action.file = null; }
+        show(5); message("Credential FCM importé. La réception sur un téléphone reste à vérifier.");
       } else if (action.action.startsWith("foundation.")) {
         foundation = (await api("/api/gateway/foundation/" + action.action.slice(11), action.payload)).foundation;
         show(5);
@@ -1332,6 +1391,7 @@
     gateway = result.gateway || {preparation: null, profile: null};
     foundation = result.foundation || {installation: null, profile: null, availability: null};
     gatewayService = result.gateway_service || {installation: null, profile: null, availability: null};
+    fcm = result.fcm || fcm;
     mobilePreparation = result.mobile_preparation || mobilePreparation;
     mobileBackup = result.mobile_backup || mobileBackup;
     mobileActivation = result.mobile_activation || {state: "NOT_PLANNED", profile: null, steps: [], availability: null};
@@ -1408,13 +1468,14 @@
         gateway = result.gateway || gateway;
         foundation = result.foundation || foundation;
         gatewayService = result.gateway_service || gatewayService;
+        fcm = result.fcm || fcm;
         mobilePreparation = result.mobile_preparation || mobilePreparation;
         mobileBackup = result.mobile_backup || mobileBackup;
         mobileActivation = result.mobile_activation || mobileActivation;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, sharedPreparation.plan_sha256, sharedPublic.installation?.revision, sharedPublic.verification, mobileBoot.installation?.revision, mobileBoot.verification, gateway.preparation?.revision, foundation.installation?.revision, gatewayService.installation?.revision, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
-        const editingMobile = !serverBusy && !busy && ($("shared-public-form")?.contains(document.activeElement) || $("mobile-sql-credentials")?.contains(document.activeElement) || $("backup-sql-credentials")?.contains(document.activeElement) || $("preparation-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, sharedPreparation.plan_sha256, sharedPublic.installation?.revision, sharedPublic.verification, mobileBoot.installation?.revision, mobileBoot.verification, gateway.preparation?.revision, fcm, foundation.installation?.revision, gatewayService.installation?.revision, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const editingMobile = !serverBusy && !busy && ($("gateway-fcm")?.contains(document.activeElement) || $("fcm-credential")?.files.length || $("shared-public-form")?.contains(document.activeElement) || $("mobile-sql-credentials")?.contains(document.activeElement) || $("backup-sql-credentials")?.contains(document.activeElement) || $("preparation-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
         if (stamp !== lastRevision && !editingMobile) {
           lastRevision = stamp;
           installation = result.installation;

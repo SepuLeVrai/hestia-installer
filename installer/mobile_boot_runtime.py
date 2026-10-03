@@ -52,7 +52,7 @@ class MobileBootRuntime(boot.BootRuntime):
         self.layout, self.http = self.shared.layout, self.shared.http
         binding = profile['shared']['gateway_binding']
         self.foundation = FoundationRuntime.for_gateway(self.shared.boot.activation, binding['main'], binding['gateway_identity'])
-        self.gateway = GatewayServiceRuntime(self.foundation, binding['gateway_identity'], binding['key_directory'])
+        self.gateway = GatewayServiceRuntime.from_binding(self.foundation, binding)
         require(canonical_bytes(self.gateway.profile.binding()) == canonical_bytes(binding), ErrorCode.INCOMPATIBLE_STATE)
         self.root = self.layout.root / 'mobile-boot'
         self.target = 'hestia-' + self.layout.instance + '-mobile-boot.service'

@@ -20,8 +20,8 @@ def zip_bytes(files):
     return output.getvalue()
 
 
-def packages():
-    selected = release()
+def packages(selected=None):
+    selected = dict(selected or release())
     files = [('VERSION', (selected['version'] + '\n').encode(), 0o644),
              ('bin/hestia-mobile-gateway', b'INERT-TEST-FIXTURE-NO-EXECUTION\n', 0o755)]
     sums = ''.join(sha(data) + '  ' + name + '\n' for name, data, mode in files).encode()
@@ -35,8 +35,8 @@ def packages():
 
 
 class ArtifactResponses:
-    def __init__(self):
-        self.selected, self.package, self.artifact = packages(); s = self.selected
+    def __init__(self, selected=None):
+        self.selected, self.package, self.artifact = packages(selected); s = self.selected
         self.run = {'id': s['run_id'], 'head_sha': s['commit'], 'status': 'completed', 'conclusion': 'success',
                     'event': 'push', 'path': '.github/workflows/quality.yml',
                     'head_repository': {'id': s['repository_id'], 'full_name': s['repository']}}

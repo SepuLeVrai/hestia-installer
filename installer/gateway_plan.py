@@ -214,7 +214,8 @@ class GatewayPlan:
             exact_keys(value, {'identity', 'release', 'web_plan_sha256'} | ({'acquisition'} if 'acquisition' in value else set()))
             require(value.get('acquisition', 'github') in ('github', 'package'), ErrorCode.INVALID_STATE)
             identity_profile(value['identity'])
-            require(value['release'] == release(), ErrorCode.INCOMPATIBLE_STATE)
+            require(type(value['release']) is dict and value['release'] == release(value['release'].get('commit')),
+                    ErrorCode.INCOMPATIBLE_STATE)
             require(type(value['web_plan_sha256']) is str and len(value['web_plan_sha256']) == 64
                     and all(c in '0123456789abcdef' for c in value['web_plan_sha256']), ErrorCode.INVALID_STATE)
             self.parent.secrets.reject_in(value)
@@ -222,7 +223,8 @@ class GatewayPlan:
 
     def state(self):
         # Public metadata only. DONE describes preparation, never availability.
-        return {'profile': self.profile(), 'release': release(), 'preparation': self.journal.read(),
+        profile = self.profile()
+        return {'profile': profile, 'release': profile['release'] if profile else release(), 'preparation': self.journal.read(),
                 'identities': self.identities.report(), 'deployment_available': False}
 
     @staticmethod
@@ -254,19 +256,22 @@ class GatewayPlan:
             parent_sha = self._parent(locked.read())
             if action == 'plan':
                 exact_keys(payload, {'web_plan_sha256', 'public_origin', 'dev_enabled'} |
-                           ({'acquisition'} if 'acquisition' in payload else set()))
+                           ({'acquisition'} if 'acquisition' in payload else set()) |
+                           ({'release_commit'} if 'release_commit' in payload else set()))
                 require(payload.get('acquisition', 'github') in ('github', 'package'))
+                if 'release_commit' in payload: require(type(payload['release_commit']) is str)
                 require(payload['web_plan_sha256'] == parent_sha, ErrorCode.CONFIRMATION_REQUIRED)
                 identity = identity_profile({'version': 1, 'instance': secrets.token_hex(16),
                                              'public_origin': payload['public_origin'], 'dev_enabled': payload['dev_enabled']})
                 value = self.profile()
+                selected = release(payload.get('release_commit', value['release']['commit'] if value else None))
                 if value is None:
                     require(self.journal.read() is None and self.identities.report() is None, ErrorCode.INVALID_STATE)
-                    value = {'identity': identity, 'release': release(), 'web_plan_sha256': parent_sha}
+                    value = {'identity': identity, 'release': selected, 'web_plan_sha256': parent_sha}
                     if 'acquisition' in payload: value['acquisition'] = payload['acquisition']
                     self.parent.secrets.reject_in(value)
                     self._write('profile.json', value)
-                require(value.get('acquisition', 'github') == payload.get('acquisition', 'github')
+                require(value['release'] == selected and value.get('acquisition', 'github') == payload.get('acquisition', 'github')
                         and value['web_plan_sha256'] == parent_sha and all(value['identity'][k] == payload[k]
                         for k in ('public_origin', 'dev_enabled')), ErrorCode.PLAN_EXISTS)
                 self.engine().plan(mode='fresh')

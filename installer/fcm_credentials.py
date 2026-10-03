@@ -30,6 +30,16 @@ def selection(value):
     return value
 
 
+def public_binding(profile, receipt):
+    selection(profile)
+    exact_keys(receipt, {'version', 'profile_sha256', 'project_id', 'credential_sha256', 'public_key_sha256'})
+    require(type(receipt['version']) is int and receipt['version'] == 1
+            and receipt['profile_sha256'] == sha(canonical_bytes(profile)) and receipt['project_id'] == profile['project_id']
+            and all(type(receipt[k]) is str and re.fullmatch('[a-f0-9]{64}', receipt[k])
+                for k in ('credential_sha256', 'public_key_sha256')), ErrorCode.INVALID_STATE)
+    return {'selection': profile, 'receipt': receipt}
+
+
 def _integer(raw, offset):
     require(offset < len(raw) and raw[offset] == 2, ErrorCode.VALIDATION_FAILED)
     offset += 1; size = raw[offset]; offset += 1
@@ -85,12 +95,7 @@ class FcmCredentials:
             return None
         selection(profile); receipt = self._read('receipt.json')
         if receipt is not None:
-            exact_keys(receipt, {'version', 'profile_sha256', 'project_id', 'credential_sha256', 'public_key_sha256'})
-            require(type(receipt['version']) is int and receipt['version'] == 1
-                    and receipt['profile_sha256'] == sha(canonical_bytes(profile))
-                    and receipt['project_id'] == profile['project_id']
-                    and all(type(receipt[k]) is str and re.fullmatch('[a-f0-9]{64}', receipt[k])
-                        for k in ('credential_sha256', 'public_key_sha256')), ErrorCode.INVALID_STATE)
+            public_binding(profile, receipt)
         return {'profile': profile, 'confirmation': sha(canonical_bytes(profile)), 'receipt': receipt,
                 'state': 'IMPORTED' if receipt else 'AWAITING_IMPORT', 'historical_only': True,
                 'service_configured': False, 'google_authorization_verified': False, 'phone_delivery_verified': False}

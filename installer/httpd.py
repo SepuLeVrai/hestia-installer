@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 from installer.constants import BOOTSTRAP_SESSION_TTL_SECONDS, MAX_REQUEST_BODY_BYTES, SESSION_COOKIE_NAME
 from installer.network import PortReservation
 from installer.model import ErrorCode, InstallerError, strict_json_loads
-from installer.service import GET_ROUTES, POST_ROUTES, GATEWAY_PACKAGE_ROUTE, TransactionService
+from installer.service import GET_ROUTES, POST_ROUTES, GATEWAY_PACKAGE_ROUTE, FCM_IMPORT_ROUTE, TransactionService
 from installer.security import BootstrapToken, Session, SessionStore
 
 
@@ -100,7 +100,7 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
     def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
         # Only fixed route names are logged, never user-controlled path segments.
         allowed = GET_ROUTES | set(POST_ROUTES) | {
-            GATEWAY_PACKAGE_ROUTE,
+            GATEWAY_PACKAGE_ROUTE, FCM_IMPORT_ROUTE,
             "/", "/index.html", "/bootstrap", "/bootstrap.html",
             "/api/bootstrap/status", "/api/bootstrap/unlock", "/api/session", "/api/logout",
         }
@@ -381,10 +381,10 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             return
         path = urlsplit(self.path).path
 
-        if path == GATEWAY_PACKAGE_ROUTE:
+        if path in (GATEWAY_PACKAGE_ROUTE, FCM_IMPORT_ROUTE):
             session = self._require_session()
             if session is None or not self._require_csrf(session): return
-            self._gateway_package_request()
+            self._gateway_package_request(fcm=path == FCM_IMPORT_ROUTE)
             return
 
         if path in POST_ROUTES:
@@ -447,7 +447,7 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Route inconnue"}, close_connection=True)
 
-    def _gateway_package_request(self):
+    def _gateway_package_request(self, *, fcm=False):
         # Always close: rejected or already committed imports may leave unread
         # bytes. No body buffering, multipart filename, user path or redirect.
         self.close_connection = True
@@ -455,12 +455,12 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
         confirmation = self.headers.get('X-Hestia-Plan', '')
         if (self.headers.get('Transfer-Encoding') is not None
                 or self.headers.get('Content-Encoding', 'identity') != 'identity'
-                or self.headers.get('Content-Type') != 'application/zip'
+                or self.headers.get('Content-Type') != ('application/json' if fcm else 'application/zip')
                 or not re.fullmatch('[0-9]{1,9}', length)
                 or not re.fullmatch('[a-f0-9]{64}', confirmation)):
             self._send_json(HTTPStatus.BAD_REQUEST, {'error': ErrorCode.INVALID_DATA.value}, close_connection=True)
             return
-        if not 0 < int(length) <= 128 * 1024 * 1024:
+        if not 0 < int(length) <= (16384 if fcm else 128 * 1024 * 1024):
             self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {'error': ErrorCode.SOURCE_LIMIT.value}, close_connection=True)
             return
         service = self.app.transaction_service
@@ -468,7 +468,8 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {'error': 'TRANSACTION_SERVICE_UNAVAILABLE'}, close_connection=True)
             return
         try:
-            result = service.import_gateway_package(confirmation, self.rfile, int(length))
+            method = service.import_fcm_credential if fcm else service.import_gateway_package
+            result = method(confirmation, self.rfile, int(length))
         except InstallerError as error:
             status = HTTPStatus.BAD_REQUEST if error.code in (ErrorCode.INVALID_DATA, ErrorCode.CONFIRMATION_REQUIRED) else HTTPStatus.CONFLICT
             self._send_json(status, {'error': error.code.value}, close_connection=True)

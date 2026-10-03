@@ -11,8 +11,9 @@ import zipfile
 from installer import http_runtime as h, system_drain as drain
 from installer.foundation_runtime import FoundationRuntime
 from installer.gateway_identity import GatewayIdentityStore
-from installer.gateway_release import release, sha, verify_package
+from installer.gateway_release import sha, verify_package
 from installer.gateway_service_profile import PORT, GatewayServiceProfile
+from installer.fcm_credentials import FcmCredentials, public_binding
 from installer.model import ErrorCode, canonical_bytes, require
 from installer.transaction import _FILE_FLAGS, _check_file, _private_directory
 
@@ -38,12 +39,18 @@ def free_port():
 class GatewayServiceRuntime:
     show = FoundationRuntime.show
 
-    def __init__(self, foundation, identity, key_directory):
-        self.profile = GatewayServiceProfile(foundation, identity, key_directory)
+    def __init__(self, foundation, identity, key_directory, *, release_commit=None, push=None):
+        self.profile = GatewayServiceProfile(foundation, identity, key_directory, release_commit=release_commit, push=push)
         self.foundation, self.web = foundation, foundation.web
         self.root, self.unit = self.profile.root, self.profile.unit
         self.fragment = drain.UNIT_ROOT / self.unit
         self.keys = GatewayIdentityStore(self.profile.key_directory)
+
+    @classmethod
+    def from_binding(cls, foundation, binding):
+        profile = GatewayServiceProfile.from_binding(foundation, binding)
+        return cls(foundation, profile.identity, profile.key_directory,
+                   release_commit=profile.selected_release['commit'], push=profile.push)
 
     def key_binding(self):
         report = self.keys.report()
@@ -51,6 +58,9 @@ class GatewayServiceRuntime:
                 and report['receipt'] is not None
                 and report['receipt']['identities']['main'] == self.profile.main, ErrorCode.SOURCE_DRIFT)
         self.keys.verify()
+        if self.profile.push is not None:
+            report = FcmCredentials(self.profile.key_directory.parent / 'fcm').verify()
+            require(public_binding(report['profile'], report['receipt']) == self.profile.push, ErrorCode.SOURCE_DRIFT)
 
     def preflight(self):
         self.foundation.owned(); self.key_binding()
@@ -88,10 +98,10 @@ class GatewayServiceRuntime:
             try:
                 _check_file(handle)
                 with os.fdopen(handle, 'rb', closefd=False) as stream:
-                    verify_package(stream, release())
+                    verify_package(stream, self.profile.selected_release)
                     with zipfile.ZipFile(stream) as archive:
                         binary = archive.read('bin/hestia-mobile-gateway')
-                require(sha(binary) == release()['binary_sha256'], ErrorCode.SOURCE_DRIFT)
+                require(sha(binary) == self.profile.selected_release['binary_sha256'], ErrorCode.SOURCE_DRIFT)
             finally: os.close(handle)
         for path, uid, gid, mode in ((self.root, 0, account.pw_gid, 0o750),
                 (self.root / 'control', 0, 0, 0o700),
@@ -166,7 +176,7 @@ class GatewayServiceRuntime:
                     require(set(os.listdir(fd)) == {'control', 'state', 'hestia-mobile-gateway', 'config.json', 'staged.json'}, ErrorCode.SOURCE_DRIFT)
                     require(h.f._read(fd, 'staged.json', 0, mode=0o600) == canonical_bytes(self.manifest(account)), ErrorCode.SOURCE_DRIFT)
                     require(sha(h.f._read(fd, self.profile.binary.name, account.pw_gid, mode=0o750, limit=32*1024*1024))
-                            == release()['binary_sha256'], ErrorCode.SOURCE_DRIFT)
+                            == self.profile.selected_release['binary_sha256'], ErrorCode.SOURCE_DRIFT)
         fd = self.state_directory(); os.close(fd)
         for path, raw in self.files().items():
             with h.fs._directory(path.parent) as fd:

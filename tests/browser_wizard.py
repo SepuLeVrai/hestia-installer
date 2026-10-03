@@ -171,10 +171,11 @@ class BrowserWizardTests(unittest.TestCase):
         self.page.locator("#run-preflight").click(); expect(self.page.locator("#next-button")).to_be_enabled()
         self.page.locator("#next-button").click(); self.step(3)
 
-    def web_application_choices(self, after_submit=None):
+    def web_application_choices(self, after_submit=None, profile=None):
         from test_application_plan import setup_payload
         value = setup_payload(); choices = value['configuration']
         self.page.locator('#prepare-web-application').check()
+        if profile is not None: self.page.locator('#application-profile').select_option(profile)
         for name, text in {'hostname': choices['hostname'], 'database-name': choices['database']['name'],
             'database-user': choices['database']['user'], 'first-name': choices['administrator']['first_name'],
             'last-name': choices['administrator']['last_name'], 'email': choices['administrator']['email'],
@@ -219,6 +220,20 @@ class BrowserWizardTests(unittest.TestCase):
         self.assertEqual(self.service.engine.report(), document)
         for secret in value['credentials'].values(): self.assertNotIn(secret, self.page.content())
         self.assertFalse(self.service.application.state()['application_installed'])
+
+    def test_mobile_web_source_choice_is_explicit_and_survives_reload(self):
+        from installer import mobile_web_source
+        self.modules(); self.web_application_choices(profile='fresh-mobile-staged-v2')
+        draft = self.service.application.read()
+        self.assertEqual(draft['version'], 2)
+        self.refresh(); self.step(3)
+        expect(self.page.locator('#application-profile')).to_have_value('fresh-mobile-staged-v2')
+        with patch('installer.application_plan.HostPrerequisites.check'):
+            self.page.locator('#next-button').click(); self.step(4)
+        document = self.service.engine.report()
+        sources = [step['source']['commit_sha'] for step in document['plan']['steps'] if 'source' in step]
+        self.assertTrue(sources); self.assertEqual(set(sources), {mobile_web_source.COMMIT})
+        self.assertEqual(self.service.application.read(), draft)
 
     def test_application_edit_requires_save_and_source_selection_stays_explicit(self):
         self.modules(); self.web_application_choices()

@@ -1,4 +1,25 @@
-# Préparation privée FCM en cours - 3 octobre 2026
+# Raccordement FCM en qualification - 3 octobre 2026
+
+La recette native Web Mobile v2 `37141785730` est PASS sur Installer
+`261e053ed75e497d50ce3c0469815cfe7eb9d379` et Web
+`a21fc758fc4c1de9580a953ec07f459f54609874` : cinq tests, trois manifestes
+identiques, sauvegarde/préparation/activation, QR authentifié, ACME privé et
+nouveau PID 1. Artefact `11281871323`, SHA-256
+`db5237fd145a5e147083474566bc759569e3e40ae264d6b2fb48c3637908e438`.
+
+L'import privé autonome `d520e1261c79c0efea24c50d38aaa46475cd3b5a` passe ses
+trois CI `37143181244`, `37143181214`, `37143181231`. Le candidat courant
+raccorde ce stockage aux routes HTTPS, au cockpit et au service systemd avec
+le Gateway FCM qualifié `33927821bbda57a2c10791d0523eaf3b254c8c9e`.
+Il ajoute aussi le choix explicite du profil Web Mobile v2 dans le cockpit.
+Ses propres CI et sa recette composée FCM restent à obtenir. Aucun résultat
+ancien ne qualifie implicitement ces changements.
+
+DEV distinct, upgrade/rollback Installer, restauration d'origine et recette
+globale 6C restent ouverts. Aucune autorisation Google ni réception téléphone
+n'est revendiquée. Voir [FCM_PRIVATE_IMPORT.md](FCM_PRIVATE_IMPORT.md).
+
+# Préparation privée FCM précédente - 3 octobre 2026
 
 Le checkpoint `261e053ed75e497d50ce3c0469815cfe7eb9d379` passe les trois CI
 Installer `37141664189`, `37141664166`, `37141664296` : 4031 exécutions,

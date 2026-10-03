@@ -112,6 +112,9 @@ puis traverse les vrais contrôleurs sauvegarde, préparation et activation
 avant l'enrôlement boot et le frontal public. Elle réutilise les assertions
 SIGKILL/ACME/reboot et ajoute un login administrateur, la sonde Gateway sur 9083
 et un QR issu de l'origine privée après démarrage et après nouveau PID 1.
-Cette extension est un candidat, pas encore une preuve PASS. Les fixtures
+Cette extension est PASS dans le run `37141785730`, sur Installer `261e053`
+et ses 484 fichiers exacts. L'artefact `11281871323` vérifie cinq tests sans
+échec ni skip. Le cockpit expose désormais le choix v2 dans le candidat FCM,
+dont les propres contrôles sont distincts. Les fixtures
 historiques déclarent maintenant explicitement leur version 1 ; les anciennes
 recettes et les assertions de leurs bundles figés restent conservées.

@@ -17,6 +17,56 @@ from test_wizard import good_checks
 
 
 class NativeBrowserTests(legacy.BrowserWizardTests):
+    def fcm_fixture(self):
+        import fcm_fixture
+        responses = fcm_fixture.responses(); self.fake.override = responses
+        catalogue = patch('installer.gateway_release._FCM_RELEASE', responses.selected)
+        catalogue.start(); self.addCleanup(catalogue.stop)
+        self.quiesce_page(); fcm_fixture.prepare(self.service)
+        self.refresh(); self.step(5)
+        self.page.locator('#fcm-project').fill('hestia-test')
+        self.page.locator('#plan-fcm').click()
+        expect(self.page.locator('#fcm-state')).to_have_attribute('data-state', 'AWAITING_IMPORT')
+        return {'name': 'synthetic-account.json', 'mimeType': 'application/json', 'buffer': fcm_fixture.credential()}
+
+    def test_fcm_private_upload_cancel_then_import_and_refresh_without_replay(self):
+        upload = self.fcm_fixture(); root = self.service.fcm.store.root
+        self.page.locator('#fcm-credential').set_input_files(upload)
+        self.page.locator('#import-fcm').click(); self.dialog('cancel')
+        self.assertFalse((root / 'server.json').exists())
+        expect(self.page.locator('#fcm-credential')).to_have_value('')
+        self.assertFalse(any(path.endswith('/api/gateway/fcm/import') for path in self.paths))
+        self.page.locator('#fcm-credential').set_input_files(upload)
+        self.page.locator('#import-fcm').click(); self.dialog()
+        expect(self.page.locator('#fcm-state')).to_have_attribute('data-state', 'IMPORTED')
+        self.assertEqual((root / 'server.json').stat().st_mode & 0o777, 0o600)
+        before = (root / 'server.json').read_bytes()
+        count = sum(path.endswith('/api/gateway/fcm/import') for path in self.paths)
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#fcm-state')).to_have_attribute('data-state', 'IMPORTED')
+        self.assertEqual(sum(path.endswith('/api/gateway/fcm/import') for path in self.paths), count)
+        self.page.locator('#check-fcm').click()
+        expect(self.page.locator('#fcm-verification')).to_contain_text('Credential contrôlé le')
+        self.assertEqual((root / 'server.json').read_bytes(), before)
+        for text in ('PRIVATE KEY', 'sender@'):
+            self.assertNotIn(text, self.page.content()); self.assertNotIn(text, self.http('/api/installation/report')['body'])
+        self.assertEqual(self.page.evaluate('localStorage.length + sessionStorage.length'), 0)
+
+    def test_fcm_file_selection_survives_poll_and_wrong_project_has_no_private_effect(self):
+        upload = self.fcm_fixture()
+        value = json.loads(upload['buffer']); value['project_id'] = 'different-project'
+        self.page.locator('#fcm-credential').set_input_files({**upload, 'buffer': json.dumps(value).encode()})
+        self.page.wait_for_timeout(1750)
+        self.assertEqual(self.page.locator('#fcm-credential').evaluate('(node) => node.files.length'), 1)
+        self.page.locator('#import-fcm').click(); self.dialog()
+        expect(self.page.locator('#wizard-form')).to_have_attribute('aria-busy', 'false')
+        expect(self.page.locator('#fcm-state')).to_have_attribute('data-state', 'AWAITING_IMPORT')
+        self.assertFalse((self.service.fcm.store.root / 'server.json').exists())
+        self.page.locator('#fcm-credential').set_input_files({**upload, 'buffer': b'x' * 16385})
+        self.page.locator('#import-fcm').click()
+        expect(self.page.locator('#operation-dialog')).not_to_be_visible()
+        expect(self.page.locator('#wizard-message')).to_contain_text('16 Kio')
+
     def setUp(self):
         test_httpd.HTTPSBootstrapTests.setUp(self)
         self.addCleanup(test_httpd.HTTPSBootstrapTests.tearDown, self)

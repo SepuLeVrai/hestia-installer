@@ -26,8 +26,10 @@ from installer.mobile_preparation_plan import MobilePreparationPlan
 from installer.shared_public_plan import SharedPublicPlan
 from installer.shared_public_lifecycle import SharedPublicLifecycle
 from installer.mobile_boot_plan import MobileBootPlan
+from installer.fcm_plan import FcmPlan
 
 POST_ROUTES = {
+    **{'/api/gateway/fcm/' + action: 'fcm.' + action for action in ('plan', 'check')},
     **{'/api/mobile/boot/' + action: 'mobile-boot.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/mobile/public/preparation/' + action: 'shared-public-preparation.' + action for action in ('plan', 'check')},
     **{'/api/mobile/public/' + action: 'shared-public.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
@@ -64,6 +66,7 @@ POST_ROUTES = {
 }
 GET_ROUTES = frozenset({"/api/wizard/state", "/api/installation/state", "/api/installation/report", "/api/github/status"})
 GATEWAY_PACKAGE_ROUTE = '/api/gateway/preparation/import'
+FCM_IMPORT_ROUTE = '/api/gateway/fcm/import'
 
 
 class TransactionService:
@@ -84,6 +87,7 @@ class TransactionService:
         self.gateway = GatewayPlan(engine, github.access if github is not None else None)
         self.foundation = FoundationPlan(self.application, self._fresh_activation, self.gateway)
         self.gateway_service = GatewayServicePlan(self.foundation)
+        self.fcm = FcmPlan(self.gateway, self.gateway_service)
         self.mobile_activation = MobileActivationPlan(self.application, self.gateway_service)
         self.mobile_backup = MobileBackupPlan(self.mobile_activation)
         self.mobile_preparation = MobilePreparationPlan(self.mobile_backup)
@@ -129,7 +133,7 @@ class TransactionService:
                     "application": self.application.state(), "activation": self.activation.state(), "upgrade": self.upgrade.state(),
                     "packages": self.packages.state(), "mariadb": self.mariadb.state(), "boot": self.boot.state(),
                     "acme_packages": self.acme_packages.state(), "public_tls": self.public_tls.state(),
-                    "gateway": self.gateway.state(), "foundation": self.foundation.state(),
+                    "gateway": self.gateway.state(), "foundation": self.foundation.state(), "fcm": self.fcm.state(),
                     "gateway_service": self.gateway_service.state(), "mobile_activation": self.mobile_activation.state(),
                     "mobile_backup": self.mobile_backup.state(), "mobile_preparation": self.mobile_preparation.state(),
                     "shared_public_preparation": self.shared_public_preparation.state(), "shared_public": self.shared_public.state(), "mobile_boot": self.mobile_boot.state()}
@@ -163,6 +167,8 @@ class TransactionService:
             if public['installation'] is not None: result['public_tls'] = public
             gateway = self.gateway.state()
             if gateway['profile'] is not None: result['gateway'] = gateway
+            fcm = self.fcm.state()
+            if fcm['profile'] is not None: result['fcm'] = fcm
             foundation = self.foundation.state()
             if foundation['profile'] is not None: result['foundation'] = foundation
             gateway_service = self.gateway_service.state()
@@ -185,6 +191,8 @@ class TransactionService:
         with self._activity(), self._mutation():
             if action.startswith('mobile-boot.'):
                 return {"mobile_boot": self.mobile_boot.execute(action.removeprefix('mobile-boot.'), payload)}
+            if action.startswith('fcm.'):
+                return {"fcm": self.fcm.execute(action.removeprefix('fcm.'), payload)}
             if action.startswith('shared-public-preparation.'):
                 return {"shared_public_preparation": self.shared_public_preparation.execute(action.removeprefix('shared-public-preparation.'), payload)}
             if action.startswith('shared-public.'):
@@ -318,6 +326,10 @@ class TransactionService:
         with self._activity(), self._mutation():
             return {'gateway': self.gateway.execute('import', {'confirmation': confirmation, 'confirm': True},
                                                      stream=stream, length=length)}
+
+    def import_fcm_credential(self, confirmation, stream, length):
+        with self._activity(), self._mutation():
+            return {'fcm': self.fcm.import_file(confirmation, stream, length)}
 
     def close(self) -> None:
         # Browser disconnection never cancels a mutation. Graceful bootstrap

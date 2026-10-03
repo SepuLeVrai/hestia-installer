@@ -47,16 +47,22 @@ def diagnostic(callback):
     return invoke
 
 
-def setup():
+def setup(*, gateway_commit=None, credential=None):
     boot_fixture.setup(profile='fresh-mobile-staged-v2')
     service = fixture.service()
     try:
         parent = service.engine.report(); draft = service.application.read()
         assert draft['version'] == 2 and service.application.state()['profile'] == 'fresh-mobile-staged-v2'
         planned = service.execute('gateway.plan', {'web_plan_sha256': parent['plan_sha256'],
-            'public_origin': shared.ORIGIN, 'dev_enabled': True, 'acquisition': 'package'})['gateway']['preparation']
+            'public_origin': shared.ORIGIN, 'dev_enabled': True, 'acquisition': 'package',
+            **({'release_commit': gateway_commit} if gateway_commit is not None else {})})['gateway']['preparation']
         raw = Path('/opt/gateway-package.zip').read_bytes()
         gateway = shared.done(service.import_gateway_package(planned['plan_sha256'], io.BytesIO(raw), len(raw))['gateway']['preparation'])
+        if credential is not None:
+            selected = service.execute('fcm.plan', {'gateway_plan_sha256': gateway['plan_sha256'], 'project_id': 'hestia-test'})['fcm']
+            imported = service.import_fcm_credential(selected['confirmation'], io.BytesIO(credential), len(credential))['fcm']
+            assert imported['state'] == 'IMPORTED'
+            (EVIDENCE / 'fcm-import.json').write_bytes(quality.encode(imported))
         parents = {'web': parent['plan_sha256'], 'activation': service.activation.journal.read()['plan_sha256'], 'gateway': gateway['plan_sha256']}
         planned = service.execute('foundation.plan', {'parents': parents})['foundation']['installation']
         foundation = shared.done(service.execute('foundation.apply', confirm(planned))['foundation']['installation'])
@@ -93,6 +99,7 @@ def setup():
         paths = [service.engine.journal.path, service.activation.journal.path, service.boot.journal.path,
             service.public_tls.journal.path, service.gateway.journal.path, service.foundation.journal.path,
             service.gateway_service.journal.path, *service.gateway.identities.root.glob('*.pem')]
+        if credential is not None: paths.extend(service.fcm.store.root / name for name in ('profile.json', 'receipt.json', 'server.json'))
         saved = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
         (EVIDENCE / 'shared-application-parents.json').write_bytes(quality.encode(saved))
     finally: service.close()

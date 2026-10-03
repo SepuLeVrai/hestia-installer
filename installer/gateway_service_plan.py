@@ -5,6 +5,7 @@ from installer import gateway_service_probe as probe
 from installer.engine import TransactionEngine
 from installer.gateway_release import sha
 from installer.gateway_service_runtime import GatewayServiceRuntime, h
+from installer.fcm_credentials import FcmCredentials, public_binding
 from installer.model import ErrorCode, Receipt, ResourceSpec, StepSpec, canonical_bytes, exact_keys, now, require
 from installer.operations import Operation, OperationContext, OperationRegistry, Recovery, RecoveryDecision
 from installer.package_plan import PackagePlan
@@ -134,7 +135,14 @@ class GatewayServicePlan:
         _, foundation = self.foundation.engine(parent)
         document = self.foundation.journal.read()
         require(document is not None and document['state'] == 'DONE', ErrorCode.DEPENDENCY_BLOCKED)
-        runtime = GatewayServiceRuntime(foundation, self.gateway.profile()['identity'], self.gateway.identities.root)
+        gateway = self.gateway.profile()
+        report = FcmCredentials(self.gateway.root / 'fcm').report(); push = None
+        if report is not None:
+            require(report['receipt'] is not None and report['profile']['gateway_plan_sha256'] ==
+                    self.gateway.journal.read()['plan_sha256'], ErrorCode.DEPENDENCY_BLOCKED)
+            push = public_binding(report['profile'], report['receipt'])
+        runtime = GatewayServiceRuntime(foundation, gateway['identity'], self.gateway.identities.root,
+            release_commit=gateway['release']['commit'], push=push)
         return {'parents': {**self.foundation.profile()['parents'], 'foundation': document['plan_sha256']},
                 'binding': runtime.profile.binding()}, runtime
 

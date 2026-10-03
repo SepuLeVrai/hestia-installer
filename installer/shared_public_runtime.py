@@ -92,7 +92,7 @@ class SharedPublic(old.Profile):
         self.layout, self.http, self.boot = self.web.layout, self.web.http, self.web.boot
         binding = value['gateway_binding']
         foundation = FoundationRuntime.for_gateway(self.boot.activation, binding['main'], binding['gateway_identity'])
-        expected_gateway = GatewayServiceProfile(foundation, selected['gateway_identity'], binding['key_directory']).binding()
+        expected_gateway = GatewayServiceProfile.from_binding(foundation, binding).binding()
         require(canonical_bytes(binding) == canonical_bytes(expected_gateway), ErrorCode.INCOMPATIBLE_STATE)
         self.public = self.web.public / 'shared'
         self.root = self.public / 'private'

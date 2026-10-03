@@ -24,7 +24,28 @@ _RELEASE = {
 }
 
 
-def release(): return deepcopy(_RELEASE)
+FCM_COMMIT = '33927821bbda57a2c10791d0523eaf3b254c8c9e'
+_FCM_RELEASE = {
+    'repository': 'SepuLeVrai/hestia-mobile-gateway', 'repository_id': 1369648122,
+    'commit': FCM_COMMIT, 'version': '0.12.3-installer.rc1', 'sqlite_schema': 6, 'architecture': 'linux-amd64',
+    'run_id': 37142673219, 'artifact_id': 11280649794,
+    'artifact_name': 'gateway-project-push-linux-amd64', 'artifact_bytes': 11786348,
+    'artifact_sha256': '32562cb7bf8c92b4e5915a8456be3b86cba211ed9bc835e72e08b4c6ad33b4aa',
+    'expires_at': '2026-10-17T18:11:37Z',
+    'member': 'build/release/HESTIA-Gateway-0.12.3-installer.rc1-linux-amd64.zip',
+    'package_bytes': 10844140,
+    'package_sha256': 'f31fc543fabf538ca279027c08614d7f7c6ae6e0380a8514104979b01d629a8c',
+    'binary_sha256': '13986ed547da96b1e780b4464532dc7372e716483596fd1e18fce0930a55d469',
+    'files': 272, 'unpacked_bytes': 19505112,
+}
+
+
+def release(commit=None):
+    if commit is None: return deepcopy(_RELEASE)
+    require(type(commit) is str, ErrorCode.INCOMPATIBLE_STATE)
+    for selected in (_RELEASE, _FCM_RELEASE):
+        if commit == selected['commit']: return deepcopy(selected)
+    raise InstallerError(ErrorCode.INCOMPATIBLE_STATE)
 def sha(data): return hashlib.sha256(data).hexdigest()
 
 
