@@ -162,7 +162,7 @@ class MobileBootRuntime(boot.BootRuntime):
             self.foundation.inspect(); self.gateway.inspect()
             epoch = self.epoch_identity()
             from installer.transaction import StateJournal
-            with StateJournal(self.epoch.root / 'lock.json').locked():
+            with StateJournal(self.epoch.root / 'lock.json').locked(create=True):
                 self.start('foundation', epoch)
                 require(scope.observe()['state'] == 'SERVING', ErrorCode.MANUAL_ACTION_REQUIRED)
                 self.start('gateway', epoch)
