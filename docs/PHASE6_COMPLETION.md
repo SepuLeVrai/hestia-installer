@@ -27,7 +27,8 @@ ou une preuve de disponibilité publique depuis Internet.
 
 ## Qualification à obtenir
 
-- [ ] Contrats HTTPS et parcours navigateur sur le nouveau gel.
+- [x] Cockpit `2f7a33bca0325b25880e7f90960774c14b92b667` : trois CI PASS,
+  3971 exécutions, neuf jobs, huit artefacts et 475 fichiers exacts vérifiés.
 - [ ] Recette composée avec Web/Gateway réels et ACME privé.
 - [ ] Interruptions natives et nouveau PID 1 avec les gardes composés.
 - [ ] Boot Mobile et restauration originale.
@@ -36,3 +37,25 @@ ou une preuve de disponibilité publique depuis Internet.
 
 Les tests SQL/comptes/services/APT restent exclusivement en CI jetable.
 Les campagnes historiques restent conservées, sans relance automatique.
+
+## Candidat boot Mobile
+
+Un plan et une confirmation distincts ajoutent un unique service privé de boot,
+après le boot Web et avant le frontal HTTPS. L'enrôlement ne démarre aucun
+service. Foundation et Gateway conservent leurs fragments statiques d'origine.
+Le bundle privé inclut explicitement le modèle Apache Foundation ; le contrat
+des bundles Web/public historiques reste inchangé.
+
+Le worker contrôle les reçus complets, les parents, la configuration, le mode
+SERVING et les processus possédés. Un journal privé sous `/run` lie chaque
+tentative au boot du noyau, au démarrage de PID 1, au profil et au service fixe.
+Une réponse perdue peut être réconciliée par observation. Un service arrêté
+après une intention antérieure, un processus remplacé ou une dérive ne provoque
+aucun nouveau démarrage automatique. La maintenance bloque les deux démarrages
+et est contrôlée de nouveau entre Foundation et Gateway.
+
+Les routes `/api/mobile/boot/{plan,apply,resume,retry,check}` suivent les gardes
+HTTPS et les verrous existants. GET/rapport restent historiques. Le contrôle
+explicite atteste la configuration actuelle, sans prouver un reboot effectif.
+La recette composée est étendue au reboot réel et au bootstrap signé après
+reboot ; cette qualification reste à obtenir sur ce candidat.

@@ -1,0 +1,50 @@
+"""Immutable Mobile boot entrypoint. No arbitrary path, unit or command input."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+
+PROFILE_SHA256 = '__MOBILE_BOOT_SHA256__'
+
+
+def read(path):
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+    fd = os.open('/', flags | os.O_DIRECTORY)
+    try:
+        for name in path.parts[1:-1]:
+            child = os.open(name, flags | os.O_DIRECTORY, dir_fd=fd); os.close(fd); fd = child
+            info = os.fstat(fd)
+            if info.st_uid or info.st_mode & 0o7022 or os.listxattr(fd): raise ValueError()
+        handle = os.open(path.name, flags, dir_fd=fd)
+        try:
+            info = os.fstat(handle)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid or info.st_gid or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1 or info.st_size > 1048576 or os.listxattr(handle): raise ValueError()
+            raw = os.read(handle, 1048577)
+            if len(raw) != info.st_size: raise ValueError()
+            return raw
+        finally: os.close(handle)
+    finally: os.close(fd)
+
+
+def main():
+    try:
+        if os.geteuid() != 0 or len(sys.argv) != 1: raise ValueError()
+        root = Path(__file__).parent; raw = read(root / 'profile.json')
+        if hashlib.sha256(raw).hexdigest() != PROFILE_SHA256: raise ValueError()
+        profile = json.loads(raw)
+        for name, digest in profile['code'].items():
+            if not name.startswith('installer/') or '..' in Path(name).parts or Path(name).is_absolute(): raise ValueError()
+            if hashlib.sha256(read(root / 'code' / name)).hexdigest() != digest: raise ValueError()
+        sys.path.insert(0, str(root / 'code'))
+        from installer.mobile_boot_runtime import MobileBootRuntime
+        runtime = MobileBootRuntime(profile)
+        if runtime.root != root: raise ValueError()
+        runtime.boot()
+    except Exception:
+        print('HESTIA_MOBILE_BOOT_REJECTED'); return 1
+    print('HESTIA_MOBILE_BOOT_READY'); return 0
+
+
+if __name__ == '__main__': raise SystemExit(main())

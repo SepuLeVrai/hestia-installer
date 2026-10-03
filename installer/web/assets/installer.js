@@ -57,6 +57,7 @@
   let publicTLS = {installation: null, availability: null};
   let sharedPreparation = {plan: null, plan_sha256: null};
   let sharedPublic = {installation: null, verification: null};
+  let mobileBoot = {installation: null, verification: null};
   let gateway = {preparation: null, profile: null};
   let foundation = {installation: null, profile: null, availability: null};
   let gatewayService = {installation: null, profile: null, availability: null};
@@ -605,6 +606,7 @@
     if (isApplication() && !isUpgrade() && foundation.installation?.state === "DONE") gatewayServiceForm();
     if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") { mobileBackupForm(); if (mobileBackup.state === "DONE") mobilePreparationForm(); mobileActivationForm(); }
     if (sharedPreparation.plan || (publicTLS.installation?.state === "DONE" && gatewayService.installation?.state === "DONE")) sharedPublicForm();
+    if (mobileBoot.installation || sharedPublic.installation?.state === "DONE") mobileBootForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
     if (serverBusy || busy) content.append(hint("Une opération serveur est active. Vous pouvez fermer cette page : elle continue et son état reste consultable."));
     if (installation.last_error_redacted) content.append(hint(errorMessage({code: installation.last_error_redacted})));
@@ -1063,6 +1065,44 @@
     $("operation-description").textContent = "Ouvrir les ports 80 et 443, demander le certificat Let's Encrypt en acceptant ses conditions de service, tester puis programmer son renouvellement ? Apache sera brièvement placé en maintenance et remis en service. Relisez le domaine et les réseaux autorisés dans le plan.";
     $("operation-dialog").showModal();
   }
+  function mobileBootForm() {
+    const card = element("article", null, "wizard-card"); card.id = "mobile-boot";
+    card.append(element("h2", "Démarrage automatique Mobile"), hint("Démarrer Foundation puis Gateway après le Web à chaque démarrage du serveur. La maintenance ou une configuration modifiée bloque ce démarrage."));
+    const document = mobileBoot.installation;
+    const action = (name, extra = {}) => {
+      pendingAction = {action: "mobile-boot." + name, payload: {confirmation: document.plan_sha256, confirm: true, ...extra}};
+      $("operation-title").textContent = "Confirmer le démarrage automatique Mobile";
+      $("operation-description").textContent = "Installer les contrôles puis activer le démarrage Mobile pour les prochains démarrages du serveur ? Les services en cours restent actifs. Un démarrage interrompu avec un état incertain nécessitera une intervention.";
+      $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+    };
+    if (!document) {
+      card.append(button("Préparer le démarrage Mobile", () => void run(async () => {
+        mobileBoot = (await api("/api/mobile/boot/plan", {shared_public_sha256: sharedPublic.installation.plan_sha256})).mobile_boot;
+        show(5);
+      }), "plan-mobile-boot"));
+    } else {
+      const status = element("p", "Démarrage Mobile : " + states[document.state]); status.id = "mobile-boot-state";
+      status.dataset.state = document.state; card.append(status);
+      for (const spec of document.plan.steps) {
+        const record = document.steps.find((row) => row.name === spec.name);
+        card.append(element("p", spec.action + " : " + states[record.state]));
+      }
+      technical(card, "Plan de démarrage Mobile", document.plan);
+      if (document.approved_plan_sha256 === null) card.append(button("Activer le démarrage Mobile", () => action("apply"), "apply-mobile-boot", true));
+      else if (document.steps.some((row) => ["RUNNING", "PLANNED"].includes(row.state))) card.append(button("Reprendre le démarrage Mobile", () => action("resume"), "resume-mobile-boot"));
+      for (const record of document.steps.filter((row) => ["FAILED", "MANUAL_ACTION_REQUIRED"].includes(row.state))) {
+        card.append(button("Vérifier la reprise", () => action("retry", {name: record.name}), "retry-mobile-boot"));
+      }
+      if (document.state === "DONE") card.append(button("Contrôler la configuration de démarrage", () => void run(async () => {
+        mobileBoot = (await api("/api/mobile/boot/check", {confirmation: document.plan_sha256, confirm: true})).mobile_boot;
+        show(5);
+      }), "check-mobile-boot"));
+      if (document.last_error_redacted) card.append(hint(errorMessage({code: document.last_error_redacted})));
+    }
+    const checked = mobileBoot.verification;
+    const live = hint(checked ? "Configuration contrôlée le " + checked.checked_at + ". Ce contrôle ne redémarre pas le serveur." : "Aucun contrôle actuel effectué dans cette session.");
+    live.id = "mobile-boot-verification"; card.append(live); content.append(card);
+  }
   function sharedPublicForm() {
     const card = element("article", null, "wizard-card"); card.id = "shared-public";
     card.append(element("h2", "Accès HTTPS Mobile"), hint("Web et Mobile partagent les ports 80 et 443 avec des domaines, certificats et règles d'accès distincts."));
@@ -1220,6 +1260,9 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action.startsWith("mobile-boot.")) {
+        mobileBoot = (await api("/api/mobile/boot/" + action.action.slice(12), action.payload)).mobile_boot;
+        show(5);
       } else if (action.action.startsWith("shared-public.")) {
         sharedPublic = (await api("/api/mobile/public/" + action.action.slice(14), action.payload)).shared_public;
         show(5);
@@ -1285,6 +1328,7 @@
     publicTLS = result.public_tls || {installation: null, availability: null};
     sharedPreparation = result.shared_public_preparation || {plan: null, plan_sha256: null};
     sharedPublic = result.shared_public || {installation: null, verification: null};
+    mobileBoot = result.mobile_boot || {installation: null, verification: null};
     gateway = result.gateway || {preparation: null, profile: null};
     foundation = result.foundation || {installation: null, profile: null, availability: null};
     gatewayService = result.gateway_service || {installation: null, profile: null, availability: null};
@@ -1360,6 +1404,7 @@
         publicTLS = result.public_tls || publicTLS;
         sharedPreparation = result.shared_public_preparation || sharedPreparation;
         sharedPublic = result.shared_public || sharedPublic;
+        mobileBoot = result.mobile_boot || mobileBoot;
         gateway = result.gateway || gateway;
         foundation = result.foundation || foundation;
         gatewayService = result.gateway_service || gatewayService;
@@ -1368,7 +1413,7 @@
         mobileActivation = result.mobile_activation || mobileActivation;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, sharedPreparation.plan_sha256, sharedPublic.installation?.revision, sharedPublic.verification, gateway.preparation?.revision, foundation.installation?.revision, gatewayService.installation?.revision, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, sharedPreparation.plan_sha256, sharedPublic.installation?.revision, sharedPublic.verification, mobileBoot.installation?.revision, mobileBoot.verification, gateway.preparation?.revision, foundation.installation?.revision, gatewayService.installation?.revision, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
         const editingMobile = !serverBusy && !busy && ($("shared-public-form")?.contains(document.activeElement) || $("mobile-sql-credentials")?.contains(document.activeElement) || $("backup-sql-credentials")?.contains(document.activeElement) || $("preparation-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
         if (stamp !== lastRevision && !editingMobile) {
           lastRevision = stamp;

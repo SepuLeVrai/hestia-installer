@@ -119,6 +119,16 @@ class Browser(unittest.TestCase):
             page.locator('#check-shared-public').click()
             expect(page.locator('#shared-public-verification')).to_contain_text('Frontal et services liés contrôlés')
             self.assertFalse(state()['phase6_complete'])
+            page.locator('#plan-mobile-boot').click()
+            expect(page.locator('#mobile-boot-state')).to_have_attribute('data-state', 'PLANNED')
+            boot_state = lambda: context.request.get(base + '/api/wizard/state').json()['mobile_boot']
+            before_boot = boot_state()
+            page.locator('#apply-mobile-boot').click(); page.keyboard.press('Escape')
+            self.assertEqual(boot_state(), before_boot)
+            page.locator('#apply-mobile-boot').click(); page.locator('#operation-dialog button[value=confirm]').click()
+            expect(page.locator('#mobile-boot-state')).to_have_attribute('data-state', 'DONE')
+            page.reload(); page.locator('#check-mobile-boot').click()
+            expect(page.locator('#mobile-boot-verification')).to_contain_text('Configuration contrôlée')
 
 
 def mobile_request(path='/health', method='GET', body=None, headers=None):
@@ -158,7 +168,10 @@ class Verify(unittest.TestCase):
         runtime.web.certificate(); runtime.mobile.verify(); public.login(self)
         self.assertEqual(mobile_request()[0], 200)
         snapshot = {'pid1_start': Path('/proc/1/stat').read_text().split(') ', 1)[1].split()[19], 'parents': saved,
-            'shared_journal_sha256': hashlib.sha256(control.journal.path.read_bytes()).hexdigest()}
+            'shared_journal_sha256': hashlib.sha256(control.journal.path.read_bytes()).hexdigest(),
+            'mobile_boot_journal_sha256': hashlib.sha256(service.mobile_boot.journal.path.read_bytes()).hexdigest()}
+        _, boot = service.mobile_boot.engine(service.engine.report()); boot.live()
+        snapshot['mobile_units'] = {r.unit: r.show()['MainPID'] for r in (boot.foundation, boot.gateway)}
         (EVIDENCE / 'shared-before-boot.json').write_bytes(quality.encode(snapshot))
 
 
@@ -173,7 +186,22 @@ class Restart(unittest.TestCase):
         runtime.configuration(); self.assertTrue(runtime.listener('http')); self.assertTrue(runtime.listener('https'))
         public.login(self)
         self.assertTrue(runtime.web.running('timer'))
-        # Mobile boot has its separate enrollment; this phase proves Web boot.
+        self.assertEqual(hashlib.sha256(service.mobile_boot.journal.path.read_bytes()).hexdigest(), before['mobile_boot_journal_sha256'])
+        _, boot = service.mobile_boot.engine(service.engine.report()); boot.live()
+        epoch = boot.epoch_identity()
+        for role in ('foundation', 'gateway'):
+            completed = boot.epoch._read(role + '.json')
+            self.assertEqual(completed['owner']['epoch'], epoch)
+            self.assertEqual(completed['process'], boot.process(getattr(boot, role)))
+        self.assertEqual(mobile_request()[0], 200)
+        token = native.gateway_service_probe._b64(os.urandom(32))
+        status, body, _ = mobile_request(PATH, 'POST', json.dumps({'enrollment_token':token}).encode(), {'Content-Type':'application/json','Origin':ORIGIN})
+        self.assertEqual(status, 200); self.assertIn(json.loads(body)['data']['state'], ('invalid','unavailable'))
+        # Reinvoke the installed guard, proving that its epoch receipts observe
+        # the same processes without a second systemctl start.
+        processes = {role: boot.process(getattr(boot, role)) for role in ('foundation','gateway')}
+        native.old.command(['/usr/bin/python3.13','-I','-B',str(boot.root/'worker.py')])
+        self.assertEqual(processes, {role: boot.process(getattr(boot, role)) for role in processes})
 
 
 if __name__ == '__main__':
@@ -189,7 +217,7 @@ if __name__ == '__main__':
     passed = result.wasSuccessful() and result.testsRun == 1 and not result.skipped and stable
     report = {'suite': 'shared-application-' + phase, 'status': 'PASS' if passed else 'FAIL', 'tests': result.testsRun, 'expected': 1,
         'errors': len(result.errors), 'failures': len(result.failures), 'skips': len(result.skipped), 'source_stable': stable, 'source_files': len(before),
-        'real_web_gateway': True, 'acme': 'private Pebble', 'mobile_boot_qualified': False, 'phase6_complete': False}
+        'real_web_gateway': True, 'acme': 'private Pebble', 'mobile_boot_qualified': passed and phase == 'restart', 'phase6_complete': False}
     (EVIDENCE / ('shared-application-' + phase + '.json')).write_bytes(quality.encode(report))
     (EVIDENCE / ('SOURCE-MANIFEST-shared-application-' + phase + '.json')).write_bytes(quality.encode(before))
     print(json.dumps(report)); sys.exit(0 if passed else 1)

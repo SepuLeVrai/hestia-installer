@@ -79,3 +79,31 @@ class SharedPublicHTTPTests(unittest.TestCase):
             invoke.assert_not_called()
         self.service.close()
         with self.assertRaisesRegex(Exception, '^SHUTTING_DOWN$'): self.service.execute('shared-public.plan', {})
+
+    def test_mobile_boot_fixed_routes_require_authentication_origin_csrf_and_mutation_lock(self):
+        routes = {k:v for k,v in POST_ROUTES.items() if k.startswith('/api/mobile/boot/')}
+        self.assertEqual(len(routes), 5)
+        with patch.object(self.service.mobile_boot, 'execute', return_value={'historical_only': True}) as invoke:
+            for route in routes: self.assertEqual(self.request('POST', route, {})[0], 401)
+            self.login()
+            for route, action in routes.items():
+                for headers in ({'X-Hestia-CSRF':''}, {'Origin':'https://foreign.invalid'}):
+                    self.assertEqual(self.request('POST', route, {}, headers=headers)[0], 403)
+                status, value, _ = self.request('POST', route, {'confirm':True})
+                self.assertEqual(status, 200, value); self.assertTrue(value['mobile_boot']['historical_only'])
+                invoke.assert_called_with(action.removeprefix('mobile-boot.'), {'confirm':True})
+            invoke.reset_mock()
+            with self.service._mutation(), self.assertRaisesRegex(Exception, '^BUSY$'): self.service.execute('mobile-boot.apply', {})
+            invoke.assert_not_called()
+        for action in ('start', 'restart', 'rollback'):
+            self.assertEqual(self.request('POST', '/api/mobile/boot/' + action, {})[0], 404)
+
+    def test_mobile_boot_status_and_report_never_probe_or_create_an_enrollment(self):
+        self.login()
+        with patch('installer.mobile_boot_runtime.MobileBootRuntime', side_effect=AssertionError('host')):
+            status, value, _ = self.request('GET', '/api/wizard/state')
+            self.assertEqual(status, 200); self.assertIsNone(value['mobile_boot']['installation'])
+            self.assertIsNone(value['mobile_boot']['verification']); self.assertFalse(value['mobile_boot']['phase6_complete'])
+            status, value, _ = self.request('GET', '/api/installation/report')
+            self.assertEqual(status, 200); self.assertNotIn('mobile_boot', value)
+        self.assertFalse(self.service.mobile_boot.root.exists())

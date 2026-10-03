@@ -422,6 +422,33 @@ class BrowserWizardTests(unittest.TestCase):
         expect(self.page.locator('#shared-public-networks')).to_have_value('192.0.2.0/24')
         self.assertEqual(fixture.calls, []); self.assertIsNone(self.service.shared_public.profile())
 
+    def test_mobile_boot_distinct_consent_cancel_and_refresh_never_start_services(self):
+        from installer import mobile_boot_runtime as boot
+        fixture = self.shared_public_fixture(); self.prepare_shared_public()
+        self.page.locator('#apply-shared-public').click(); self.dialog()
+        expect(self.page.locator('#shared-public-state')).to_have_attribute('data-state', 'DONE')
+        calls = []
+        self.enterContext(patch.object(boot.MobileBootRuntime, 'absent'))
+        self.enterContext(patch.object(boot.MobileBootRuntime, 'live'))
+        self.enterContext(patch.object(boot.MobileBootOperation, 'prepare'))
+        self.enterContext(patch.object(boot.MobileBootOperation, 'validate', return_value=True))
+        def apply(operation, context):
+            self.assertIsNotNone(self.service.mobile_boot.journal.read()['approved_plan_sha256'])
+            calls.append(operation.phase); return operation.receipt()
+        self.enterContext(patch.object(boot.MobileBootOperation, 'apply', apply))
+        self.page.locator('#plan-mobile-boot').click()
+        expect(self.page.locator('#mobile-boot-state')).to_have_attribute('data-state', 'PLANNED')
+        self.page.locator('#apply-mobile-boot').click(); self.dialog('cancel')
+        self.assertEqual(calls, []); self.assertIsNone(self.service.mobile_boot.journal.read()['approved_plan_sha256'])
+        self.page.locator('#apply-mobile-boot').click(); self.dialog()
+        expect(self.page.locator('#mobile-boot-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual(calls, ['stage', 'enable'])
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#mobile-boot-verification')).to_contain_text('Aucun contrôle actuel')
+        self.page.locator('#check-mobile-boot').click()
+        expect(self.page.locator('#mobile-boot-verification')).to_contain_text('Configuration contrôlée')
+        self.assertEqual(calls, ['stage', 'enable']); self.assertEqual(len(fixture.calls), 7)
+
     def preparation_fixture(self):
         import test_mobile_preparation_plan as fixtures
         fixture = fixtures.MobilePreparationPlanTests('test_plan_reads_are_repeatable_without_native_observation')

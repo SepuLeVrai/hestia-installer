@@ -3,8 +3,10 @@
 Reprise sur le commit 6B11 qualifié `dc0dca3ae0d33baafa136f002b2fdeff7f6095a8`.
 Raccordement du cycle public au cockpit : choix Mobile indépendant, plan et
 confirmation distincts, suivi des sept étapes, reprise et contrôle explicite.
-Contrats HTTPS et parcours navigateur ajoutés. Qualification du nouveau gel
-à obtenir ; recette composée, boot/restauration et DEV/FCM encore en cours.
+Cockpit qualifié sur `2f7a33bca0325b25880e7f90960774c14b92b667` : 3971
+exécutions PASS, neuf jobs et huit artefacts exacts vérifiés. Le candidat suivant
+ajoute le boot Mobile, son cockpit et ses contrôles de reprise par époque PID 1.
+Qualification native du nouveau gel à obtenir ; restauration et DEV/FCM ouverts.
 Voir [PHASE6_COMPLETION.md](PHASE6_COMPLETION.md). Phase 6 toujours ouverte.
 
 # Point 6B11 - 3 octobre 2026 - transfert et renouvellement du frontal commun

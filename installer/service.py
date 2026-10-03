@@ -25,8 +25,10 @@ from installer.mobile_backup_plan import MobileBackupPlan
 from installer.mobile_preparation_plan import MobilePreparationPlan
 from installer.shared_public_plan import SharedPublicPlan
 from installer.shared_public_lifecycle import SharedPublicLifecycle
+from installer.mobile_boot_plan import MobileBootPlan
 
 POST_ROUTES = {
+    **{'/api/mobile/boot/' + action: 'mobile-boot.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/mobile/public/preparation/' + action: 'shared-public-preparation.' + action for action in ('plan', 'check')},
     **{'/api/mobile/public/' + action: 'shared-public.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/mobile/preparation/' + action: 'mobile-preparation.' + action for action in ('plan', 'apply', 'resume')},
@@ -87,6 +89,7 @@ class TransactionService:
         self.mobile_preparation = MobilePreparationPlan(self.mobile_backup)
         self.shared_public_preparation = SharedPublicPlan(self.public_tls, self.gateway)
         self.shared_public = SharedPublicLifecycle(self.shared_public_preparation, self.gateway_service)
+        self.mobile_boot = MobileBootPlan(self.shared_public)
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
@@ -129,7 +132,7 @@ class TransactionService:
                     "gateway": self.gateway.state(), "foundation": self.foundation.state(),
                     "gateway_service": self.gateway_service.state(), "mobile_activation": self.mobile_activation.state(),
                     "mobile_backup": self.mobile_backup.state(), "mobile_preparation": self.mobile_preparation.state(),
-                    "shared_public_preparation": self.shared_public_preparation.state(), "shared_public": self.shared_public.state()}
+                    "shared_public_preparation": self.shared_public_preparation.state(), "shared_public": self.shared_public.state(), "mobile_boot": self.mobile_boot.state()}
 
     def github_status(self) -> dict:
         with self._activity(), self._mutation():
@@ -174,10 +177,14 @@ class TransactionService:
             if public_preparation['plan'] is not None: result['shared_public_preparation'] = public_preparation
             shared_public = self.shared_public.state()
             if shared_public['installation'] is not None: result['shared_public'] = shared_public
+            mobile_boot = self.mobile_boot.state()
+            if mobile_boot['installation'] is not None: result['mobile_boot'] = mobile_boot
             return result
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('mobile-boot.'):
+                return {"mobile_boot": self.mobile_boot.execute(action.removeprefix('mobile-boot.'), payload)}
             if action.startswith('shared-public-preparation.'):
                 return {"shared_public_preparation": self.shared_public_preparation.execute(action.removeprefix('shared-public-preparation.'), payload)}
             if action.startswith('shared-public.'):
