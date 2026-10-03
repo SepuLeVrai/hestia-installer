@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import socket
 import stat
+import time
 
 from installer import public_tls_runtime as old
 from installer import foundation_drain, gateway_service_drain, gateway_service_probe
@@ -239,6 +240,33 @@ class SharedPublic(old.Profile):
         require(verb in ('start', 'stop') and role in ('http', 'https', 'timer'))
         old.command(['/usr/bin/systemctl', '--no-pager', '--no-ask-password', verb, '--', self.web.unit(role)], timeout=120)
 
+    def listener(self, role, *, failed_is_stopped=False):
+        require(role in ('http', 'https'))
+        value = self.web.systemctl('show', role)
+        if not self.web.running(role, failed_is_stopped=failed_is_stopped): return False
+        proc = Path('/proc') / value['MainPID']
+        # Type=simple can still report the Python guard as active. A completed
+        # start must own the actual NGINX master and its expected listening FD.
+        if not os.path.samefile(proc / 'exe', '/usr/sbin/nginx'): return False
+        argv = ['/usr/sbin/nginx', '-c', str(self.nginx_path(role))]
+        command_line = (proc / 'cmdline').read_bytes().rstrip(b'\0')
+        require(command_line in (b'\0'.join(x.encode() for x in argv),
+            ('nginx: master process ' + ' '.join(argv)).encode()), ErrorCode.SOURCE_DRIFT)
+        try: sockets = {os.readlink(path) for path in (proc / 'fd').iterdir()}
+        except FileNotFoundError: return False
+        endpoint = '00000000:' + ('0050' if role == 'http' else '01BB')
+        listeners = [row.split() for row in Path('/proc/net/tcp').read_text().splitlines()[1:]]
+        found = any(len(row) >= 10 and row[1] == endpoint and row[3] == '0A'
+            and 'socket:[' + row[9] + ']' in sockets for row in listeners)
+        require(self.web.systemctl('show', role) == value, ErrorCode.SOURCE_DRIFT)
+        return found
+
+    def start_listener(self, role):
+        self.control('start', role); deadline = time.monotonic() + 10
+        while not self.listener(role):
+            require(time.monotonic() < deadline, ErrorCode.VALIDATION_FAILED)
+            time.sleep(.05)
+
     def stopped(self, role):
         if role == 'timer':
             value = self.web.systemctl('show', role)
@@ -253,15 +281,13 @@ class SharedPublic(old.Profile):
         self.replace_owned(self.dropin, self.web.apache_dropin(), self.apache_dropin())
         old.command(['/usr/bin/systemctl', '--no-pager', '--no-ask-password', 'daemon-reload'])
         self._write('ownership.json', self.binding(context)); self.configuration()
-        for role in ('http', 'https'):
-            self.control('start', role); require(self.web.running(role), ErrorCode.VALIDATION_FAILED)
+        for role in ('http', 'https'): self.start_listener(role)
 
     def publish(self, context):
         for role in ('https', 'http'): self.control('stop', role); self.stopped(role)
         self.configuration(); self.web.certificate(); self.mobile.verify(); self.gateway()
         self._write('ready.json', self.binding(context))
-        for role in ('http', 'https'):
-            self.control('start', role); require(self.web.running(role), ErrorCode.VALIDATION_FAILED)
+        for role in ('http', 'https'): self.start_listener(role)
 
     def worker(self, phase):
         require(phase in ('http', 'https', 'backend', 'renew'))
@@ -284,7 +310,7 @@ class SharedPublic(old.Profile):
         require(self._read('renewal.attempt') is not None, ErrorCode.INVALID_STATE)
         # The same lock excludes any controller effect and concurrent workers.
         with StateJournal(self.root / 'effect-lock.json').locked(create=False):
-            self.configuration(); require(self.web.running('http'), ErrorCode.VALIDATION_FAILED)
+            self.configuration(); require(self.listener('http'), ErrorCode.VALIDATION_FAILED)
             self.web.certificate(minimum_lifetime=0, allow_expired=True); self.mobile.verify(minimum_lifetime=0, allow_expired=True)
             failed = False
             for argv in (self.web.certbot(renew=True), self.shared.certbot(renew=True)):
@@ -293,7 +319,7 @@ class SharedPublic(old.Profile):
             require(not failed, ErrorCode.VALIDATION_FAILED)
             self.web.certificate(); self.mobile.verify(); self.configuration()
             old.command(['/usr/sbin/nginx', '-t', '-c', str(self.nginx_path('https'))])
-            if self.web.running('https', failed_is_stopped=True): self.web.systemctl('reload', 'https')
+            if self.listener('https', failed_is_stopped=True): self.web.systemctl('reload', 'https')
 
 
 class SharedOperation(Operation):
@@ -333,7 +359,7 @@ class SharedOperation(Operation):
             require(all(r.web.running(role) for role in ('http', 'https', 'timer')), ErrorCode.VALIDATION_FAILED)
             r.stopped('renew'); return
         r.configuration(); r.completed('handoff')
-        require(r.web.running('http') and r.web.running('https'), ErrorCode.VALIDATION_FAILED)
+        require(r.listener('http') and r.listener('https'), ErrorCode.VALIDATION_FAILED)
         if self.phase != 'verify': r.stopped('timer'); r.stopped('renew')
         if self.phase == 'certificate':
             with _private_directory(r.shared.root, create=False) as fd: fs._absent(fd, 'letsencrypt')
@@ -369,7 +395,7 @@ class SharedOperation(Operation):
         if self.phase == 'enroll': return
         r.configuration()
         if self.phase in ('handoff', 'publish', 'renewal', 'verify'):
-            require(r.web.running('http') and r.web.running('https'), ErrorCode.VALIDATION_FAILED)
+            require(r.listener('http') and r.listener('https'), ErrorCode.VALIDATION_FAILED)
         if self.phase in ('certificate', 'dry-run', 'publish', 'renewal', 'verify'): r.mobile.verify(); r.web.certificate()
         if self.phase in ('publish', 'renewal', 'verify'): require(r.ready(), ErrorCode.INVALID_STATE)
         if self.phase in ('renewal', 'verify'): require(r.web.running('timer'), ErrorCode.VALIDATION_FAILED)

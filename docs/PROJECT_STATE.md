@@ -5,7 +5,7 @@ et ses preuves conservées. Nouveau cycle interne en sept étapes, confirmation
 séparée, bundle successeur, copies des originaux, transfert explicite des quatre
 unités et du garde Apache, certificat Mobile distinct et renouvellement commun.
 L'ancien bundle et les sources boot sont conservés. Effet incomplet manuel,
-réponse perdue réconciliée sans replay. 41 contrats obligatoires supplémentaires
+réponse perdue réconciliée sans replay. 47 contrats obligatoires supplémentaires
 et dix scénarios systemd Debian 13 ajoutés sans retirer les régressions.
 
 Qualification du gel courant à établir dans le checkpoint. La nouvelle recette

@@ -200,6 +200,7 @@ class NativeOrderingTests(unittest.TestCase):
         self.enterContext(patch.object(self.r, 'configuration'))
         self.enterContext(patch.object(self.r.web, 'configuration'))
         self.enterContext(patch.object(self.r.web, 'running', return_value=True))
+        self.enterContext(patch.object(self.r, 'listener', return_value=True))
         self.enterContext(patch.object(self.r, '_write', side_effect=lambda name, value: self.events.append(('write', name))))
         operation = s.SharedOperation(self.r, 'handoff', None)
         self.context = OperationContext('a'*32, operation.spec.as_dict(), {}, SecretVault())
@@ -242,6 +243,7 @@ class SharedWorkerTests(unittest.TestCase):
         self.web = self.enterContext(patch.object(self.r.web, 'certificate'))
         self.mobile = self.enterContext(patch.object(self.r.mobile, 'verify'))
         self.enterContext(patch.object(self.r.web, 'running', return_value=True))
+        self.enterContext(patch.object(self.r, 'listener', return_value=True))
         self.reload = self.enterContext(patch.object(self.r.web, 'systemctl'))
         self.command = self.enterContext(patch.object(s.old, 'command'))
 
@@ -269,7 +271,7 @@ class SharedWorkerTests(unittest.TestCase):
         self.assertEqual(self.command.call_count, 2); self.reload.assert_not_called()
 
     def test_stopped_https_is_not_implicitly_started_after_successful_renewal(self):
-        self.r.web.running.side_effect = [True, False]
+        self.r.listener.side_effect = [True, False]
         self.r.worker('renew'); self.reload.assert_not_called()
 
     def test_effect_lock_excludes_concurrent_renewal_before_certbot(self):
@@ -362,3 +364,42 @@ class LifecycleTests(unittest.TestCase):
         self.parent.secrets.put('secret','operator@example.test')
         with self.assertRaisesRegex(InstallerError,'SECRET_REJECTED'): self.plan()
         self.assertFalse(self.control.root.exists())
+
+
+class ListenerObservationTests(unittest.TestCase):
+    def setUp(self):
+        self.r=s.SharedPublic(selected())
+        self.value={'MainPID':'123'}
+        self.show=self.enterContext(patch.object(self.r.web,'systemctl',return_value=self.value))
+        self.enterContext(patch.object(self.r.web,'running',return_value=True))
+        self.enterContext(patch.object(self.r,'ready',return_value=True))
+        self.exe=self.enterContext(patch.object(s.os.path,'samefile',return_value=True))
+        self.argv=self.enterContext(patch.object(Path,'read_bytes',return_value=('nginx: master process /usr/sbin/nginx -c '+str(self.r.nginx_path('http'))).encode()+b'\0'))
+        self.tcp=self.enterContext(patch.object(Path,'read_text',return_value='header\n0: 00000000:0050 remote 0A a b c d e 42\n'))
+        self.enterContext(patch.object(Path,'iterdir',return_value=iter([Path('/proc/123/fd/3')])))
+        self.link=self.enterContext(patch.object(s.os,'readlink',return_value='socket:[42]'))
+
+    def test_active_python_guard_is_not_an_owned_nginx_listener(self):
+        self.exe.return_value=False; self.assertFalse(self.r.listener('http')); self.argv.assert_not_called()
+
+    def test_exact_master_arguments_cgroup_observation_and_listening_fd_are_required(self):
+        self.assertTrue(self.r.listener('http')); self.exe.assert_called_once_with(Path('/proc/123/exe'),'/usr/sbin/nginx')
+        self.assertEqual(self.show.call_count,2)
+
+    def test_wrong_stage_configuration_is_rejected_despite_active_nginx(self):
+        self.argv.return_value=b'nginx: master process /usr/sbin/nginx -c /foreign.conf\0'
+        with self.assertRaisesRegex(InstallerError,'SOURCE_DRIFT'): self.r.listener('http')
+
+    def test_foreign_listening_inode_cannot_complete_a_start(self):
+        self.link.return_value='socket:[99]'; self.assertFalse(self.r.listener('http'))
+
+    def test_manager_pid_drift_during_observation_is_refused(self):
+        self.show.side_effect=[self.value,{'MainPID':'124'}]
+        with self.assertRaisesRegex(InstallerError,'SOURCE_DRIFT'): self.r.listener('http')
+
+    def test_start_waits_boundedly_for_nginx_without_repeating_the_start_command(self):
+        with patch.object(self.r,'listener',side_effect=[False,False,True]),patch.object(self.r,'control') as control,patch.object(s.time,'sleep') as sleep:
+            self.r.start_listener('http'); control.assert_called_once_with('start','http'); self.assertEqual(sleep.call_count,2)
+        with patch.object(self.r,'listener',return_value=False),patch.object(self.r,'control') as control,patch.object(s.time,'sleep'),patch.object(s.time,'monotonic',side_effect=[0,11]):
+            with self.assertRaisesRegex(InstallerError,'VALIDATION_FAILED'): self.r.start_listener('http')
+            control.assert_called_once_with('start','http')

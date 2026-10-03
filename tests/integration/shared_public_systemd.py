@@ -101,7 +101,7 @@ class SharedSystemd(unittest.TestCase):
             cls.web._write(phase+'.attempt',binding); cls.web._write(phase+'.json',binding)
         cls.ca=cls.layout/'fixture-ca'; cls.ca.mkdir(mode=0o700)
         command(['/usr/bin/openssl','req','-x509','-newkey','ec','-pkeyopt','ec_paramgen_curve:P-256','-nodes','-days','30',
-            '-subj','/CN=HESTIA disposable shared public CA','-addext','basicConstraints=critical,CA:TRUE',
+            '-subj','/CN=HESTIA disposable shared public CA','-addext','basicConstraints=critical,CA:TRUE','-addext','keyUsage=critical,keyCertSign,cRLSign',
             '-keyout',str(cls.ca/'key.pem'),'-out',str(cls.ca/'cert.pem')])
         cls.trust=Path('/usr/local/share/ca-certificates')/('hestia-shared-'+instance+'.crt')
         shutil.copyfile(cls.ca/'cert.pem',cls.trust); command(['/usr/sbin/update-ca-certificates']); cls.stack.callback(cls.remove_trust)
@@ -158,7 +158,7 @@ class SharedSystemd(unittest.TestCase):
         archive=acme/'archive'/name; live=acme/'live'/name; renewal=acme/'renewal'
         for path in (archive,live,renewal): path.mkdir(parents=True,exist_ok=True)
         key=archive/f'privkey{version}.pem'; leaf=archive/f'cert{version}.pem'; csr=cls.ca/'request.csr'
-        ext=cls.ca/'extensions'; ext.write_text('subjectAltName=DNS:'+host+'\nextendedKeyUsage=serverAuth\nbasicConstraints=CA:FALSE\n')
+        ext=cls.ca/'extensions'; ext.write_text('subjectAltName=DNS:'+host+'\nextendedKeyUsage=serverAuth\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nsubjectKeyIdentifier=hash\nauthorityKeyIdentifier=keyid,issuer\n')
         command(['/usr/bin/openssl','req','-new','-newkey','ec','-pkeyopt','ec_paramgen_curve:P-256','-nodes','-subj','/CN='+host,'-keyout',str(key),'-out',str(csr)])
         command(['/usr/bin/openssl','x509','-req','-in',str(csr),'-CA',str(cls.ca/'cert.pem'),'-CAkey',str(cls.ca/'key.pem'),'-CAcreateserial','-days','30','-extfile',str(ext),'-out',str(leaf)])
         (archive/f'chain{version}.pem').write_bytes((cls.ca/'cert.pem').read_bytes())
@@ -270,7 +270,7 @@ class SharedSystemd(unittest.TestCase):
     def test_08_successor_public_units_restart_with_frozen_guards_and_existing_links(self):
         before=self.web.systemctl('show','https')['MainPID']
         for role in ('https','http'): self.r.control('stop',role); self.r.stopped(role)
-        for role in ('http','https'): self.r.control('start',role); self.assertTrue(self.web.running(role))
+        for role in ('http','https'): self.r.start_listener(role); self.assertTrue(self.r.listener(role))
         self.assertNotEqual(before,self.web.systemctl('show','https')['MainPID'])
         self.assertEqual(self.request(WEB,'/login.php')[0],200); self.assertEqual(self.request(MOBILE,'/health')[0],200)
         self.web.enabled()

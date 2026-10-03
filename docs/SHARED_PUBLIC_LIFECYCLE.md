@@ -78,7 +78,7 @@ qui réouvrirait un frontal ou restaurerait un ancien certificat.
 
 ## Qualification et limites
 
-41 nouveaux contrats obligatoires couvrent les profils fermés, les sources figées,
+47 nouveaux contrats obligatoires couvrent les profils fermés, les sources figées,
 les ressources et copies, le consentement distinct, l'ordre des effets, les refus
 avant publication, les reprises, les permissions et les deux renouvellements.
 Les 30 contrats 6B10 et les 10 contrats de composition restent conservés.
@@ -120,3 +120,12 @@ pour le helper historique de 16 Ko. Le successeur dispose maintenant d'une
 écriture privée exclusive et d'une lecture bornées à 256 Ko, sans modifier la
 limite des helpers antérieurs. Trois contrats sur les vrais fichiers couvrent
 le round-trip, la borne, les chemins, les liens et les écritures partielles.
+
+Le troisième gel `8ebac7cf9717d5b6ebbbeed730ae22f15906d86c` termine le registre,
+mais la recette refuse la CA sans keyUsage en TLS strict Python 3.13 et détecte
+un appel HTTP trop précoce après restart. La CA et les feuilles de fixture ont
+désormais les extensions explicites. Le produit attend, au plus dix secondes
+et sans répéter le start, le maître NGINX, sa commande liée au bon stage et
+son propre socket d'écoute, avec observation systemd stable. Six contrats
+supplémentaires refusent le wrapper encore actif, une autre configuration, un
+socket étranger, la dérive du PID et le dépassement du délai.
