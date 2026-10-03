@@ -224,7 +224,8 @@ def acquire(external, barrier, data, gateway, runtime, source, payload, authorit
                     'file_transaction_sha256': f._sha(a.canonical_bytes(document)),
                     'web_backup_sha256': control.profile()['web_backup']['manifest_sha256']}
                 files._new(slotfd, 'attempt.json', p._json({'state': 'EXTERNAL_ADMISSION_STARTED', 'action': action, **binding}))
-                fence = stack.enter_context(a.c.rf.acquire(runtime, source, database, ca, authority, cancel=cancel, commit=commit))
+                fence = stack.enter_context(a.c.rf.acquire(runtime, source, database, ca, authority,
+                    cancel=cancel, commit=commit, **archives.fence_options))
                 fence.assert_held()
                 recheck = a.c._recheck(runtime, source, database, ca, authority, slot, archives.sql, cancel, commit=commit)
                 # Reobserve the complete native/files/archive state after export

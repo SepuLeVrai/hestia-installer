@@ -64,15 +64,31 @@ les unités DEV déjà scellées uniquement si le garde DEV autorise le service.
 Un garde DEV fermé reste fermé et MAIN peut démarrer. Une intention déjà émise
 ne permet pas de redémarrer un processus disparu durant le même démarrage.
 
+La sauvegarde MAIN conserve son périmètre MAIN et Gateway. Sur le serveur SQL
+partagé, le verrou global admet seulement la base DEV liée au descripteur natif
+scellé, en plus de MAIN. Cette exception est enregistrée dans le manifeste de
+sauvegarde ; elle n'inclut pas les données DEV dans cette sauvegarde. Un troisième
+schéma étranger reste refusé et le profil historique à une base reste fermé.
+Le consentement au verrou global s'applique aussi à la suspension temporaire des
+écritures SQL DEV pendant la sauvegarde MAIN.
+
 ## Qualification et limites
 
-Le candidat ajoute 23 contrats locaux et un parcours Chromium HTTPS de sélection,
+Le candidat ajoute 28 contrats locaux et un parcours Chromium HTTPS de sélection,
 annulation, application et refresh. La recette composée utilise deux véritables
 bases SQL et le binaire Gateway exact ; elle conserve aussi sauvegarde,
 préparation, activation, FCM, QR, ACME privé et nouveau PID 1 du lot précédent.
 Elle vérifie les autorisations dans chaque contexte, les clés et sessions
 croisées refusées, la politique de compte DEV et l'absence d'appareil copié.
 Les verdicts natifs et les manifestes exacts restent requis avant livraison.
+
+Le premier gel `eb8606a` passe les trois CI Installer : 4 134 tests et 32
+manifestes concordants. La recette native `37159389283` a atteint les deux
+Foundation et le Gateway FCM, puis refusé la sauvegarde MAIN car le garde SQL
+historique exigeait une seule base. Le correctif conserve cette règle historique
+et ajoute un protocole v2 limité au DEV effectivement scellé. La recette corrigée
+doit prouver à la fois l'admission de cette paire et le refus d'un troisième
+schéma réel ; aucune suppression du contrôle ni exemption générale n'est ajoutée.
 
 Le banc provisionne sa cible DEV séparément au port fixe avec le moteur Web
 qualifié. Ce montage de recette ne constitue pas un assistant fresh DEV produit.

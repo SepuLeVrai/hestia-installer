@@ -161,6 +161,10 @@ class _Archives:
         raw, self.coordinated = _json(self.slot, 'coordinated.json')
         require(f._sha(raw) == self.web['manifest_sha256'])
         self.raw = raw; value = self.coordinated; lease = control.lease
+        from installer import dev_sql_peer
+        peer = dev_sql_peer.binding(control.data._runtime, database)
+        require(value.get('sql_server_peer') == peer, 'MOBILE_ADMISSION_PROFILE_REJECTED')
+        self.fence_options = {} if peer is None else {'peer_database': peer['database']}
         commit = control.data._runtime.source_commit
         self.target = f._sha(p._json([database['host'], database['port'], database['name'].lower()]))
         require(value['instance'] == lease.scope.instance and value['lease_id'] == lease.lease_id
@@ -288,7 +292,8 @@ def acquire(control, runtime, source, payload, authority, confirmation, *, confi
                 'web_backup_sha256': control.profile()['web_backup']['manifest_sha256'],
                 'gateway_release_sha256': control.profile()['gateway_release_sha256']}
             files._new(slotfd, 'attempt.json', p._json({'state': 'ADMISSION_STARTED', **binding}))
-            fence = stack.enter_context(c.rf.acquire(runtime, source, database, ca, authority, cancel=cancel, commit=commit))
+            fence = stack.enter_context(c.rf.acquire(runtime, source, database, ca, authority,
+                cancel=cancel, commit=commit, **archives.fence_options))
             fence.assert_held()
             recheck = c._recheck(runtime, source, database, ca, authority, slot, archives.sql, cancel, commit=commit)
             result = {'state': 'CURRENT_SQL_FILES_OBSERVED_ACTIVITY_CLOSED', **binding,

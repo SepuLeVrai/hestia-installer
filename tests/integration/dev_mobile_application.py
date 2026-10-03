@@ -7,6 +7,7 @@ it; no fresh-DEV wizard, phone delivery or production identity cloning is claime
 """
 import argparse
 from dataclasses import replace
+from contextlib import contextmanager
 import hashlib
 import http.client
 import json
@@ -28,6 +29,7 @@ from github_fixture import confirm, DUMMY
 from test_application_plan import setup_payload
 from installer import application_plan as app, application_activation as activation
 from installer import foundation_probe, foundation_drain
+from installer import sql_read_fence
 from installer.dev_target import DevManagedProfile, DevTarget, digest
 from installer.gateway_identity import _b64, _public
 from installer.gateway_release import FCM_COMMIT
@@ -39,6 +41,32 @@ EVIDENCE = fixture.EVIDENCE
 PRIVATE = Path('/var/lib/hestia-dev-recipe')
 SUBJECT = '11111111-1111-4111-8111-111111111111'
 DEVICE = '22222222-2222-4222-8222-222222222222'
+READ_FENCE = sql_read_fence.acquire
+
+
+@contextmanager
+def prove_sql_peer(*args, **kwargs):
+    """Exercise the genuine PHP rejection before the normal paired acquisition."""
+    evidence = EVIDENCE / 'dev-sql-peer-proof.json'
+    first = kwargs.get('peer_database') is not None and not evidence.exists()
+    if first:
+        service = fixture.service()
+        try:
+            sql = service.mariadb.runtime()
+            sql.sql('CREATE DATABASE hestia_unmanaged_peer')
+            try:
+                try:
+                    with READ_FENCE(*args, **kwargs):
+                        raise AssertionError('Foreign third schema was admitted')
+                except sql_read_fence.SqlReadFenceError as error:
+                    assert str(error) == 'SQL_FENCE_SERVER_PROFILE_REJECTED'
+            finally: sql.sql('DROP DATABASE hestia_unmanaged_peer')
+        finally: service.close()
+    with READ_FENCE(*args, **kwargs) as held:
+        if first:
+            evidence.write_bytes(quality.encode({'registered_dev_admitted': True,
+                'foreign_third_schema_rejected': True, 'backup_scope': 'MAIN and Gateway only'}))
+        yield held
 
 
 def prepare_target(main):
@@ -229,7 +257,8 @@ if __name__ == '__main__':
     if os.environ.get('HESTIA_SHARED_APPLICATION_TEST') != '1' or os.geteuid() != 0: raise RuntimeError('Disposable opt-in required')
     if phase != 'browser' and Path('/proc/1/comm').read_text().strip() != 'systemd': raise RuntimeError('Real PID 1 required')
     if phase == 'setup':
-        mobile.setup(gateway_commit=FCM_COMMIT, credential=fcm_fixture.credential(), dev_setup=prepare_target)
+        with patch.object(sql_read_fence, 'acquire', prove_sql_peer):
+            mobile.setup(gateway_commit=FCM_COMMIT, credential=fcm_fixture.credential(), dev_setup=prepare_target)
         service = fixture.service()
         try: seed_subjects(service)
         finally: service.close()

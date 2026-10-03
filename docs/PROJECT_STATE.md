@@ -15,6 +15,12 @@ Le lot #16 reste ouvert jusqu'aux preuves ; #17 (upgrade/restauration) et #18
 (recette 6C/intégration) suivent. Aucune promotion de branche applicative ni
 clôture globale n'est effectuée. Les sections suivantes sont historiques.
 
+Actualisation du gel DEV : `eb8606a` passe ses trois CI (4 134 tests, 32
+manifestes). La recette `37159389283` refuse la sauvegarde sur le serveur à deux
+bases (`SQL_FENCE_SERVER_PROFILE_REJECTED`). Un protocole SQL v2 admet désormais
+la seule base DEV scellée, avec refus conservé des bases étrangères et preuve
+native négative ajoutée. Le nouveau gel reste à qualifier.
+
 # Reprise par lots de finition - 3 octobre 2026
 
 La composition Web Mobile v2 est PASS dans la recette `37141785730`.

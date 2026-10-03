@@ -26,10 +26,16 @@ function rf_emit(string $id,int $sequence,string $state): void {
     $raw=bk_json(['request_id'=>$id,'sequence'=>$sequence,'state'=>$state])."\n";
     bk_require(fwrite(STDOUT,$raw)===strlen($raw)&&fflush(STDOUT),'FENCE_CHANNEL');
 }
-function rf_profile(PDO $db,string $name): void {
-    $query=$db->prepare("SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN ('information_schema','performance_schema','mysql','sys') AND BINARY SCHEMA_NAME <> BINARY ? LIMIT 1");
-    $query->execute([$name]);
-    bk_require($query->fetch(PDO::FETCH_ASSOC)===false,'SQL_FENCE_SERVER_PROFILE_REJECTED');
+function rf_profile(PDO $db,string $name,?string $peer=null): void {
+    if($peer===null) {
+        $query=$db->prepare("SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN ('information_schema','performance_schema','mysql','sys') AND BINARY SCHEMA_NAME <> BINARY ? LIMIT 1");
+        $query->execute([$name]);
+        bk_require($query->fetch(PDO::FETCH_ASSOC)===false,'SQL_FENCE_SERVER_PROFILE_REJECTED');
+    } else {
+        $schemas=$db->query("SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN ('information_schema','performance_schema','mysql','sys') LIMIT 3")->fetchAll(PDO::FETCH_COLUMN);
+        $expected=[$name,$peer];sort($schemas,SORT_STRING);sort($expected,SORT_STRING);
+        bk_require($schemas===$expected,'SQL_FENCE_SERVER_PROFILE_REJECTED');
+    }
     $rows=$db->query("SELECT cle, OCTET_LENGTH(valeur) AS bytes, LEFT(valeur,4097) AS value FROM App_Config WHERE cle IN ('security.ged_legacy_roots','HESTIA_MOBILE_RELEASE_DIR') LIMIT 3")->fetchAll(PDO::FETCH_ASSOC);
     bk_require(count($rows)<=2,'SQL_FENCE_STORAGE_PROFILE_REJECTED');$seen=[];
     foreach($rows as $row) {
@@ -57,9 +63,13 @@ try {
     set_error_handler(static function():never {throw new RuntimeException('FENCE_FAILED');});
     stream_set_blocking(STDIN,false);
     $v=rf_line(16384,microtime(true)+12);
-    bk_require(array_keys($v)===['authority','operation','request_id','target','version']
-        &&$v['version']===1&&$v['operation']==='acquire'&&is_string($v['request_id'])
+    $paired=($v['version']??null)===2;
+    bk_require(array_keys($v)===($paired?['authority','operation','peer_database','request_id','target','version']:['authority','operation','request_id','target','version'])
+        &&($paired||$v['version']===1)&&$v['operation']==='acquire'&&is_string($v['request_id'])
         &&preg_match('/^[a-f0-9]{32}$/D',$v['request_id'])===1,'FENCE_PROTOCOL');
+    $peer=$paired?$v['peer_database']:null;
+    bk_require(!$paired||(is_string($peer)&&preg_match('/^[A-Za-z][A-Za-z0-9_]{0,63}$/D',$peer)===1
+        &&strcasecmp($peer,$v['target']['name'])!==0),'SQL_FENCE_SERVER_PROFILE_REJECTED');
     $id=$v['request_id'];$deadline=microtime(true)+180;
     $locker=bk_connection($v['target'],$v['authority']);
     bk_authority($locker,$v['authority'],$v['target']['tls_required']);
@@ -67,9 +77,9 @@ try {
     $locker->exec('SET SESSION lock_wait_timeout=5');
     $locker->exec('SET SESSION max_statement_time=10');
     $connection=bk_scalar($locker,'SELECT CONNECTION_ID()');
-    $name=$v['target']['name'];rf_profile($locker,$name);
+    $name=$v['target']['name'];rf_profile($locker,$name,$peer);
     $locker->exec('FLUSH TABLES WITH READ LOCK');$locked=true;
-    rf_profile($locker,$name);
+    rf_profile($locker,$name,$peer);
     rf_emit($id,0,'LOCK_HELD');unset($v);
     while(true) {
         $v=rf_line(1024,$deadline);++$sequence;
@@ -77,7 +87,7 @@ try {
             &&$v['request_id']===$id&&$v['sequence']===$sequence
             &&in_array($v['operation'],['check','release'],true),'FENCE_PROTOCOL');
         bk_require(bk_scalar($locker,'SELECT CONNECTION_ID()')===$connection,'FENCE_LOST');
-        rf_profile($locker,$name);
+        rf_profile($locker,$name,$peer);
         if($v['operation']==='release') {
             $locker->exec('UNLOCK TABLES');$locked=false;rf_emit($id,$sequence,'RELEASED');$code=0;break;
         }

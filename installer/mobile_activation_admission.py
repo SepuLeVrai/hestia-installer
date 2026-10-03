@@ -86,7 +86,8 @@ def _release(state,native,barrier,runtime,source,payload,authority,record,cancel
                 binding={'version':1,'instance':lease.scope.instance,'lease_id':lease.lease_id,
                     'resume_plan_sha256':state.confirmation,'observation_id':name}
                 files._new(slotfd,'attempt.json',p._json({'state':'FINAL_ADMISSION_STARTED',**binding}))
-                with a.c.rf.acquire(runtime,source,database,ca,authority,cancel=cancel,commit=commit) as fence:
+                with a.c.rf.acquire(runtime,source,database,ca,authority,
+                        cancel=cancel,commit=commit,**archives.fence_options) as fence:
                     recheck=a.c._recheck(runtime,source,database,ca,authority,slot,archives.sql,cancel,commit=commit)
                     window=ActivationWindow(control,fence,schedulers,locked,check_files,archives,envelope,record)
                     window.assert_held()

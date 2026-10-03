@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import os
 from pathlib import Path
 import selectors
+import re
 import signal
 import subprocess
 import tempfile
@@ -96,8 +97,11 @@ def _stage(runtime, source, stage, ca, *, commit=f.WEB_COMMIT):
 
 
 @contextmanager
-def acquire(runtime, source, database, ca, authority, *, cancel=None, commit=f.WEB_COMMIT):
+def acquire(runtime, source, database, ca, authority, *, cancel=None, commit=f.WEB_COMMIT, peer_database=None):
     """Private input already validated by finalization; no client-controlled SQL."""
+    require(peer_database is None or type(peer_database) is str
+        and re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}', peer_database)
+        and peer_database.lower() != database['name'].lower(), 'SQL_FENCE_SERVER_PROFILE_REJECTED')
     fence=None
     with tempfile.TemporaryDirectory(prefix='rf-',dir=runtime.run_root) as tmp:
         stage=Path(tmp);_stage(runtime,source,stage,ca,commit=commit)
@@ -110,8 +114,10 @@ def acquire(runtime, source, database, ca, authority, *, cancel=None, commit=f.W
                     env={'PATH':'/usr/sbin:/usr/bin','LANG':'C','PHP_INI_SCAN_DIR':''})
                 fence=SqlReadFence(proc,os.urandom(16).hex(),cancel)
                 os.set_blocking(proc.stdin.fileno(),False);os.set_blocking(proc.stdout.fileno(),False)
-                fence._round({'version':1,'operation':'acquire','request_id':fence._id,'target':target,
-                    'authority':{'user':authority._user,'password':authority._password}},'LOCK_HELD')
+                request={'version':1,'operation':'acquire','request_id':fence._id,'target':target,
+                    'authority':{'user':authority._user,'password':authority._password}}
+                if peer_database is not None: request.update(version=2,peer_database=peer_database)
+                fence._round(request,'LOCK_HELD')
             except SqlReadFenceError:raise
             except Exception:raise SqlReadFenceError('SQL_FENCE_UNAVAILABLE') from None
             # Consumer errors belong to the coordinator's closed error policy.

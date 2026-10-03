@@ -202,7 +202,11 @@ class CoordinatedBackup:
                     web_fence = stack.enter_context(wf.acquire(service_barrier, confirmed=True))
                     external_fence = stack.enter_context(ef.acquire(maintenance, confirmed=True))
                     configuration._bind_external(external_fence)
-                    fence = stack.enter_context(rf.acquire(self.runtime, self.source, database, ca, authority, cancel=cancel, commit=self.release.commit))
+                    from installer import dev_sql_peer
+                    peer = dev_sql_peer.binding(runtime, database)
+                    fence = stack.enter_context(rf.acquire(self.runtime, self.source, database, ca, authority,
+                        cancel=cancel, commit=self.release.commit,
+                        **({'peer_database': peer['database']} if peer is not None else {})))
                     held()
                 backup_id = os.urandom(16).hex()
                 slot = backup_root / backup_id
@@ -256,6 +260,7 @@ class CoordinatedBackup:
                             'sql_backup': restored, 'data_snapshot': data, 'sql_recheck': recheck,
                             'storage_inventory_complete': False, 'system_wiring_verified': False}
                 if barrier_profile is not None:
+                    if peer is not None: manifest['sql_server_peer'] = peer
                     manifest['service_barrier'] = {'profile_sha256': barrier_profile,
                         'policy': 'PROVISIONED_HTTP_CLEANER_SQL_CONFIGURATION_SCHEDULERS_DATA_WEB_EXTERNAL_V8'}
                     manifest['external_path_reservations'] = external_fence.report()
