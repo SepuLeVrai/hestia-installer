@@ -1,3 +1,15 @@
+# Préparation privée FCM en cours - 3 octobre 2026
+
+Le checkpoint `261e053ed75e497d50ce3c0469815cfe7eb9d379` passe les trois CI
+Installer `37141664189`, `37141664166`, `37141664296` : 4031 exécutions,
+neuf jobs, huit artefacts et 484 fichiers exacts vérifiés. La recette composée
+v2 `37141785730` est encore en cours à ce point d'arrêt ; aucun PASS anticipé.
+
+Le moteur privé [FCM_PRIVATE_IMPORT.md](FCM_PRIVATE_IMPORT.md) ajoute le contrôle
+du projet et de la clé RSA, l'import immuable et sa reprise bornée. Onze tests
+ciblés locaux passent. Le raccordement cockpit/service et la qualification
+globale restent ouverts, ainsi que DEV distinct, upgrade/rollback et 6C.
+
 # Successeur Web Mobile v2 en qualification - 3 octobre 2026
 
 Le checkpoint Installer `f8c004c38bff2fc97ad203a7ea12a9515f32aea9` est qualifié :
