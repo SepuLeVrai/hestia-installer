@@ -13,6 +13,7 @@ import time
 
 from installer import public_tls_runtime as old
 from installer import foundation_drain, gateway_service_drain, gateway_service_probe
+from installer import gateway_frozen_reference
 from installer.engine import TransactionEngine
 from installer.foundation_runtime import FoundationRuntime
 from installer.gateway_service_profile import GatewayServiceProfile
@@ -30,8 +31,11 @@ CONFIG_LIMIT = 262144
 def code_identity(): return {name: f._sha(raw) for name, raw in boot.code_files().items()}
 
 
-def selection(preparation, gateway_binding):
-    return {'version': 1, 'preparation': preparation, 'gateway_binding': gateway_binding, 'code': code_identity()}
+def selection(preparation, gateway_binding, publication_sha256=None):
+    value = {'version': 1, 'preparation': preparation, 'gateway_binding': gateway_binding, 'code': code_identity()}
+    if publication_sha256 is not None:
+        value.update(version=2, gateway_publication_sha256=gateway_frozen_reference.digest(publication_sha256))
+    return value
 
 
 class MobileCertificate:
@@ -77,8 +81,10 @@ class MobileCertificate:
 
 class SharedPublic(old.Profile):
     def __init__(self, value):
-        exact_keys(value, {'version', 'preparation', 'gateway_binding', 'code'})
-        require(type(value['version']) is int and value['version'] == 1)
+        require(type(value) is dict and type(value.get('version')) is int and value['version'] in (1, 2))
+        exact_keys(value, {'version', 'preparation', 'gateway_binding', 'code'} |
+            ({'gateway_publication_sha256'} if value['version'] == 2 else set()))
+        if value['version'] == 2: gateway_frozen_reference.digest(value['gateway_publication_sha256'])
         selected = value['preparation']
         expected = candidate(selected['web_profile'], selected['gateway_identity'], selected['client_networks'], selected['parents'])
         require(canonical_bytes(selected) == canonical_bytes(expected), ErrorCode.INVALID_STATE)
@@ -131,6 +137,7 @@ class SharedPublic(old.Profile):
         runtime = gateway_service_drain.attached(self.http, foundation)
         require(runtime is not None and canonical_bytes(runtime.profile.binding()) == canonical_bytes(self.value['gateway_binding']),
                 ErrorCode.SOURCE_DRIFT)
+        gateway_frozen_reference.matches(runtime, self.value.get('gateway_publication_sha256'))
         runtime.owned(); return runtime
 
     def network_ready(self):

@@ -5,11 +5,12 @@ from installer.model import ErrorCode, canonical_bytes, require
 
 def reference(control, parent, *, observe=False):
     require(type(observe) is bool)
-    prepared, gateway = control.binding(parent)
+    prepared, gateway, publication = control.binding(parent, with_publication=True)
     profile = control.profile()
     require(profile is not None, ErrorCode.NOT_PLANNED)
     require(canonical_bytes(profile['preparation']) == canonical_bytes(prepared)
-        and canonical_bytes(profile['gateway_binding']) == canonical_bytes(gateway), ErrorCode.SOURCE_DRIFT)
+        and canonical_bytes(profile['gateway_binding']) == canonical_bytes(gateway)
+        and profile.get('gateway_publication_sha256') == publication, ErrorCode.SOURCE_DRIFT)
     engine, runtime = native.engine(control.journal, profile)
     document = engine.report()
     require(document is not None and document['state'] == 'DONE', ErrorCode.DEPENDENCY_BLOCKED)

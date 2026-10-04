@@ -31,7 +31,7 @@ class SharedPublicLifecycle:
             'historical_only': True, 'current_admission': False, 'public_mobile_available': False,
             'boot_mobile_enabled': False, 'phase6_complete': False, 'verification': self.verification}
 
-    def binding(self, parent):
+    def binding(self, parent, *, with_publication=False):
         require(parent is not None and parent['state'] == 'DONE', ErrorCode.DEPENDENCY_BLOCKED)
         prepared = self.preparation.profile(); require(prepared is not None, ErrorCode.NOT_PLANNED)
         require(canonical_bytes(self.preparation.binding(parent, prepared['client_networks'], observe=False)) ==
@@ -42,12 +42,13 @@ class SharedPublicLifecycle:
             and self.gateway_service.gateway is self.preparation.gateway, ErrorCode.DEPENDENCY_BLOCKED)
         require(runtime.profile.identity == prepared['gateway_identity'] and runtime.web.spec.instance == prepared['instance'],
             ErrorCode.INCOMPATIBLE_STATE)
-        return prepared, runtime.profile.binding()
+        gateway, publication = native.gateway_frozen_reference.reference(runtime)
+        return (prepared, gateway, publication) if with_publication else (prepared, gateway)
 
     def engine(self, parent):
-        prepared, gateway = self.binding(parent)
+        prepared, gateway, publication = self.binding(parent, with_publication=True)
         value = self.profile(); require(value is not None, ErrorCode.NOT_PLANNED)
-        require(value == native.selection(prepared, gateway), ErrorCode.INCOMPATIBLE_STATE)
+        require(value == native.selection(prepared, gateway, publication), ErrorCode.INCOMPATIBLE_STATE)
         return native.engine(self.journal, value)
 
     def execute(self, action, payload):
@@ -57,9 +58,9 @@ class SharedPublicLifecycle:
         with self.parent.journal.locked(create=False) as locked:
             parent = locked.read()
             if action == 'plan':
-                prepared, gateway = self.binding(parent)
+                prepared, gateway, publication = self.binding(parent, with_publication=True)
                 require(payload['preparation_sha256'] == digest(prepared), ErrorCode.CONFIRMATION_REQUIRED)
-                value = native.selection(prepared, gateway)
+                value = native.selection(prepared, gateway, publication)
                 previous = self.profile()
                 require(previous is None or previous == value, ErrorCode.PLAN_EXISTS)
                 if previous is None:

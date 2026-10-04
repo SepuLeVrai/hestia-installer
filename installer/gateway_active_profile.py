@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import time
+from types import SimpleNamespace
 
 from installer import gateway_transition_cutover as c
 from installer.gateway_service_profile import GatewayServiceProfile
@@ -48,12 +49,8 @@ def _identity(value, binary_sha256):
         'GATEWAY_ACTIVE_BINARY_CHANGED')
 
 
-def _validate(runtime, raw):
-    """Authenticate the immutable predecessor chain and current native identities.
-
-    Binary contents, configuration, keys, NSS account, unit and process are
-    audited by GatewayServiceRuntime, never by this historical receipt alone.
-    """
+def _record(runtime, raw):
+    """Validate the closed publication grammar without observing native state."""
     value = c._json(raw); origin = value['cutover']; source = value['source_manifest']
     require(type(source) is dict and set(source) == {'binding', 'uid', 'gid'}
         and all(type(source[k]) is int and source[k] >= 0 for k in ('uid', 'gid')),
@@ -63,9 +60,8 @@ def _validate(runtime, raw):
             'GATEWAY_ACTIVE_ENROLLMENT_CHANGED')
     assessment = assess(profile, target_commit=runtime.profile.selected_release['commit'],
                         direction=value['direction']).report()
-    account = runtime.account()
-    require(assessment['configuration_compatible'] and assessment['target'] == runtime.profile.binding()
-        and (source['uid'], source['gid']) == (account.pw_uid, account.pw_gid),
+    account = SimpleNamespace(pw_uid=source['uid'], pw_gid=source['gid'])
+    require(assessment['configuration_compatible'] and assessment['target'] == runtime.profile.binding(),
         'GATEWAY_ACTIVE_PROFILE_CHANGED')
     require(type(origin) is dict and type(origin.get('lease_id')) is str
         and re.fullmatch('[a-f0-9]{32}', origin['lease_id'])
@@ -86,23 +82,44 @@ def _validate(runtime, raw):
         and arm['replacement']['inode'] != origin['original_binary']['inode'],
         'GATEWAY_ACTIVE_CUTOVER_CHANGED')
     done = {'owner': owner, 'armed_sha256': sha(canonical_bytes(arm)), 'role': 'target'}
+    state = value['state']
+    require(type(state) is dict and set(state) == {'gateway.db', 'gateway.lock'}
+        and all(type(v) is dict and set(v) == {'device', 'inode'}
+            and all(type(n) is int and n > 0 for n in v.values()) for v in state.values()),
+        'GATEWAY_ACTIVE_STATE_CHANGED')
     expected = {'version': 1, 'policy': POLICY, 'direction': value['direction'],
         'cutover': origin, 'source_manifest': source, 'target_manifest': runtime.manifest(account),
-        'target_armed': arm, 'target_done': done, 'state': runtime.state_binding()}
+        'target_armed': arm, 'target_done': done, 'state': state}
     require(raw == canonical_bytes(expected), 'GATEWAY_ACTIVE_PROFILE_CHANGED')
+    return source
+
+
+def _records(runtime, raw):
+    value = c._json(raw); origin = value['cutover']
     with fs._directory(runtime.root) as fd:
-        require(files._read(fd, 'staged.json', c.MAX_RECORD) == canonical_bytes(source),
+        require(files._read(fd, 'staged.json', c.MAX_RECORD) == canonical_bytes(value['source_manifest']),
                 'GATEWAY_ACTIVE_ENROLLMENT_CHANGED')
-        info = os.stat(runtime.profile.binary.name, dir_fd=fd, follow_symlinks=False)
-        require({k: v for k, v in arm['replacement'].items() if k != 'sha256'} ==
-            {'device': info.st_dev, 'inode': info.st_ino, 'bytes': info.st_size},
-            'GATEWAY_ACTIVE_BINARY_CHANGED')
     with fs._directory(runtime.root / 'control' / ('cutover-' + origin['lease_id'])) as fd:
         files._private(fd, directory=True)
         require(set(os.listdir(fd)) == {'target.armed.json', 'target.done.json'}
-            and files._read(fd, 'target.armed.json', c.MAX_RECORD) == canonical_bytes(arm)
-            and files._read(fd, 'target.done.json', c.MAX_RECORD) == canonical_bytes(done),
+            and files._read(fd, 'target.armed.json', c.MAX_RECORD) == canonical_bytes(value['target_armed'])
+            and files._read(fd, 'target.done.json', c.MAX_RECORD) == canonical_bytes(value['target_done']),
             'GATEWAY_ACTIVE_CUTOVER_CHANGED')
+
+
+def _validate(runtime, raw):
+    """Reobserve native identities in addition to the immutable record chain."""
+    source = _record(runtime, raw); value = c._json(raw)
+    account = runtime.account()
+    require((source['uid'], source['gid']) == (account.pw_uid, account.pw_gid),
+            'GATEWAY_ACTIVE_ENROLLMENT_CHANGED')
+    require(value['state'] == runtime.state_binding(), 'GATEWAY_ACTIVE_STATE_CHANGED')
+    _records(runtime, raw)
+    with fs._directory(runtime.root) as fd:
+        info = os.stat(runtime.profile.binary.name, dir_fd=fd, follow_symlinks=False)
+        require({k: v for k, v in value['target_armed']['replacement'].items() if k != 'sha256'} ==
+            {'device': info.st_dev, 'inode': info.st_ino, 'bytes': info.st_size},
+            'GATEWAY_ACTIVE_BINARY_CHANGED')
     return source
 
 

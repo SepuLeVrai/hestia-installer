@@ -1,3 +1,21 @@
+## 2026-10-04 — 3B2.2c1 : sélection figée du successeur public/boot
+
+La reprise locale 3B2.2b est acquise sur `875e9b3a15fd27f4840900e748d162337a5f6236`.
+Ce candidat raccorde les nouveaux profils SharedPublic et MobileBoot à la
+publication Gateway exacte. SharedPublic v2 fige son SHA-256 ; v1 conserve son
+contrat historique. La sélection de plan lit uniquement les preuves privées.
+Le lecteur natif contrôle ensuite la publication et le véritable profil cible,
+ses inodes, son binaire, ses identités, sa configuration et son processus.
+Une référence absente, incomplète, modifiée ou liée à un autre profil refuse.
+Les profils et bundles déjà enrôlés ne sont pas modifiés ou réadoptés.
+
+Qualification CI à établir sur le nouveau commit. Les 19 nouveaux tests
+obligatoires couvrent les références, les dérives et les consommateurs figés.
+Cette tranche ne transfère pas les unités d'un ancien boot/public et ne prouve
+pas un redémarrage natif. Restent : génération suivante sur un même hôte,
+transfert des bundles/unités sous maintenance, admission publique et recette
+montée/retour avec nouveau PID 1 ; puis 3C, 3D et #18. #17 reste ouverte.
+
 ## 2026-10-04 — Candidat 3B2.2b : reprise locale du profil Gateway successeur
 
 Le lot 3B2.2a acquis est `3a79d841cddd9897b6fe0a7a4fba799ab7a9eb14`.

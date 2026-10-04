@@ -315,6 +315,8 @@ class LifecycleTests(unittest.TestCase):
             web=SimpleNamespace(spec=SimpleNamespace(instance=prepared['instance'])))
         self.service = SimpleNamespace(gateway=self.preparation.gateway, engine=lambda parent:(SimpleNamespace(report=lambda:{'state':'DONE'}),runtime))
         self.control = c.SharedPublicLifecycle(self.preparation,self.service)
+        self.reference = self.enterContext(patch.object(s.gateway_frozen_reference, 'reference',
+            side_effect=lambda enrolled: (enrolled.profile.binding(), None)))
         self.parent_doc = {'state':'DONE'}
         self.enterContext(patch.object(self.parent.journal,'locked',return_value=nullcontext(SimpleNamespace(read=lambda:deepcopy(self.parent_doc)))))
         self.absent = self.enterContext(patch.object(s.SharedPublic,'absent'))

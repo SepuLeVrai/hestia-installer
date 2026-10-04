@@ -107,9 +107,14 @@ class MobileBootRuntime(boot.BootRuntime):
         self.shared.configuration(); self.shared.completed('verify')
         require(self.shared.ready(), ErrorCode.DEPENDENCY_BLOCKED)
         self.shared.boot.configuration(); self.shared.boot.live()
-        self.gateway.owned()
+        self.attach_gateway(); self.gateway.owned()
         if self.dev_foundation is not None:
             self.dev_foundation.target.serving(); self.dev_foundation.owned()
+
+    def attach_gateway(self):
+        publication = self.profile['shared'].get('gateway_publication_sha256')
+        if publication is not None:
+            public.gateway_frozen_reference.attach(self.gateway, publication)
 
     @staticmethod
     def epoch_identity():
@@ -169,7 +174,7 @@ class MobileBootRuntime(boot.BootRuntime):
         # Maintenance cannot be acquired across the two ordered starts.
         with scope.writer():
             require(scope.observe()['state'] == 'SERVING', ErrorCode.MANUAL_ACTION_REQUIRED)
-            self.foundation.inspect(); self.gateway.inspect()
+            self.foundation.inspect(); self.attach_gateway(); self.gateway.inspect()
             epoch = self.epoch_identity()
             from installer.transaction import StateJournal
             with StateJournal(self.epoch.root / 'lock.json').locked(create=True):

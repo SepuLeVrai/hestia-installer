@@ -1,5 +1,37 @@
 # Gateway : changements de version, lot 3
 
+## 3B2.2c1 — Références figées pour les nouveaux profils public/boot
+
+Base : reprise locale 3B2.2b qualifiée sur
+`875e9b3a15fd27f4840900e748d162337a5f6236`. Cette tranche prépare le transfert
+public/boot en raccordant ses lecteurs au profil actif publié.
+
+`gateway_frozen_reference.reference` lit l'enrôlement original, l'intention de
+publication, son reçu et les preuves de bascule. Le lecteur partage la grammaire
+fermée de `gateway_active_profile` et ne lance ni sonde native, ni recherche NSS,
+ni commande système, ni écriture. Son résultat reste historique. Les deux fichiers
+de publication absents désignent l'enrôlement original ; une publication partielle
+refuse, sans retour implicite au profil original.
+
+Un nouveau SharedPublic v2 enregistre `gateway_publication_sha256`, en plus du
+profil cible. Sa référence MobileBoot conserve ce même digest dans son profil
+figé. La construction des profils et des unités reste pure. À l'admission native,
+la publication sélectionnée doit avoir exactement ce digest et ce profil :
+`attach` ajoute seulement les preuves au lecteur déjà construit, puis effectue
+l'audit natif complet. Le lecteur existant recontrôle la publication avant et
+après chaque audit. Une dérive d'inode, de binaire ou de preuve n'est jamais
+acceptée au seul motif que le numéro de version est identique.
+
+Les profils SharedPublic v1 ne peuvent pas adopter une publication. Un profil v2
+ne peut pas suivre une publication ultérieure. Les plans, reçus et bundles
+originaux restent intacts ; le code figé d'un ancien bundle n'est pas remplacé.
+
+Cette tranche ne revendique aucun transfert d'unités déjà enrôlées, aucune
+nouvelle époque PID 1, aucun reboot noyau, ni un cycle montée/retour sur le même
+hôte. Les 19 tests de contrat s'ajoutent à la baseline, sans suppression des tests
+acquis. Les CI du commit doivent être contrôlées séparément ; les campagnes
+natives de 3B2.2b ne qualifient pas ce nouveau code.
+
 ## 3A, matrice fermée et plan sans effet
 
 Base acquise : lot DEV `eaa2faf3c90f993923b99c8fe6f3bca5dc94ee04`.

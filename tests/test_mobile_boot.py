@@ -243,7 +243,7 @@ class MobileBootPlanTests(unittest.TestCase):
 class FrozenSharedReaderTests(unittest.TestCase):
     def test_completed_parent_is_read_with_original_code_and_exact_registry(self):
         value = selected(); document = {'state':'DONE','plan':{'steps':[]},'steps':[]}
-        control = SimpleNamespace(binding=lambda parent:(value['preparation'], value['gateway_binding']),
+        control = SimpleNamespace(binding=lambda parent, **options:(value['preparation'], value['gateway_binding'], None),
             profile=lambda:deepcopy(value), journal=SimpleNamespace(read=lambda:document))
         engine = SimpleNamespace(report=lambda:document)
         with patch.object(frozen.native, 'engine', return_value=(engine, object())) as invoke, \
