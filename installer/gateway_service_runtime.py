@@ -173,6 +173,16 @@ class GatewayServiceRuntime:
         finally: os.close(fd)
 
     def inspect(self):
+        return self._inspect_binary(self.profile.selected_release['binary_sha256'])
+
+    def _inspect_binary(self, binary_sha256):
+        """Common native audit; cutover supplies an independently bound hash.
+
+        Ordinary service/boot readers always call inspect() with their enrolled
+        release. This helper neither selects an active profile nor authorizes a
+        start. The cutover coordinator must retain maintenance and SQLite fences.
+        """
+        require(type(binary_sha256) is str and re.fullmatch('[a-f0-9]{64}', binary_sha256), ErrorCode.INVALID_DATA)
         self.foundation.inspect(); self.key_binding(); account = self.account()
         if self.profile.dev is not None:
             self.profile.dev.target.inspect(); self.profile.dev.inspect()
@@ -184,7 +194,7 @@ class GatewayServiceRuntime:
                     require(set(os.listdir(fd)) == {'control', 'state', 'hestia-mobile-gateway', 'config.json', 'staged.json'}, ErrorCode.SOURCE_DRIFT)
                     require(h.f._read(fd, 'staged.json', 0, mode=0o600) == canonical_bytes(self.manifest(account)), ErrorCode.SOURCE_DRIFT)
                     require(sha(h.f._read(fd, self.profile.binary.name, account.pw_gid, mode=0o750, limit=32*1024*1024))
-                            == self.profile.selected_release['binary_sha256'], ErrorCode.SOURCE_DRIFT)
+                            == binary_sha256, ErrorCode.SOURCE_DRIFT)
         fd = self.state_directory(); os.close(fd)
         for path, raw in self.files().items():
             with h.fs._directory(path.parent) as fd:
@@ -198,7 +208,9 @@ class GatewayServiceRuntime:
         return value
 
     def stopped(self):
-        value = self.inspect()
+        self._stopped_state(self.inspect())
+
+    def _stopped_state(self, value):
         require(value['ActiveState'] == 'inactive' and value['SubState'] == 'dead'
                 and value['MainPID'] == '0' and drain._empty_cgroup(self.unit), ErrorCode.MANUAL_ACTION_REQUIRED)
         free_port()

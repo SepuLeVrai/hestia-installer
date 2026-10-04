@@ -86,7 +86,59 @@ ni changement du profil actif, ni réactivation, ni reboot. Les 16 nouveaux test
 core couvrent les reprises et refus ; la qualification native reste à obtenir
 pour le gel candidat, sans réutiliser les PASS historiques comme nouveau verdict.
 
-## Contrats requis avant les effets 3B2 et 3C
+## 3B2.1, remplacement physique et retour au fichier original sous maintenance
+
+`installer/gateway_transition_cutover.py` réalise un effet borné : remplacer le
+fichier binaire par la cible 3B1, puis, sur demande explicite, réinstaller les
+octets du binaire original. Le profil actif n'est pas publié dans ce sous-lot.
+L'instance doit rester arrêtée sous la même maintenance et la même fence SQLite.
+Les profils, clés, configurations, unités, sauvegardes et journaux parents ne
+sont pas réécrits. Le rollback de fichiers ne restaure jamais SQLite.
+
+L'entrée `apply` exige un `GatewayBackup` vivant et les deux paquets exacts.
+La préparation 3B1 doit être complète ; son reçu, ses deux binaires, l'évaluation
+de compatibilité, la sauvegarde composée et les octets SQLite sont revérifiés.
+Un garde durable `gateway-cutover.attempt` précède la copie. Il interdit à la
+fois la réouverture de maintenance et la levée de la fence Gateway, même après
+le retour au binaire d'origine.
+
+La copie temporaire reste dans un répertoire root:root 0700, sous le contrôle
+privé du service et sur le même système de fichiers que le binaire final.
+Une interruption ne reprend que depuis un préfixe exact. Les octets complets
+reçoivent les droits natifs 0750/root:groupe-Gateway avant l'intention de
+renommage. Cette intention lie les deux inodes exacts. La reprise distingue le
+fichier précédent, le fichier temporaire armé et le fichier effectivement
+renommé ; des octets identiques sur un inode étranger sont refusés. Le reçu
+durable suit le renommage et la revérification de la fence et de SQLite.
+
+`recover(..., action='resume'|'check'|'rollback')` réacquiert la maintenance et
+le verrou exclusif de l'état, authentifie de nouveau les deux paquets et exige
+la même intention. `rollback` ne commence qu'après un reçu cible complet ; une
+fois son intention écrite, `resume` termine le retour au fichier source. Un
+reçu terminé ne déclenche aucune recopie. Un journal déchiré, une dérive, un
+lien, un inode remplacé, un fichier étranger ou une copie complète supprimée
+exigent une inspection manuelle et ne sont jamais réparés implicitement.
+
+Seul l'auditeur privé de cette opération reconnaît le binaire intermédiaire,
+avec le garde et l'intention exacts. Le lecteur de service ordinaire reste lié
+au profil d'origine et refuse la cible. Aucun service n'est démarré. Les anciens
+bundles de boot restent inchangés et la maintenance interdit leur démarrage.
+Les reçus déclarent `active_profile_changed`, `activity_resumed`,
+`rollback_verified`, `boot_requalified` et `restore_to_original_allowed` à false.
+Une copie ciblée réussie n'est donc pas un upgrade utilisable en production.
+
+La recette dédiée teste les deux sens sur des hôtes indépendants, avec quatre
+SIGKILL à l'installation de la cible et quatre au retour de fichier, soit
+seize coupures pour la matrice complète. Elle doit prouver les octets et inodes
+SQLite inchangés, les clés et parents conservés, le refus de démarrage, ainsi
+que les reprises terminées sans réécriture. Les verdicts du gel restent à
+obtenir. Les dix-sept contrats core sont obligatoires et ajoutés sans retrait.
+
+**3B2.2 reste nécessaire** : publier explicitement le profil de service et
+d'admission, transmettre le boot à un successeur qualifié, puis seulement
+rouvrir les services et qualifier le rollback opérationnel. 3C et 3D suivent.
+
+## Contrats requis avant la réouverture 3B2.2 et la restauration 3C
 
 La bascule doit authentifier les deux paquets et l'instance source réelle,
 vérifier une sauvegarde composée courante, tenir le garde de maintenance,

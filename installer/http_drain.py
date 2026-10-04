@@ -145,6 +145,10 @@ class HttpDrain:
         require(role in self.roles, 'HTTP_DRAIN_INPUT_REJECTED')
         return self.cleaner.unit if role == 'session-cleaner' else self.runtime.unit(role)
 
+    def _gateway_binding(self, foundation):
+        from installer import gateway_service_drain
+        return gateway_service_drain.quiet_binding(self.runtime, foundation)
+
     def _audit(self, *, stopped=False, expected=None, timer_stopped=False):
         account, extension, plan, _ = self.runtime._inspect_configuration()
         scope = self.runtime._scope(account)
@@ -170,8 +174,7 @@ class HttpDrain:
         if foundation is not None:
             foundation.stopped()
             extra['foundation'] = foundation_drain.binding(foundation)
-        from installer import gateway_service_drain
-        gateway = gateway_service_drain.quiet_binding(self.runtime, foundation)
+        gateway = self._gateway_binding(foundation)
         if gateway is not None: extra['gateway_service'] = gateway
         profile = p._json({'version': 1, 'instance': scope.instance, 'maintenance': str(scope.directory),
             'policy': 'PROVISIONED_HTTP_STOP_ONLY_V1', 'runtime_plan_sha256': f._sha(plan),

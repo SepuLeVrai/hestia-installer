@@ -1,4 +1,26 @@
-# Lot 3B1 Gateway, préparation native en qualification - 4 octobre 2026
+# Lot 3B2.1 Gateway, remplacement sous maintenance en qualification - 4 octobre 2026
+
+3B1 est livré sur `676bec1a14c7d3f279aaa24e604bf0d7c512df5e`, arbre
+`fbaa6780e6871d61ce941fc5775e47ad3cabd4f3`, 509 fichiers. Trois CI PASS :
+Quality `37190312500`, système `37190312504`, paquets `37190312533` ; 4 230 tests
+et 16 tests du gate, 32 manifestes exacts. La recette isolée `37191784288`
+est PASS : deux scénarios et huit SIGKILL. Le premier essai natif FAIL est
+conservé dans les preuves, sans être réattribué au verdict final.
+
+Le nouveau sous-lot 3B2.1 remplace physiquement le binaire cible et réinstalle
+le fichier source sur demande explicite, avec intentions d'inodes et reprise
+après coupure. SQLite reste gelée et n'est jamais restaurée. Un garde distinct
+interdit toute levée de maintenance/fence. Les lecteurs ordinaires et bundles
+de boot restent attachés au profil original : le raccordement actif 3B2.2
+est nécessaire avant la réouverture. Dix-sept nouveaux contrats core et une
+recette native à seize SIGKILL sont ajoutés ; leur qualification du gel reste
+à obtenir. Voir [le périmètre exact](GATEWAY_TRANSITIONS.md).
+
+#17 et la phase 6 restent ouverts : 3B2.2 (profil actif, admission, boot et
+rollback opérationnel), 3C (restauration originale), 3D (cockpit/recette composée)
+puis #18. Les sections suivantes sont historiques.
+
+# Historique du candidat 3B1 Gateway - 4 octobre 2026
 
 3A est qualifié sur `fbb1853f39f0a2dd271172912210ed5c3ccd6958`, arbre
 `9d31da99fcbb33cfe5a075f1ed8d63dfcd4939cf`, 506 fichiers. Quality `37184519463`,
