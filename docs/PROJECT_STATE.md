@@ -1,4 +1,26 @@
-# Lot DEV distinct en qualification - 4 octobre 2026
+# Lot 3A Gateway, contrat et plan en qualification - 4 octobre 2026
+
+Le lot DEV #16 est terminé et livré sur `eaa2faf3c90f993923b99c8fe6f3bca5dc94ee04`,
+arbre `ae5495e4ab55ac61467c4356dc30c2fd3dfaa4d4`, 501 fichiers. Trois CI PASS :
+Quality `37163303889`, système `37163303910`, paquets `37163303885`, 4 152 tests
+et 16 tests du gate. La recette native `37163464025` est PASS : dix tests,
+trois manifestes identiques, six fenêtres SQL libérées normalement sous 180 s
+(maximum 172,885 s). Les sauvegardes, contextes, refus croisés, maintenance et
+reprise avec nouveau PID 1 sont acquis. Pas de reboot noyau ni réception téléphone
+revendiqués. Aucun de ces runs n'est relancé pour qualifier les nouveaux fichiers.
+
+Le candidat courant traite 3A de #17 : [matrice fermée et plan sans effet](GATEWAY_TRANSITIONS.md).
+Il conserve les profils MAIN/DEV et refuse le rollback 0.12.3 vers 0.12.2 avec
+FCM avant tout effet. API, cockpit, parenté des plans et absence de rejeu sont
+couverts par 22 nouveaux contrats core et deux nouveaux parcours Chromium.
+Les 61 contrôles locaux ciblés et les 12 contrôles des deux vrais binaires
+authentifiés sont PASS. La qualification CI et Chromium de ce gel reste à établir.
+
+Les sous-étapes 3B (bascule et rollback), 3C (restauration originale) et 3D
+(consentement des effets et recette réelle) restent ouvertes. #17 n'est pas
+terminé et #18 suit. Les bilans ci-dessous décrivent leurs gels historiques.
+
+# Historique du candidat DEV - 4 octobre 2026
 
 Le lot FCM #15 est terminé sur Installer `b9a3997ac310fdff3fe398051e099365032c6641`.
 Quality `37154464899`, système `37154464814` et paquets `37154464801` sont PASS :

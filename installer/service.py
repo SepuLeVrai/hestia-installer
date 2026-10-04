@@ -20,6 +20,7 @@ from installer.public_tls_plan import PublicTLSPlan
 from installer.gateway_plan import GatewayPlan
 from installer.foundation_plan import FoundationPlan
 from installer.gateway_service_plan import GatewayServicePlan
+from installer.gateway_transition_plan import GatewayTransitionPlan
 from installer.mobile_activation_plan import MobileActivationPlan
 from installer.mobile_backup_plan import MobileBackupPlan
 from installer.mobile_preparation_plan import MobilePreparationPlan
@@ -29,6 +30,7 @@ from installer.mobile_boot_plan import MobileBootPlan
 from installer.fcm_plan import FcmPlan
 
 POST_ROUTES = {
+    '/api/gateway/transition/plan': 'gateway-transition.plan',
     **{'/api/gateway/fcm/' + action: 'fcm.' + action for action in ('plan', 'check')},
     **{'/api/mobile/boot/' + action: 'mobile-boot.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
     **{'/api/mobile/public/preparation/' + action: 'shared-public-preparation.' + action for action in ('plan', 'check')},
@@ -87,6 +89,7 @@ class TransactionService:
         self.gateway = GatewayPlan(engine, github.access if github is not None else None)
         self.foundation = FoundationPlan(self.application, self._fresh_activation, self.gateway)
         self.gateway_service = GatewayServicePlan(self.foundation)
+        self.gateway_transition = GatewayTransitionPlan(self.gateway_service)
         self.fcm = FcmPlan(self.gateway, self.gateway_service)
         self.mobile_activation = MobileActivationPlan(self.application, self.gateway_service)
         self.mobile_backup = MobileBackupPlan(self.mobile_activation)
@@ -135,6 +138,7 @@ class TransactionService:
                     "acme_packages": self.acme_packages.state(), "public_tls": self.public_tls.state(),
                     "gateway": self.gateway.state(), "foundation": self.foundation.state(), "fcm": self.fcm.state(),
                     "gateway_service": self.gateway_service.state(), "mobile_activation": self.mobile_activation.state(),
+                    "gateway_transition": self.gateway_transition.state(),
                     "mobile_backup": self.mobile_backup.state(), "mobile_preparation": self.mobile_preparation.state(),
                     "shared_public_preparation": self.shared_public_preparation.state(), "shared_public": self.shared_public.state(), "mobile_boot": self.mobile_boot.state()}
 
@@ -173,6 +177,8 @@ class TransactionService:
             if foundation['profile'] is not None: result['foundation'] = foundation
             gateway_service = self.gateway_service.state()
             if gateway_service['profile'] is not None: result['gateway_service'] = gateway_service
+            transition = self.gateway_transition.state()
+            if transition['profile'] is not None: result['gateway_transition'] = transition
             mobile = self.mobile_activation.state()
             if mobile['state'] != 'NOT_PLANNED': result['mobile_activation'] = mobile
             backup = self.mobile_backup.state()
@@ -189,6 +195,8 @@ class TransactionService:
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('gateway-transition.'):
+                return {"gateway_transition": self.gateway_transition.execute(action.removeprefix('gateway-transition.'), payload)}
             if action.startswith('mobile-boot.'):
                 return {"mobile_boot": self.mobile_boot.execute(action.removeprefix('mobile-boot.'), payload)}
             if action.startswith('fcm.'):

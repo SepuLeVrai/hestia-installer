@@ -17,6 +17,49 @@ from test_wizard import good_checks
 
 
 class NativeBrowserTests(legacy.BrowserWizardTests):
+    def transition_fixture(self, fcm=False):
+        from test_gateway_transition import GatewayTransitionPlanTests, GatewayTransitionTests
+        from installer.gateway_transition import FCM_COMMIT
+        self.plan(); self.quiesce_page()
+        fixture = GatewayTransitionPlanTests('test_plan_is_separate_repeatable_and_preserves_parent_bytes')
+        fixture.setUp(); self.addCleanup(fixture.doCleanups)
+        if fcm:
+            source = GatewayTransitionTests().profile(FCM_COMMIT, GatewayTransitionTests().push())
+            fixture.source = source; fixture.runtime.foundation = source.foundation
+            fixture.service.profile.return_value['binding'] = source.binding()
+        self.service.gateway_transition = fixture.control
+        view = patch.object(self.service.gateway_service, 'state', return_value={
+            'installation': fixture.document, 'profile': fixture.service.profile(), 'availability': None})
+        view.start(); self.addCleanup(view.stop)
+        self.refresh(); self.step(5)
+        return fixture
+
+    def test_gateway_transition_plan_is_explicit_and_refresh_has_no_effect(self):
+        fixture = self.transition_fixture()
+        self.assertFalse(fixture.control.root.exists())
+        self.refresh(); self.step(5)
+        self.assertFalse(fixture.control.root.exists())
+        self.page.locator('#plan-gateway-transition').click()
+        expect(self.page.locator('#gateway-transition-state')).to_contain_text('Configuration compatible')
+        before = (fixture.control.root/'profile.json').read_bytes()
+        calls = fixture.service.engine.call_count
+        self.refresh(); self.step(5)
+        expect(self.page.locator('#gateway-transition-state')).to_contain_text('Configuration compatible')
+        self.assertEqual(fixture.service.engine.call_count, calls)
+        self.assertEqual((fixture.control.root/'profile.json').read_bytes(), before)
+        self.assertEqual(len([p for p in self.paths if '/api/gateway/transition/' in p]), 1)
+        self.assertFalse(fixture.control.state()['apply_allowed'])
+        self.assertEqual(self.page.evaluate('localStorage.length + sessionStorage.length'), 0)
+
+    def test_gateway_transition_fcm_rollback_has_explanation_and_no_apply(self):
+        fixture = self.transition_fixture(fcm=True)
+        self.page.locator('#plan-gateway-transition').click()
+        expect(self.page.locator('#gateway-transition-state')).to_contain_text('bloquée')
+        expect(self.page.locator('#gateway-transition')).to_contain_text('ne prend pas en charge le profil Firebase actuel')
+        expect(self.page.locator('#gateway-transition button')).to_have_count(0)
+        self.assertEqual(fixture.control.profile()['assessment']['blockers'], ['TARGET_FCM_PROFILE_UNSUPPORTED'])
+        self.assertNotIn('PRIVATE KEY', self.page.content())
+
     def test_dev_target_explicit_choice_cancel_apply_and_refresh_without_replay(self):
         from test_dev_plan import DevFoundationPlanTests
         self.quiesce_page()

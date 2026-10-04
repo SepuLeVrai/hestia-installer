@@ -61,6 +61,7 @@
   let gateway = {preparation: null, profile: null};
   let foundation = {installation: null, profile: null, availability: null};
   let gatewayService = {installation: null, profile: null, availability: null};
+  let gatewayTransition = {state: "NOT_PLANNED", profile: null};
   let fcm = {state: "NOT_PLANNED", profile: null, receipt: null, availability: null};
   const fcmGatewayCommit = "33927821bbda57a2c10791d0523eaf3b254c8c9e";
   let mobilePreparation = {state: "NOT_PLANNED", profile: null, steps: []};
@@ -614,6 +615,7 @@
     if (gateway.preparation?.state === "DONE" && gateway.profile?.release.commit === fcmGatewayCommit) fcmForm();
     if (isApplication() && !isUpgrade() && gateway.preparation?.state === "DONE" && activation.installation?.state === "DONE") foundationForm();
     if (isApplication() && !isUpgrade() && foundation.installation?.state === "DONE") gatewayServiceForm();
+    if (gatewayService.installation?.state === "DONE") gatewayTransitionForm();
     if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") { mobileBackupForm(); if (mobileBackup.state === "DONE") mobilePreparationForm(); mobileActivationForm(); }
     if (sharedPreparation.plan || (publicTLS.installation?.state === "DONE" && gatewayService.installation?.state === "DONE")) sharedPublicForm();
     if (mobileBoot.installation || sharedPublic.installation?.state === "DONE") mobileBootForm();
@@ -866,6 +868,41 @@
         status.id = "gatewayService-availability"; card.append(status);
       }
       technical(card, "Plan Gateway MAIN (non secret)", document.plan);
+    }
+    content.append(card);
+  }
+  function gatewayTransitionForm() {
+    const card = element("article", null, "wizard-card"); card.id = "gateway-transition";
+    card.append(element("h2", "Changement de version Gateway"));
+    const profile = gatewayTransition.profile;
+    if (!profile) {
+      const sourceCommit = gatewayService.profile?.binding?.release?.commit;
+      if (![fcmGatewayCommit, "e2c09f53593bf316906ccc4387f185e73e7f85a8"].includes(sourceCommit)) {
+        card.append(hint("Le profil de ce service ne permet pas de préparer une transition.")); content.append(card); return;
+      }
+      const upgrade = sourceCommit !== fcmGatewayCommit;
+      const target = upgrade ? fcmGatewayCommit : "e2c09f53593bf316906ccc4387f185e73e7f85a8";
+      const version = upgrade ? "0.12.3" : "0.12.2";
+      card.append(hint("Examiner la compatibilité en conservant les contextes, les clés et les données. Cette action prépare uniquement le plan et laisse les services en place."));
+      card.append(button(upgrade ? "Examiner la mise à jour vers " + version : "Examiner le retour vers " + version,
+        () => void run(async () => {
+          gatewayTransition = (await api("/api/gateway/transition/plan", {
+            source_plan_sha256: gatewayService.installation.plan_sha256, target_commit: target,
+            direction: upgrade ? "upgrade" : "rollback"})).gateway_transition;
+          show(5);
+        }), "plan-gateway-transition"));
+    } else {
+      const assessment = profile.assessment;
+      const reasons = {TARGET_FCM_PROFILE_UNSUPPORTED: "Retour refusé : cette version ne prend pas en charge le profil Firebase actuel.",
+        NO_VERSION_TRANSITION: "La version cible est déjà celle de ce service.",
+        TRANSITION_DIRECTION_MISMATCH: "Le sens de la transition ne correspond pas aux versions sélectionnées."};
+      const status = element("p", assessment.configuration_compatible
+        ? "Configuration compatible. La bascule de version reste à qualifier avant exécution."
+        : "Cette transition est bloquée.");
+      status.id = "gateway-transition-state"; card.append(status);
+      for (const code of assessment.blockers) card.append(hint(reasons[code] || "Le profil n'autorise pas cette transition."));
+      card.append(hint("Les services et les données n'ont pas été modifiés. Le rollback de fichiers ne restaure pas une ancienne base de données."));
+      technical(card, "Plan de transition Gateway (non secret)", profile);
     }
     content.append(card);
   }
@@ -1405,6 +1442,7 @@
     gateway = result.gateway || {preparation: null, profile: null};
     foundation = result.foundation || {installation: null, profile: null, availability: null};
     gatewayService = result.gateway_service || {installation: null, profile: null, availability: null};
+    gatewayTransition = result.gateway_transition || {state: "NOT_PLANNED", profile: null};
     fcm = result.fcm || fcm;
     mobilePreparation = result.mobile_preparation || mobilePreparation;
     mobileBackup = result.mobile_backup || mobileBackup;
