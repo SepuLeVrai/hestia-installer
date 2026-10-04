@@ -1,3 +1,27 @@
+# Lot 3B2.2a Gateway, profil actif durable en qualification - 4 octobre 2026
+
+3B2.1 est qualifié et livré sur `20b1ca6c15d993005af6277a005147a77c5fa2e3`,
+arbre `b18cad528ed2d28ba8cff16727ad45d484d13107`, 512 fichiers.
+Quality `37200393795`, système `37200393734`, paquets `37200393767` sont PASS :
+4 264 tests et 16 tests du gate, 32 manifestes exacts. La recette indépendante
+`37200514509` est PASS dans les deux sens, avec seize SIGKILL.
+
+3B2.2a publie désormais un profil actif durable et branche le lecteur natif
+courant sur la version cible. Le manifeste d'installation, les journaux parents,
+les clés, les unités et SQLite restent conservés. Une intention de publication
+bloque immédiatement l'ancien rollback limité aux fichiers. La reprise relit
+les deux paquets, la sauvegarde composée et les inodes gelés ; une publication
+terminée est contrôlée sans réécriture. Vingt nouveaux contrats core et une
+recette native à six SIGKILL sont ajoutés. Leur qualification sur ce nouveau gel
+reste à obtenir ; aucun résultat antérieur ne leur est réattribué.
+
+Ce sous-lot ne rouvre aucun service et ne remplace aucun bundle de boot.
+**3B2.2 reste ouvert** : transmettre l'admission et le boot au profil successeur,
+rouvrir et contrôler les services, qualifier le rollback opérationnel. 3C,
+3D et la recette finale #18 suivent. Voir [le contrat](GATEWAY_TRANSITIONS.md).
+
+---
+
 # Lot 3B2.1 Gateway, remplacement sous maintenance en qualification - 4 octobre 2026
 
 3B1 est livré sur `676bec1a14c7d3f279aaa24e604bf0d7c512df5e`, arbre

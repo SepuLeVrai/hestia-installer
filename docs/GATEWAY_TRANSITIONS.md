@@ -138,6 +138,40 @@ obtenir. Les dix-sept contrats core sont obligatoires et ajoutés sans retrait.
 d'admission, transmettre le boot à un successeur qualifié, puis seulement
 rouvrir les services et qualifier le rollback opérationnel. 3C et 3D suivent.
 
+## 3B2.2a : publication durable du profil actif, activité toujours fermée
+
+`gateway_active_profile.publish` exige une bascule cible 3B2.1 terminée,
+les deux paquets authentifiés, la sauvegarde composée et les mêmes verrous,
+inodes et octets SQLite. Les actions sont `apply`, `resume` et `check`.
+L'intention de maintenance précède l'intention persistante dans `control`,
+puis le reçu de publication. Toute reprise relit les sources ; aucun journal
+partiel ou étranger n'est réparé. Les opérations terminées sont en lecture seule.
+
+Le lecteur courant `gateway_service_drain.attached` sélectionne explicitement
+ce successeur. À chaque inspection, il revérifie la chaîne de bascule, le
+manifeste d'origine, l'inode du binaire et les identités d'état, puis les contrôles
+natifs complets avec le SHA cible : configuration, clés, compte, unité et état
+du service. Il relit la publication après l'audit pour refuser une dérive en
+cours de lecture. Un reçu historique ne suffit donc jamais à prouver un service
+vivant. Les lecteurs construits sur un ancien profil restent liés à ce profil.
+
+`staged.json` n'est pas réécrit. Le manifeste courant porte la version cible ;
+le manifeste d'installation reste son ancêtre. L'intention
+`gateway-active-profile.attempt` est un bloqueur indépendant de maintenance et
+de libération SQLite. Dès cette intention, les anciennes actions de bascule,
+y compris le rollback de fichier, refusent d'agir. Le futur rollback opérationnel
+devra produire son propre successeur et conserver l'état SQLite courant.
+
+La recette native dédiée prévoit deux hôtes indépendants, une publication dans
+chaque sens, trois SIGKILL chacun et un contrôle réel des lecteurs natifs. Elle
+vérifie les octets/inodes SQLite, les parents, les clés, l'unité, le refus de
+démarrage et les reprises sans réécriture. Les vingt contrats core sont ajoutés
+sans suppression. Le gel de ce sous-lot reste à qualifier.
+
+**Limite explicite :** profil actif publié, services arrêtés. Aucun successeur
+SharedPublic/admission/boot n'est livré ici ; les anciens bundles restent figés.
+Aucune route cockpit n'est ajoutée et le lot 3B2.2 n'est pas déclaré terminé.
+
 ## Contrats requis avant la réouverture 3B2.2 et la restauration 3C
 
 La bascule doit authentifier les deux paquets et l'instance source réelle,

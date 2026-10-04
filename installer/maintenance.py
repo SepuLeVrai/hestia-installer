@@ -183,7 +183,7 @@ class MaintenanceLease:
         All existing blocker and confirmation checks remain mandatory.
         """
         require(confirmed is True,'MAINTENANCE_CONSENT_REQUIRED');self.assert_held()
-        for marker in ('gateway-cutover.attempt','mobile-activation.attempt','mobile-reopen.attempt','gateway-state.attempt','gateway-state.release','gateway-state.released','upgrade.attempt','data-access.attempt','inode-fence.attempt','inode-fence.release',
+        for marker in ('gateway-active-profile.attempt','gateway-cutover.attempt','mobile-activation.attempt','mobile-reopen.attempt','gateway-state.attempt','gateway-state.release','gateway-state.released','upgrade.attempt','data-access.attempt','inode-fence.attempt','inode-fence.release',
                        'configuration-inodes.attempt','configuration-inodes.release','web-inodes.attempt','web-inodes.release',
                        'external-paths.prepare','external-paths.attempt','external-paths.release'):
             try: os.stat(marker,dir_fd=self._directory,follow_symlinks=False)

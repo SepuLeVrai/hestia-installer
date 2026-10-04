@@ -16,8 +16,11 @@ def attached(http, foundation):
     exact_keys(manifest, {'binding', 'uid', 'gid'})
     value = manifest['binding']
     require(type(value) is dict, ErrorCode.SOURCE_DRIFT)
-    runtime = GatewayServiceRuntime.from_binding(foundation, value)
-    require(value == runtime.profile.binding(), ErrorCode.SOURCE_DRIFT)
+    from installer.gateway_active_profile import selected
+    runtime = selected(foundation, manifest)
+    if runtime is None:
+        runtime = GatewayServiceRuntime.from_binding(foundation, value)
+        require(value == runtime.profile.binding(), ErrorCode.SOURCE_DRIFT)
     runtime.inspect()
     return runtime
 

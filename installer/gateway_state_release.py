@@ -225,6 +225,7 @@ def release(snapshot, *, confirmed, cancel=None):
             'GATEWAY_RELEASE_SNAPSHOT_REQUIRED')
     fence = snapshot.fence
     fs._absent(fence.barrier._lease._directory, 'gateway-cutover.attempt')
+    fs._absent(fence.barrier._lease._directory, 'gateway-active-profile.attempt')
     g._inputs(fence.runtime, fence.barrier, confirmed); snapshot.verify(cancel=cancel)
     gate = fence.barrier._lease._directory
     fs._absent(gate, RELEASE); fs._absent(gate, RELEASED)
@@ -243,6 +244,7 @@ def release(snapshot, *, confirmed, cancel=None):
 def recover(runtime, barrier, backup_root, *, confirmed, cancel=None):
     """Explicit reconciliation only; absence of an intent is never completion."""
     fs._absent(barrier._lease._directory, 'gateway-cutover.attempt')
+    fs._absent(barrier._lease._directory, 'gateway-active-profile.attempt')
     g._inputs(runtime, barrier, confirmed)
     gate = barrier._lease._directory
     raw = _optional(gate, RELEASE); completed = _optional(gate, RELEASED)

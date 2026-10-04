@@ -227,6 +227,11 @@ class _Cutover:
         return _identity(*observed)
 
     def finish(self, fence, action, cancel):
+        # Once successor publication begins, only its coordinator may recover.
+        # An old file rollback must never invalidate a selected target profile.
+        fs._absent(self.lease._directory, 'gateway-active-profile.attempt')
+        with fs._directory(self.runtime.root / 'control') as fd:
+            fs._absent(fd, 'active-profile.intent.json'); fs._absent(fd, 'active-profile.json')
         expected = self.verify_backup(fence, cancel); fence.assert_held()
         role, arm, done, active = self.observe()
         if action == 'rollback':

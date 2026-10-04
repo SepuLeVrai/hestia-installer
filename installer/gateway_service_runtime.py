@@ -173,7 +173,12 @@ class GatewayServiceRuntime:
         finally: os.close(fd)
 
     def inspect(self):
-        return self._inspect_binary(self.profile.selected_release['binary_sha256'])
+        if hasattr(self, '_active_profile'):
+            from installer.gateway_active_profile import verify
+            verify(self)
+        result = self._inspect_binary(self.profile.selected_release['binary_sha256'])
+        if hasattr(self, '_active_profile'): verify(self)
+        return result
 
     def _inspect_binary(self, binary_sha256):
         """Common native audit; cutover supplies an independently bound hash.
@@ -192,7 +197,9 @@ class GatewayServiceRuntime:
                 require((info.st_uid, info.st_gid, stat.S_IMODE(info.st_mode)) == expected, ErrorCode.SOURCE_DRIFT)
                 if path == self.root:
                     require(set(os.listdir(fd)) == {'control', 'state', 'hestia-mobile-gateway', 'config.json', 'staged.json'}, ErrorCode.SOURCE_DRIFT)
-                    require(h.f._read(fd, 'staged.json', 0, mode=0o600) == canonical_bytes(self.manifest(account)), ErrorCode.SOURCE_DRIFT)
+                    enrollment = getattr(self, '_enrolled_manifest', None)
+                    require(h.f._read(fd, 'staged.json', 0, mode=0o600) == canonical_bytes(
+                        self.manifest(account) if enrollment is None else enrollment), ErrorCode.SOURCE_DRIFT)
                     require(sha(h.f._read(fd, self.profile.binary.name, account.pw_gid, mode=0o750, limit=32*1024*1024))
                             == binary_sha256, ErrorCode.SOURCE_DRIFT)
         fd = self.state_directory(); os.close(fd)
