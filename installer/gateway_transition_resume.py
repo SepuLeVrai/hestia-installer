@@ -26,6 +26,7 @@ def prepare(runtime, backups, lease_id, *, source_package, target_package, targe
     account, _, _, _ = runtime.web._inspect_configuration(); scope = runtime.web._scope(account)
     selected = gd.attached(runtime.web, runtime.foundation)
     require(selected is not None and hasattr(selected, '_active_profile'), 'GATEWAY_RESUME_PUBLICATION_REQUIRED')
+    require(selected.profile.dev is None and selected.profile.push is None, 'GATEWAY_RESUME_MAIN_PROFILE_REQUIRED')
     # Do not re-audit immutable SQLite after it has legitimately been unsealed.
     root = runtime.root / 'control' / ('resume-' + lease_id)
     try:
@@ -82,7 +83,7 @@ def execute(http, scope, lease_id, backups, worker, source, payload, credentials
     require(action in ('apply', 'resume', 'check') and type(confirmation) is str,
             'GATEWAY_RESUME_ACTION_REJECTED')
     preparation = p.NativePreparation(http, scope, lease_id, backups, worker, source, payload, credentials)
-    runtime = preparation._gateway(); authority = h.Authority.load(runtime, backups, lease_id)
+    runtime = h.selected_for_admission(http); authority = h.Authority.load(runtime, backups, lease_id)
     require(confirmation == sha(authority.raw), 'GATEWAY_RESUME_CONFIRMATION_REQUIRED')
     require(cancel is None or not cancel.is_set(), 'GATEWAY_RESUME_INTERRUPTED')
     with authority.admitted():

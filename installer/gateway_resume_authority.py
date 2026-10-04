@@ -33,6 +33,28 @@ def binding_for(raw):
         'target_manifest_sha256': sha(canonical_bytes(publication['target_manifest']))}
 
 
+def selected_for_admission(http):
+    """Reconstruct the selected profile before interrupted data chmod recovery.
+
+    This reads enrollment/publication only. The qualified stage performs its
+    real native audit after reclosure, under the original maintenance lease.
+    """
+    from installer.application_activation import Activation
+    from installer.foundation_runtime import FoundationRuntime
+    require(type(http) is c.hd.h.HttpRuntime, 'GATEWAY_RESUME_RUNTIME_CHANGED')
+    with fs._directory(http.spec.root.parent / 'foundation') as fd:
+        original = c._json(files._read(fd, 'staged.json', c.MAX_RECORD))
+    with fs._directory(http.spec.root.parent / 'gateway-service') as fd:
+        enrollment = c._json(files._read(fd, 'staged.json', c.MAX_RECORD))
+    binding = enrollment['binding']
+    foundation = FoundationRuntime.for_gateway(Activation(http, original['web_plan_sha256']),
+        binding['main'], binding['gateway_identity'])
+    runtime = a.selected(foundation, enrollment)
+    require(runtime is not None and runtime.profile.dev is None and runtime.profile.push is None,
+            'GATEWAY_RESUME_MAIN_PROFILE_REQUIRED')
+    return runtime
+
+
 def current(http=None):
     value = _CURRENT.get()
     if value is not None:
@@ -149,9 +171,10 @@ class Authority:
     def check(self):
         require(self.pid == os.getpid(), 'GATEWAY_RESUME_PROCESS_CHANGED')
         a.verify(self.runtime)
+        account = c.hd.h._identity(self.runtime.web.spec.service_user)
         with fs._directory(self.runtime.web.spec.maintenance_directory) as fd:
             profile = c.hd.h.f._read(fd, 'http-drain-' + self.lease_id + '.attempt',
-                                   self.runtime.web._inspect_configuration()[0].pw_gid)
+                                   account.pw_gid)
         require(self.raw == self.plan(self.runtime, self.backups, self.lease_id, profile)
             and self.value['publication']['cutover']['lease_id'] == self.lease_id
             and self.value['http_profile']['gateway_service'] == self.source_binding(),

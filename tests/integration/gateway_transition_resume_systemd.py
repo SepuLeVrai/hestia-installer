@@ -55,7 +55,7 @@ class SuccessorLive(prior.ActiveProfileLive):
             self.assertTrue(released)
             self.assertFalse((scope.directory / 'maintenance.attempt').exists())
             self.assertTrue(all(not (scope.directory / name).exists() for name in resume.h.MARKERS))
-            with self.assertRaises(Exception):
+            with self.assertRaises(activation.r.hd.m.MaintenanceError):
                 with scope.writer(): self.fail('Activity writer entered ordered activation')
             real_start(native, role); append(starts, {'role': role, 'unit': native.unit(role)})
             if boundary == 'php-start' and role == 'php': os.kill(os.getpid(), signal.SIGKILL)

@@ -25,6 +25,8 @@ class SuccessorAuthorityTests(unittest.TestCase):
         account = SimpleNamespace(pw_uid=0, pw_gid=0, pw_name='fixture')
         probe = patch.object(self.runtime.web, '_inspect_configuration', return_value=(account, None, None, None))
         probe.start(); self.addCleanup(probe.stop)
+        identity = patch.object(h.c.hd.h, '_identity', return_value=account)
+        identity.start(); self.addCleanup(identity.stop)
         self.profile = {'gateway_service': {'unit': self.runtime.unit,
             'manifest_sha256': h.sha(canonical_bytes(self.enrollment)), 'state': self.runtime.state_binding(),
             'policy': 'GATED_GATEWAY_STOP_BEFORE_FOUNDATION_V1'}}
@@ -166,3 +168,12 @@ class SuccessorAuthorityTests(unittest.TestCase):
     def test_final_consumption_refuses_fabricated_window_before_any_write(self):
         with self.authority.admitted(), patch.object(h.files, '_new', side_effect=AssertionError('write')):
             with self.assertRaises(h.c.g.GatewayStateError): self.authority.consume(Mock(), Mock())
+
+    def test_reconstruction_does_not_audit_partial_data_access_before_qualified_reclosure(self):
+        foundation_root = self.runtime.web.spec.root.parent / 'foundation'; foundation_root.mkdir(mode=0o700)
+        self.write(foundation_root / 'staged.json', {'web_plan_sha256': 'a' * 64})
+        with patch.object(self.runtime.web, '_inspect_configuration', side_effect=AssertionError('audit before reclosure')), \
+                patch.object(h.a.GatewayServiceRuntime, 'inspect', side_effect=AssertionError('audit before reclosure')):
+            selected = h.selected_for_admission(self.runtime.web)
+            authority = h.Authority.load(selected, self.backups, self.lease_id)
+            with authority.admitted(): self.assertEqual(gd.binding(selected), self.profile['gateway_service'])

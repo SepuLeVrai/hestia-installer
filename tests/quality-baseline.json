@@ -503,6 +503,7 @@
       "test_gateway_transition_resume.SuccessorAuthorityTests.test_nested_scope_wrong_http_and_original_runtime_refused",
       "test_gateway_transition_resume.SuccessorAuthorityTests.test_out_of_order_unlink_and_receipt_before_unlink_refuse",
       "test_gateway_transition_resume.SuccessorAuthorityTests.test_process_change_refuses_cached_authority",
+      "test_gateway_transition_resume.SuccessorAuthorityTests.test_reconstruction_does_not_audit_partial_data_access_before_qualified_reclosure",
       "test_gateway_transition_resume.SuccessorAuthorityTests.test_scope_reset_on_failure_and_no_thread_leak",
       "test_gateway_transition_resume.SuccessorAuthorityTests.test_scoped_release_requires_exact_lease_and_historical_drain",
       "test_gateway_transition_resume.SuccessorAuthorityTests.test_wrong_target_activation_cannot_authorize_consumption",
