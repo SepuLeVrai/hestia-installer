@@ -1,3 +1,24 @@
+# Lot 3B1 Gateway, préparation native en qualification - 4 octobre 2026
+
+3A est qualifié sur `fbb1853f39f0a2dd271172912210ed5c3ccd6958`, arbre
+`9d31da99fcbb33cfe5a075f1ed8d63dfcd4939cf`, 506 fichiers. Quality `37184519463`,
+système `37184519468` et paquets `37184519457` sont PASS : 4 198 tests et 16
+tests du gate, 32 manifestes concordants. Ce bilan remplace l'attente historique
+mentionnée plus bas et ne qualifie pas le candidat nouveau.
+
+Le candidat 3B1 de #17 ajoute la préparation physique des deux binaires exacts
+sous maintenance et sauvegarde composée, avec reprise des copies interrompues.
+Voir [le contrat et ses limites](GATEWAY_TRANSITIONS.md). Seize tests core sont
+ajoutés à la baseline sans retrait historique ; deux scénarios natifs doivent
+vérifier montée et retour de version préparés avec quatre SIGKILL chacun.
+Les campagnes de ce gel restent à établir avant livraison qualifiée.
+
+3B2 (bascule effective, profil actif, admission et boot), 3C (restauration
+originale), 3D (cockpit et recette composée) et le lot final #18 restent ouverts.
+Aucun remplacement du binaire actif, rollback opérationnel ou restauration
+SQLite sur l'origine n'est revendiqué par 3B1. Les sections suivantes sont
+historiques.
+
 # Lot 3A Gateway, contrat et plan en qualification - 4 octobre 2026
 
 Le lot DEV #16 est terminé et livré sur `eaa2faf3c90f993923b99c8fe6f3bca5dc94ee04`,

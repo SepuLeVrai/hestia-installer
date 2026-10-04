@@ -48,7 +48,45 @@ Les contextes, comptes, clés, chemins, origine, unité et configuration sont
 conservés. L'ajout DEV et l'activation/désactivation FCM sur service existant ne
 sont pas implicitement absorbés par un changement de binaire.
 
-## Contrats requis avant les effets 3B et 3C
+## 3B1, préparation durable des deux binaires
+
+`installer/gateway_transition_stage.py` prépare physiquement les binaires source
+et cible exacts. Son entrée exige un objet `GatewayBackup` lié à une fence native
+vivante : maintenance, services arrêtés, verrou SQLite exclusif et inodes Ext4
+immuables. Le manifeste composé Web/SQLite, les copies sauvegardées et les octets
+SQLite courants sont revérifiés. Schéma 6 et empreinte UUID restent liés au reçu.
+Les deux ZIP entiers sont authentifiés avant la première intention.
+
+Une intention privée est écrite et synchronisée avant le répertoire de staging.
+Les fichiers `source.bin` et `target.bin` restent root:root 0600 dans un dossier
+0700 sous la racine privée de sauvegarde. Une copie interrompue ne reprend que si
+ses octets sont un préfixe exact du binaire authentifié. L'effet de renommage puis
+le reçu terminé sont durables. `recovery=True` exige l'intention exacte et une
+nouvelle acquisition native de la même maintenance/fence ; un appel initial ne
+réadopte jamais une préparation existante. Les fichiers inconnus, liens,
+permissions élargies, dérives de sauvegarde et octets modifiés sont refusés.
+Un reçu complet rend la reprise uniquement vérificatrice : aucune recopie ni
+réparation d'un binaire absent ou altéré. Une intention ou un reçu déchiré exige
+une inspection manuelle ; son préfixe JSON n'est jamais traité comme autorité.
+
+Cette primitive n'est pas encore exposée au cockpit. Son reçu déclare
+`active_profile_changed`, `apply_allowed`, `rollback_verified`, `boot_requalified`
+et `restore_to_original_allowed` à false. Les binaires ne sont pas exécutables,
+le Gateway actif et son `staged.json` restent inchangés ; aucun service n'est
+lancé et aucun garde n'est retiré. Le reçu est historique et n'autorise aucune
+future bascule. L'étape **3B2** doit réaliser le passage explicite des profils de
+service, d'admission et de boot, puis le retour arrière sans rembobiner SQLite.
+
+La recette `tests/integration/gateway_transition_stage_systemd.py` couvre deux
+instances MAIN réelles : préparation 0.12.2→0.12.3 puis 0.12.3→0.12.2 sans FCM.
+Chaque cas vérifie quatre SIGKILL (copie partielle, deux renommages, reçu), les
+paquets officiels, SQLite/UUID, les clés, les parents, les unités et l'interdiction
+de démarrage sous maintenance. Cette recette ne revendique ni DEV en transition,
+ni changement du profil actif, ni réactivation, ni reboot. Les 16 nouveaux tests
+core couvrent les reprises et refus ; la qualification native reste à obtenir
+pour le gel candidat, sans réutiliser les PASS historiques comme nouveau verdict.
+
+## Contrats requis avant les effets 3B2 et 3C
 
 La bascule doit authentifier les deux paquets et l'instance source réelle,
 vérifier une sauvegarde composée courante, tenir le garde de maintenance,
