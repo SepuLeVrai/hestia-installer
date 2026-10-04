@@ -16,7 +16,7 @@ import gateway_active_profile_systemd as prior
 from installer import gateway_transition_resume as resume, mobile_activation_admission as activation
 from installer.github_sources import AcquireOperation
 from installer.model import SourceSpec
-from installer.web_releases import WEB_REPOSITORY
+from installer.php_transport import WEB_REPOSITORY
 
 
 class SuccessorLive(prior.ActiveProfileLive):
