@@ -20,7 +20,10 @@ class NativeBrowserTests(legacy.BrowserWizardTests):
     def transition_fixture(self, fcm=False):
         from test_gateway_transition import GatewayTransitionPlanTests, GatewayTransitionTests
         from installer.gateway_transition import FCM_COMMIT
-        self.plan(); self.quiesce_page()
+        self.plan()
+        self.page.locator('#confirm-plan').check(); self.page.locator('#next-button').click()
+        expect(self.page.locator('#execution-state')).to_have_attribute('data-state', 'DONE')
+        self.quiesce_page()
         fixture = GatewayTransitionPlanTests('test_plan_is_separate_repeatable_and_preserves_parent_bytes')
         fixture.setUp(); self.addCleanup(fixture.doCleanups)
         if fcm:
