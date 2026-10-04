@@ -16,6 +16,13 @@ pas un redémarrage natif. Restent : génération suivante sur un même hôte,
 transfert des bundles/unités sous maintenance, admission publique et recette
 montée/retour avec nouveau PID 1 ; puis 3C, 3D et #18. #17 reste ouverte.
 
+Qualification initiale `824adeb` : deux échecs du bridge navigateur, car son
+banc simule un Gateway sans répertoire natif et n'avait pas simulé le nouveau
+lecteur de référence. Le correctif ne change que cette frontière du banc
+`tests/shared_public_fixture.py` et la présente note : aucune assertion retirée,
+aucun code produit modifié. Le run initial `37229404111` reste conservé ; une
+nouvelle qualification du commit corrigé est requise.
+
 ## 2026-10-04 — Candidat 3B2.2b : reprise locale du profil Gateway successeur
 
 Le lot 3B2.2a acquis est `3a79d841cddd9897b6fe0a7a4fba799ab7a9eb14`.

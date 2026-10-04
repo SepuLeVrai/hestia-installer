@@ -18,6 +18,8 @@ def attach(case, service):
         binding=lambda: deepcopy(value['gateway_binding'])),
         web=SimpleNamespace(spec=SimpleNamespace(instance=prepared['instance'])))
     case.enterContext(patch.object(service.gateway_service, 'engine', return_value=(SimpleNamespace(report=lambda: {'state': 'DONE'}), gateway)))
+    case.enterContext(patch.object(native.gateway_frozen_reference, 'reference',
+        return_value=(deepcopy(value['gateway_binding']), None)))
     case.enterContext(patch.object(service.public_tls, 'state', return_value={'installation': {'state': 'DONE', 'plan_sha256': prepared['parents']['public']}, 'phase5_complete': False}))
     case.enterContext(patch.object(service.gateway, 'state', return_value={'preparation': {'state': 'DONE', 'plan_sha256': prepared['parents']['gateway']}, 'profile': None}))
     case.enterContext(patch.object(service.gateway_service, 'state', return_value={'installation': {'state': 'DONE'}, 'profile': None}))
