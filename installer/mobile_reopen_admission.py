@@ -119,7 +119,8 @@ def _envelope(saved, removed, added):
         key = 'configuration', 'maintenance/' + name
         require(key not in expected, 'MOBILE_ADMISSION_PARENT_CHANGED')
         expected[key] = _private_record(name, raw)
-    return expected
+    from installer.gateway_resume_authority import augment_envelope
+    return augment_envelope(expected, _private_record)
 
 
 def _journal_changes(control, document):

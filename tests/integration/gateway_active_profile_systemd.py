@@ -138,6 +138,8 @@ class ActiveProfileLive(previous.GatewayLive):
             'sqlite_bytes_and_inodes_preserved': True,
             'installation_uuid_sha256': hashlib.sha256(uuid.encode()).hexdigest(), 'sqlite_schema': 6,
             'result': result}))
+        return {'http': http, 'runtime': runtime, 'scope': scope, 'backups': backups,
+                'lease_id': lease_id, 'packages': kwargs, 'uuid': uuid, 'preserved': preserved}
 
     def test_upgrade_active_profile_native_sigkill(self):
         self.exercise_publication(LEGACY_COMMIT, FCM_COMMIT, 'upgrade')

@@ -28,7 +28,11 @@ def runtime_profile(http, account):
     value = asdict(http.spec)
     for key in ('root', 'webroot', 'maintenance_directory'):
         value[key] = str(value[key]) if value[key] is not None else None
-    return {'spec': value, 'uid': account.pw_uid, 'gid': account.pw_gid, 'user': account.pw_name}
+    result = {'spec': value, 'uid': account.pw_uid, 'gid': account.pw_gid, 'user': account.pw_name}
+    from installer.gateway_resume_authority import activation_binding
+    successor = activation_binding(http)
+    if successor is not None: result['gateway_successor'] = successor
+    return result
 
 
 def invocation(unit):

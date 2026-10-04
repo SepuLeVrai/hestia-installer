@@ -198,3 +198,40 @@ binaires : version, schéma, configuration MAIN/DEV avec et sans FCM. Il ne lanc
 aucun serveur ni migration et n'ouvre pas SQLite. Ce contrôle des parseurs ne
 qualifie pas une bascule réelle. Les résultats et SHA du gel se trouvent dans
 les preuves du checkpoint ; aucun succès d'un gel antérieur n'est réattribué.
+
+
+## 3B2.2b — Admission du profil successeur et reprise locale
+
+Le coordinateur privé `gateway_transition_resume` prépare une autorité liée à
+la publication complète, aux deux profils, au drain original et au répertoire
+de sauvegarde. Il conserve les journaux d’origine. Sa projection de la liaison
+historique est limitée au contexte explicite de reprise : les inspections du
+binaire et le profil réel restent ceux de la cible. Le journal d’activation
+contient les empreintes des deux profils et de cette nouvelle autorité.
+
+Les six étapes de préparation qualifiées sont réutilisées : SQLite Gateway,
+fichiers, chemins externes, données, plan de reprise et transfert des anciens
+bloqueurs. Chaque étape achevée possède un checkpoint privé. Les enveloppes
+SQL/fichiers incluent exactement les nouveaux marqueurs, sans exclusion de
+sous-arbre. Les marqueurs cutover/publication/reprise restent fermés jusqu’à
+la dernière fenêtre SQL réelle et au journal d’activation armé. Leur retrait
+suit un préfixe journalisé ; une perte de réponse après unlink est conciliable,
+une suppression étrangère ou hors ordre est refusée.
+
+Le moteur d’activation conserve son verrou exclusif au-delà du retrait de la
+maintenance. Le contrôle SQL doit se terminer normalement avant les cinq starts
+ordonnés. Une intention de start sans invocation prouvée reste manuelle. Les
+reprises après admission ne relisent pas la sauvegarde SQL ; check reste sans
+start ni réécriture.
+
+Périmètre : MAIN local avant enrôlement public/boot, dans les deux directions
+0.12.2/0.12.3 compatibles. Ce lot n’autorise pas la reprise d’un ancien bundle
+boot/public, ne déclare pas le boot persistant, et ne restaure jamais SQLite.
+Les profils DEV/FCM et leur succession publique restent hors de cette admission.
+Les façades cockpit ne sont pas modifiées par ce raccordement natif privé.
+
+La recette `gateway_transition_resume_systemd.py` reprend la publication native
+et ajoute les interruptions après unlink du premier verrou et après le start
+PHP réel, puis vérifie la cible active, les cinq invocations, la page de login,
+l’UUID/schema SQLite et l’intégrité des parents. Le verdict de ce candidat doit
+être établi sur son commit exact ; les PASS antérieurs ne le qualifient pas.

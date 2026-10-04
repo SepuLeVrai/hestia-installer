@@ -62,7 +62,8 @@ class ActivityLock:
         require((named.st_dev,named.st_ino)==(opened.st_dev,opened.st_ino))
         require(f._read(self.directory,'resumed-'+self.record.lease_id+'.json',scope.web_gid)
                 ==resumed(scope,self.record.lease_id))
-        for name in (s.MARKER,*s.OLD,'gateway-state.attempt','gateway-state.release','upgrade.attempt',
+        for name in (s.MARKER,*s.OLD,'gateway-cutover.attempt','gateway-active-profile.attempt',
+                'gateway-resume.attempt','gateway-state.attempt','gateway-state.release','upgrade.attempt',
                 'data-access.attempt','inode-fence.attempt','inode-fence.release',
                 'configuration-inodes.attempt','configuration-inodes.release','web-inodes.attempt',
                 'web-inodes.release','external-paths.prepare','external-paths.attempt','external-paths.release'):
@@ -218,6 +219,8 @@ class ActivationRecord:
         from installer.mobile_activation_admission import ActivationWindow
         require(type(window) is ActivationWindow and window.record is self,'MOBILE_ACTIVATION_LIVE_ADMISSION_REQUIRED')
         window.assert_held();self.save('armed.json',self.owner());window.assert_held()
+        from installer.gateway_resume_authority import consume
+        consume(window,self)
         lease=window.control.lease
         require(b.r._optional(lease._directory,s.MARKER,s.MAX_RECORD)==self.marker())
         window.fence.assert_held();os.unlink(s.MARKER,dir_fd=lease._directory);os.fsync(lease._directory)

@@ -26,6 +26,9 @@ def attached(http, foundation):
 
 
 def binding(runtime):
+    from installer.gateway_resume_authority import historical_binding
+    historical = historical_binding(runtime)
+    if historical is not None: return historical
     return {'unit': runtime.unit, 'manifest_sha256': h.f._sha(canonical_bytes(runtime.manifest(runtime.account()))),
             'state': runtime.state_binding(), 'policy': 'GATED_GATEWAY_STOP_BEFORE_FOUNDATION_V1'}
 

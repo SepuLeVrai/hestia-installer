@@ -1,3 +1,17 @@
+## 2026-10-04 — Candidat 3B2.2b : reprise locale du profil Gateway successeur
+
+Le lot 3B2.2a acquis est `3a79d841cddd9897b6fe0a7a4fba799ab7a9eb14`.
+Ce candidat raccorde son profil publié aux admissions SQL/fichiers existantes
+et à l’activation locale des cinq services. Les preuves historiques ne sont
+pas réécrites ; l’activation reçoit une liaison explicite à la cible.
+Les trois verrous de transition sont consommés seulement après armement de
+l’activation dans la dernière fenêtre SQL. La recette native vérifie aussi
+les pertes de réponse après unlink et après un start réel.
+
+Qualification à établir sur le commit exact de ce candidat. Le périmètre reste
+MAIN avant public/boot ; transfert d’un ancien boot/public, façade opérateur
+et clôture globale restent ouverts. Détails : `GATEWAY_TRANSITIONS.md`.
+
 # Lot 3B2.2a Gateway, profil actif durable en qualification - 4 octobre 2026
 
 3B2.1 est qualifié et livré sur `20b1ca6c15d993005af6277a005147a77c5fa2e3`,
