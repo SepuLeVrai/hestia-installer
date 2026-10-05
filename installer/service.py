@@ -21,6 +21,7 @@ from installer.gateway_plan import GatewayPlan
 from installer.foundation_plan import FoundationPlan
 from installer.gateway_service_plan import GatewayServicePlan
 from installer.gateway_transition_plan import GatewayTransitionPlan
+from installer.gateway_transition_execution import GatewayTransitionExecution
 from installer.mobile_activation_plan import MobileActivationPlan
 from installer.mobile_backup_plan import MobileBackupPlan
 from installer.mobile_preparation_plan import MobilePreparationPlan
@@ -30,6 +31,8 @@ from installer.mobile_boot_plan import MobileBootPlan
 from installer.fcm_plan import FcmPlan
 
 POST_ROUTES = {
+    **{'/api/gateway/transition/execution/' + action: 'gateway-transition-execution.' + action
+       for action in ('plan', 'apply', 'resume', 'check')},
     '/api/gateway/transition/plan': 'gateway-transition.plan',
     **{'/api/gateway/fcm/' + action: 'fcm.' + action for action in ('plan', 'check')},
     **{'/api/mobile/boot/' + action: 'mobile-boot.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
@@ -67,6 +70,7 @@ POST_ROUTES = {
     "/api/github/clear": "github.clear",
 }
 GET_ROUTES = frozenset({"/api/wizard/state", "/api/installation/state", "/api/installation/report", "/api/github/status"})
+TRANSITION_PACKAGE_ROUTE = '/api/gateway/transition/execution/import'
 GATEWAY_PACKAGE_ROUTE = '/api/gateway/preparation/import'
 FCM_IMPORT_ROUTE = '/api/gateway/fcm/import'
 
@@ -93,6 +97,7 @@ class TransactionService:
         self.fcm = FcmPlan(self.gateway, self.gateway_service)
         self.mobile_activation = MobileActivationPlan(self.application, self.gateway_service)
         self.mobile_backup = MobileBackupPlan(self.mobile_activation)
+        self.gateway_transition_execution = GatewayTransitionExecution(self.gateway_transition, self.mobile_backup)
         self.mobile_preparation = MobilePreparationPlan(self.mobile_backup)
         self.shared_public_preparation = SharedPublicPlan(self.public_tls, self.gateway)
         self.shared_public = SharedPublicLifecycle(self.shared_public_preparation, self.gateway_service)
@@ -139,6 +144,7 @@ class TransactionService:
                     "gateway": self.gateway.state(), "foundation": self.foundation.state(), "fcm": self.fcm.state(),
                     "gateway_service": self.gateway_service.state(), "mobile_activation": self.mobile_activation.state(),
                     "gateway_transition": self.gateway_transition.state(),
+                    "gateway_transition_execution": self.gateway_transition_execution.state(),
                     "mobile_backup": self.mobile_backup.state(), "mobile_preparation": self.mobile_preparation.state(),
                     "shared_public_preparation": self.shared_public_preparation.state(), "shared_public": self.shared_public.state(), "mobile_boot": self.mobile_boot.state()}
 
@@ -179,6 +185,8 @@ class TransactionService:
             if gateway_service['profile'] is not None: result['gateway_service'] = gateway_service
             transition = self.gateway_transition.state()
             if transition['profile'] is not None: result['gateway_transition'] = transition
+            execution = self.gateway_transition_execution.state()
+            if execution['state'] != 'NOT_PLANNED': result['gateway_transition_execution'] = execution
             mobile = self.mobile_activation.state()
             if mobile['state'] != 'NOT_PLANNED': result['mobile_activation'] = mobile
             backup = self.mobile_backup.state()
@@ -195,6 +203,9 @@ class TransactionService:
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            if action.startswith('gateway-transition-execution.'):
+                return {"gateway_transition_execution": self.gateway_transition_execution.execute(
+                    action.removeprefix('gateway-transition-execution.'), payload)}
             if action.startswith('gateway-transition.'):
                 return {"gateway_transition": self.gateway_transition.execute(action.removeprefix('gateway-transition.'), payload)}
             if action.startswith('mobile-boot.'):
@@ -329,6 +340,10 @@ class TransactionService:
             if action in {"apply", "resume", "retry", "rollback"} and document["state"] == "DONE":
                 self.application.clear()
             return {"installation": document}
+
+    def import_transition_package(self, confirmation, stream, length):
+        with self._activity(), self._mutation():
+            return {"gateway_transition_execution": self.gateway_transition_execution.import_package(confirmation, stream, length)}
 
     def import_gateway_package(self, confirmation, stream, length):
         with self._activity(), self._mutation():

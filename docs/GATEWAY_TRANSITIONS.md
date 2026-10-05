@@ -267,3 +267,40 @@ et ajoute les interruptions après unlink du premier verrou et après le start
 PHP réel, puis vérifie la cible active, les cinq invocations, la page de login,
 l’UUID/schema SQLite et l’intégrité des parents. Le verdict de ce candidat doit
 être établi sur son commit exact ; les PASS antérieurs ne le qualifient pas.
+
+
+## Raccordement cockpit privé — candidat du 5 octobre 2026
+
+Une carte distincte exécute la transition compatible après une sauvegarde
+mobile composée vérifiée. Le plan de compatibilité conserve son ancien contrat
+sans effet. Le nouveau plan lie exactement la sélection, les cinq parents,
+le brouillon, la sauvegarde et son bail. MAIN sans DEV/FCM, avant public/boot,
+est le seul périmètre de cette première génération.
+
+L'import ZIP cible possède sa transaction et sa confirmation propres. Il
+réutilise la vérification complète du paquet qualifié, sans nom de fichier ou
+chemin fourni par le navigateur. L'import ne bascule aucun service. L'exécution
+exige ensuite une confirmation distincte, trois identifiants SQL éphémères et
+le consentement aux admissions SQL bornées.
+
+Cinq étapes sont liées par des intentions et reçus immuables : préparation des
+binaires, cutover, publication, admission, activation. Une reprise saute les
+étapes acquises et laisse le moteur natif concilier la première étape non
+achevée. Après publication, elle ne repasse pas par le lecteur de cutover
+source. Aucun reçu cockpit n'autorise à lui seul une opération native.
+
+Les routes JSON fermées sont `/api/gateway/transition/execution/plan`, `apply`,
+`resume` et `check` sous le même préfixe. L'import binaire utilise `import`, une
+session HTTPS, CSRF, Origin, Content-Length et X-Hestia-Plan contrôlés. GET ne
+sonde pas le serveur. `check` exige une demande explicite, ne démarre rien et ne
+demande aucun credential SQL. Après redémarrage de l'installateur, seul
+l'historique reste affiché jusqu'au prochain contrôle explicite.
+
+La recette `tests/integration/gateway_transition_cockpit_systemd.py` couvre
+l'import navigateur, l'annulation, les pertes de réponse après cutover,
+publication et admission, puis la perte de réponse après le start PHP réel.
+Elle exige la conservation des parents, des clés et de l'UUID SQLite, les cinq
+starts sous verrou d'activité et le contrôle local sans replay SQL.
+Son existence n'est pas un verdict : qualification native et CI du commit exact
+restent à obtenir. Le transfert d'un boot/public existant, les transitions
+successives sur un même hôte et la restauration sur l'origine restent ouverts.

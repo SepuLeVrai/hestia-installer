@@ -176,7 +176,7 @@ class GatewayTransitionPlanTests(unittest.TestCase):
         for name in ('confirm', 'command', 'push', 'source', 'dev', 'restore_to_original_allowed'):
             with self.assertRaises(InstallerError): self.control.execute('plan', {**self.payload, name: True})
         self.service.engine.assert_not_called(); self.assertFalse(self.control.root.exists())
-        self.assertEqual([p for p in POST_ROUTES if '/gateway/transition/' in p], ['/api/gateway/transition/plan'])
+        self.assertEqual([p for p in POST_ROUTES if p.startswith('/api/gateway/transition/') and '/execution/' not in p], ['/api/gateway/transition/plan'])
 
     def test_saved_plan_refuses_parent_profile_or_selection_drift(self):
         original = self.plan(); raw = (self.control.root/'profile.json').read_bytes()

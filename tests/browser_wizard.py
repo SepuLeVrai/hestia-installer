@@ -467,6 +467,71 @@ class BrowserWizardTests(unittest.TestCase):
         expect(self.page.locator('#mobile-boot-verification')).to_contain_text('Configuration contrôlée')
         self.assertEqual(calls, ['stage', 'enable']); self.assertEqual(len(fixture.calls), 7)
 
+    def transition_execution_fixture(self):
+        import test_gateway_transition_execution as fixtures
+        fixture = fixtures.GatewayTransitionExecutionTests('test_plan_and_get_are_file_only_and_keep_all_parents')
+        self.addCleanup(fixture.doCleanups); fixture.setUp()
+        self.quiesce_page(); self.service.close(); self.service = fixture.service
+        self.server.state.transaction_service = self.service
+        self.refresh(); self.step(5); self.page.locator('#plan-transition-execution').click()
+        expect(self.page.locator('#transition-package')).to_be_visible()
+        return fixture
+
+    def transition_package(self, fixture):
+        self.page.locator('#transition-package').set_input_files({'name': 'target.zip', 'mimeType': 'application/zip', 'buffer': fixture.responses.package})
+
+    def transition_credentials(self, fixture):
+        for name, value in fixture.credentials.items(): self.page.locator('#transition-' + name).fill(value)
+        self.page.locator('#transition-sql-consent').check()
+
+    def test_gateway_transition_package_consent_cancel_and_explicit_execution(self):
+        fixture = self.transition_execution_fixture(); self.transition_package(fixture)
+        self.page.locator('#import-transition-package').click(); self.dialog('cancel')
+        self.assertFalse((fixture.control.root / 'binary').exists()); fixture.native.execute.assert_not_called()
+        self.transition_package(fixture); self.page.locator('#import-transition-package').click(); self.dialog()
+        expect(self.page.locator('#apply-transition-execution')).to_be_visible()
+        fixture.native.execute.assert_not_called(); self.transition_credentials(fixture)
+        self.page.locator('#apply-transition-execution').click(); self.dialog('cancel')
+        self.assertIsNone(fixture.control._read('approved.json'))
+        for name in fixture.credentials: expect(self.page.locator('#transition-' + name)).to_have_value('')
+        self.transition_credentials(fixture); self.page.locator('#apply-transition-execution').click(); self.dialog()
+        expect(self.page.locator('#transition-execution-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual(fixture.native.execute.call_count, 5)
+        self.refresh(); self.step(5); self.page.locator('#check-transition-execution').click()
+        expect(self.page.locator('#gateway-transition-execution')).to_contain_text('Web local disponible')
+        self.assertEqual(fixture.native.execute.call_count, 5)
+        for secret in fixture.credentials.values(): self.assertNotIn(secret, self.http('/api/installation/report')['body'])
+
+    def test_gateway_transition_resume_keeps_completed_stages_and_poll_keeps_inputs(self):
+        fixture = self.transition_execution_fixture(); self.transition_package(fixture)
+        self.page.locator('#import-transition-package').click(); self.dialog()
+        expect(self.page.locator('#apply-transition-execution')).to_be_visible()
+        self.transition_credentials(fixture); self.page.locator('#wizard-title').focus()
+        self.page.wait_for_timeout(1750)
+        for name, value in fixture.credentials.items(): expect(self.page.locator('#transition-' + name)).to_have_value(value)
+        expect(self.page.locator('#transition-sql-consent')).to_be_checked()
+        def execute(stage):
+            if stage == 'publication': raise RuntimeError('interrupted')
+            return {'stage': stage}
+        fixture.native.execute.side_effect = execute
+        self.page.locator('#apply-transition-execution').click(); self.dialog()
+        expect(self.page.locator('#transition-execution-state')).to_have_attribute('data-state', 'RESUME_REQUIRED')
+        self.refresh(); self.step(5); self.assertEqual(fixture.native.execute.call_count, 3)
+        fixture.native.execute.side_effect = lambda stage: {'stage': stage}
+        self.transition_credentials(fixture); self.page.locator('#resume-transition-execution').click(); self.dialog()
+        expect(self.page.locator('#transition-execution-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual([x.args[0] for x in fixture.native.execute.call_args_list].count('binaries'), 1)
+        self.assertEqual([x.args[0] for x in fixture.native.execute.call_args_list].count('cutover'), 1)
+
+    def test_gateway_transition_pending_file_survives_poll_and_sql_consent_is_required(self):
+        fixture = self.transition_execution_fixture(); self.transition_package(fixture)
+        self.page.locator('#wizard-title').focus(); self.page.wait_for_timeout(1750)
+        self.assertEqual(self.page.locator('#transition-package').evaluate('(input) => input.files.length'), 1)
+        self.page.locator('#import-transition-package').click(); self.dialog()
+        expect(self.page.locator('#apply-transition-execution')).to_be_visible()
+        self.page.locator('#apply-transition-execution').click()
+        expect(self.page.locator('#operation-dialog')).not_to_be_visible(); fixture.native.execute.assert_not_called()
+
     def preparation_fixture(self):
         import test_mobile_preparation_plan as fixtures
         fixture = fixtures.MobilePreparationPlanTests('test_plan_reads_are_repeatable_without_native_observation')

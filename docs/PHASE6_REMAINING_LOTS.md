@@ -57,3 +57,13 @@ job est relancé sur le même commit, sans changer le garde ni ses assertions.
 
 Voir [le contrat FCM](FCM_PRIVATE_IMPORT.md) et
 [les acquis de composition](PHASE6_COMPLETION.md).
+
+
+## 5 octobre — raccordement de la transition privée au cockpit
+
+Candidat en vérification : exécution explicite après sauvegarde composée,
+import du paquet cible, cinq checkpoints, reprise et contrôle local séparé.
+Voir le [contrat détaillé](GATEWAY_TRANSITIONS.md). Aucune clôture de phase 6 :
+le boot/public déjà enrôlé, le cycle aller-retour sur un même hôte et la
+restauration originale restent à traiter. Les preuves natives du lot précédent
+ne qualifient pas ce nouveau raccordement.

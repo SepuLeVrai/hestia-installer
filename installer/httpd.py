@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 from installer.constants import BOOTSTRAP_SESSION_TTL_SECONDS, MAX_REQUEST_BODY_BYTES, SESSION_COOKIE_NAME
 from installer.network import PortReservation
 from installer.model import ErrorCode, InstallerError, strict_json_loads
-from installer.service import GET_ROUTES, POST_ROUTES, GATEWAY_PACKAGE_ROUTE, FCM_IMPORT_ROUTE, TransactionService
+from installer.service import GET_ROUTES, POST_ROUTES, GATEWAY_PACKAGE_ROUTE, TRANSITION_PACKAGE_ROUTE, FCM_IMPORT_ROUTE, TransactionService
 from installer.security import BootstrapToken, Session, SessionStore
 
 
@@ -100,7 +100,7 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
     def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
         # Only fixed route names are logged, never user-controlled path segments.
         allowed = GET_ROUTES | set(POST_ROUTES) | {
-            GATEWAY_PACKAGE_ROUTE, FCM_IMPORT_ROUTE,
+            GATEWAY_PACKAGE_ROUTE, TRANSITION_PACKAGE_ROUTE, FCM_IMPORT_ROUTE,
             "/", "/index.html", "/bootstrap", "/bootstrap.html",
             "/api/bootstrap/status", "/api/bootstrap/unlock", "/api/session", "/api/logout",
         }
@@ -381,10 +381,10 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             return
         path = urlsplit(self.path).path
 
-        if path in (GATEWAY_PACKAGE_ROUTE, FCM_IMPORT_ROUTE):
+        if path in (GATEWAY_PACKAGE_ROUTE, TRANSITION_PACKAGE_ROUTE, FCM_IMPORT_ROUTE):
             session = self._require_session()
             if session is None or not self._require_csrf(session): return
-            self._gateway_package_request(fcm=path == FCM_IMPORT_ROUTE)
+            self._gateway_package_request(fcm=path == FCM_IMPORT_ROUTE, transition=path == TRANSITION_PACKAGE_ROUTE)
             return
 
         if path in POST_ROUTES:
@@ -447,7 +447,7 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Route inconnue"}, close_connection=True)
 
-    def _gateway_package_request(self, *, fcm=False):
+    def _gateway_package_request(self, *, fcm=False, transition=False):
         # Always close: rejected or already committed imports may leave unread
         # bytes. No body buffering, multipart filename, user path or redirect.
         self.close_connection = True
@@ -468,7 +468,8 @@ class BootstrapRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {'error': 'TRANSACTION_SERVICE_UNAVAILABLE'}, close_connection=True)
             return
         try:
-            method = service.import_fcm_credential if fcm else service.import_gateway_package
+            method = (service.import_fcm_credential if fcm else
+                      service.import_transition_package if transition else service.import_gateway_package)
             result = method(confirmation, self.rfile, int(length))
         except InstallerError as error:
             status = HTTPStatus.BAD_REQUEST if error.code in (ErrorCode.INVALID_DATA, ErrorCode.CONFIRMATION_REQUIRED) else HTTPStatus.CONFLICT

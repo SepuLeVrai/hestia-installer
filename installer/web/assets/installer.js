@@ -61,6 +61,7 @@
   let gateway = {preparation: null, profile: null};
   let foundation = {installation: null, profile: null, availability: null};
   let gatewayService = {installation: null, profile: null, availability: null};
+  let transitionExecution = {state: "NOT_PLANNED", profile: null, steps: [], acquisition: null};
   let gatewayTransition = {state: "NOT_PLANNED", profile: null};
   let fcm = {state: "NOT_PLANNED", profile: null, receipt: null, availability: null};
   const fcmGatewayCommit = "33927821bbda57a2c10791d0523eaf3b254c8c9e";
@@ -616,7 +617,7 @@
     if (isApplication() && !isUpgrade() && gateway.preparation?.state === "DONE" && activation.installation?.state === "DONE") foundationForm();
     if (isApplication() && !isUpgrade() && foundation.installation?.state === "DONE") gatewayServiceForm();
     if (gatewayService.installation?.state === "DONE") gatewayTransitionForm();
-    if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") { mobileBackupForm(); if (mobileBackup.state === "DONE") mobilePreparationForm(); mobileActivationForm(); }
+    if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") { mobileBackupForm(); if (mobileBackup.state === "DONE" && gatewayTransition.profile?.assessment.configuration_compatible) transitionExecutionForm(); if (!transitionExecution.profile) { if (mobileBackup.state === "DONE") mobilePreparationForm(); mobileActivationForm(); } }
     if (sharedPreparation.plan || (publicTLS.installation?.state === "DONE" && gatewayService.installation?.state === "DONE")) sharedPublicForm();
     if (mobileBoot.installation || sharedPublic.installation?.state === "DONE") mobileBootForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
@@ -897,12 +898,73 @@
         NO_VERSION_TRANSITION: "La version cible est déjà celle de ce service.",
         TRANSITION_DIRECTION_MISMATCH: "Le sens de la transition ne correspond pas aux versions sélectionnées."};
       const status = element("p", assessment.configuration_compatible
-        ? "Configuration compatible. La bascule de version reste à qualifier avant exécution."
+        ? (transitionExecution.profile ? "Configuration compatible. L’exécution est suivie dans la carte de transition ci-dessous." : "Configuration compatible. La bascule de version reste à qualifier avant exécution.")
         : "Cette transition est bloquée.");
       status.id = "gateway-transition-state"; card.append(status);
       for (const code of assessment.blockers) card.append(hint(reasons[code] || "Le profil n'autorise pas cette transition."));
-      card.append(hint("Les services et les données n'ont pas été modifiés. Le rollback de fichiers ne restaure pas une ancienne base de données."));
+      card.append(hint(transitionExecution.profile ? "Ce plan conserve la sélection d’origine. La carte d’exécution présente l’historique de la bascule." : "Les services et les données n'ont pas été modifiés. Le rollback de fichiers ne restaure pas une ancienne base de données."));
       technical(card, "Plan de transition Gateway (non secret)", profile);
+    }
+    content.append(card);
+  }
+  function transitionExecutionForm() {
+    const card = element("article", null, "wizard-card"); card.id = "gateway-transition-execution";
+    card.append(element("h2", "Exécuter le changement de version Gateway"));
+    card.append(hint("Parcours MAIN privé, sans DEV ni Firebase, avant le HTTPS public et le démarrage automatique. La sauvegarde vérifiée reste liée à cette opération. Une nouvelle confirmation autorise la bascule puis la reprise locale des services."));
+    if (transitionExecution.state === "NOT_PLANNED" || transitionExecution.state === "AWAITING_CONFIRMATION" && !transitionExecution.acquisition) {
+      card.append(button("Préparer l'exécution de la transition", () => void run(async () => {
+        transitionExecution = (await api("/api/gateway/transition/execution/plan", {
+          transition_sha256: gatewayTransition.confirmation})).gateway_transition_execution;
+        show(5);
+      }), "plan-transition-execution"));
+    } else {
+      const labels = {AWAITING_CONFIRMATION: "En attente du paquet et de votre confirmation", RESUME_REQUIRED: "Transition engagée, reprise explicite disponible", DONE: "Transition et activation locale enregistrées", UNAVAILABLE: "Journal indisponible, vérification manuelle requise"};
+      const status = element("p", labels[transitionExecution.state]); status.id = "transition-execution-state";
+      status.dataset.state = transitionExecution.state; status.setAttribute("aria-live", "polite"); card.append(status);
+      const stages = {binaries: "Vérification et préparation des binaires", cutover: "Bascule du binaire", publication: "Enregistrement de la version cible", admission: "Préparation de la reprise", activation: "Reprise locale des services"};
+      for (const step of transitionExecution.steps) card.append(hint(stages[step.stage] + " : " + (states[step.state] || step.state)));
+      if (transitionExecution.state === "AWAITING_CONFIRMATION" && transitionExecution.acquisition?.state !== "DONE") {
+        const file = element("input"); file.type = "file"; file.accept = ".zip,application/zip"; file.id = "transition-package";
+        card.append(field("Paquet ZIP de la version cible", file));
+        card.append(button("Importer le paquet cible", () => {
+          if (!file.files.length) { message("Sélectionnez le paquet ZIP de la version cible."); return; }
+          pendingAction = {action: "transition-execution.import", payload: {confirmation: transitionExecution.confirmation}, file: file.files[0]};
+          file.value = "";
+          $("operation-title").textContent = "Importer le paquet cible ?";
+          $("operation-description").textContent = "Le paquet sera vérifié et conservé. Cet import ne bascule aucun service.";
+          $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+        }, "import-transition-package"));
+      }
+      if (["AWAITING_CONFIRMATION", "RESUME_REQUIRED"].includes(transitionExecution.state) && transitionExecution.acquisition?.state === "DONE") {
+        const fields = element("div"); fields.id = "transition-sql-credentials"; const inputs = {};
+        for (const [name, label] of [["database_password", "Mot de passe SQL de l'application"], ["authority_user", "Compte SQL d'autorité"], ["authority_password", "Mot de passe du compte d'autorité"]]) {
+          const input = element("input"); input.type = name === "authority_user" ? "text" : "password";
+          input.id = "transition-" + name; input.autocomplete = "off"; input.maxLength = 1024;
+          inputs[name] = input; fields.append(field(label, input));
+        }
+        const consent = element("input"); consent.type = "checkbox"; consent.id = "transition-sql-consent";
+        fields.append(field("J'autorise les admissions SQL avec verrou global de lecture, limité à 180 secondes par admission.", consent));
+        fields.append(hint("Ces identifiants servent uniquement à cette demande et ne sont pas enregistrés.")); card.append(fields);
+        const action = transitionExecution.state === "AWAITING_CONFIRMATION" ? "apply" : "resume";
+        card.append(button(action === "apply" ? "Basculer vers la version cible" : "Reprendre la transition", () => {
+          if (!consent.checked || Object.values(inputs).some(input => !input.value)) { message("Renseignez les trois identifiants et autorisez le verrou SQL."); return; }
+          const credentials = Object.fromEntries(Object.entries(inputs).map(([name, input]) => [name, input.value]));
+          for (const input of Object.values(inputs)) input.value = "";
+          pendingAction = {action: "transition-execution." + action, payload: {confirmation: transitionExecution.confirmation,
+            confirm: true, credentials, allow_global_read_lock: true}};
+          consent.checked = false;
+          $("operation-title").textContent = action === "apply" ? "Basculer Gateway et reprendre les services ?" : "Reprendre la transition interrompue ?";
+          $("operation-description").textContent = "Le journal conserve chaque étape. Les contrôles natifs restent obligatoires avant la réouverture. Les données SQLite sont conservées ; aucune restauration ancienne n'est effectuée. Le HTTPS public et le démarrage automatique ne font pas partie de ce parcours.";
+          $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+        }, action + "-transition-execution", true));
+      }
+      if (transitionExecution.state === "DONE") card.append(button("Vérifier la disponibilité locale", () => void run(async () => {
+        transitionExecution = (await api("/api/gateway/transition/execution/check", {confirmation: transitionExecution.confirmation, confirm: true})).gateway_transition_execution;
+        show(5);
+      }), "check-transition-execution"));
+      if (transitionExecution.availability) card.append(hint("Vérification explicite : services actifs et Web local disponible."));
+      if (transitionExecution.last_error_redacted) card.append(hint(errorMessage({code: transitionExecution.last_error_redacted})));
+      card.append(hint("L'historique ne certifie pas la disponibilité actuelle. Actualiser la page ne relance aucune action."));
     }
     content.append(card);
   }
@@ -1366,6 +1428,14 @@
         const result = await api("/api/wizard/reset-plan", action.payload);
         installation = null; confirmed = false; draft = result.draft;
         show(github.ready && preflight?.ok ? 3 : 1); message("Plan non appliqué retiré. Les choix sont de nouveau modifiables.");
+      } else if (action.action === "transition-execution.import") {
+        try { transitionExecution = (await api("/api/gateway/transition/execution/import", action.file, action.payload.confirmation)).gateway_transition_execution; }
+        finally { action.file = null; }
+        show(5);
+      } else if (action.action.startsWith("transition-execution.")) {
+        try { transitionExecution = (await api("/api/gateway/transition/execution/" + action.action.slice(21), action.payload)).gateway_transition_execution; }
+        finally { action.payload.credentials = {}; }
+        show(5);
       } else if (action.action.startsWith("mobile-boot.")) {
         mobileBoot = (await api("/api/mobile/boot/" + action.action.slice(12), action.payload)).mobile_boot;
         show(5);
@@ -1443,6 +1513,7 @@
     foundation = result.foundation || {installation: null, profile: null, availability: null};
     gatewayService = result.gateway_service || {installation: null, profile: null, availability: null};
     gatewayTransition = result.gateway_transition || {state: "NOT_PLANNED", profile: null};
+    transitionExecution = result.gateway_transition_execution || transitionExecution;
     fcm = result.fcm || fcm;
     mobilePreparation = result.mobile_preparation || mobilePreparation;
     mobileBackup = result.mobile_backup || mobileBackup;
@@ -1520,14 +1591,16 @@
         gateway = result.gateway || gateway;
         foundation = result.foundation || foundation;
         gatewayService = result.gateway_service || gatewayService;
+        gatewayTransition = result.gateway_transition || gatewayTransition;
+        transitionExecution = result.gateway_transition_execution || transitionExecution;
         fcm = result.fcm || fcm;
         mobilePreparation = result.mobile_preparation || mobilePreparation;
         mobileBackup = result.mobile_backup || mobileBackup;
         mobileActivation = result.mobile_activation || mobileActivation;
         packages = result.packages || packages;
         mariadb = result.mariadb || mariadb;
-        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, sharedPreparation.plan_sha256, sharedPublic.installation?.revision, sharedPublic.verification, mobileBoot.installation?.revision, mobileBoot.verification, gateway.preparation?.revision, fcm, foundation.installation?.revision, foundation.dev_target?.confirmation, gatewayService.installation?.revision, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
-        const editingMobile = !serverBusy && !busy && ($("gateway-fcm")?.contains(document.activeElement) || $("fcm-credential")?.files.length || $("shared-public-form")?.contains(document.activeElement) || $("mobile-sql-credentials")?.contains(document.activeElement) || $("backup-sql-credentials")?.contains(document.activeElement) || $("preparation-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
+        const stamp = JSON.stringify([result.installation?.installation_id, result.installation?.revision, serverBusy, activation.installation?.revision, boot.installation?.revision, publicTLS.installation?.revision, sharedPreparation.plan_sha256, sharedPublic.installation?.revision, sharedPublic.verification, mobileBoot.installation?.revision, mobileBoot.verification, gateway.preparation?.revision, fcm, foundation.installation?.revision, foundation.dev_target?.confirmation, gatewayService.installation?.revision, transitionExecution, mobileActivation, mobileBackup, mobilePreparation, acmePackages.acquisition?.revision, acmePackages.installation?.revision, packages.acquisition?.revision, packages.installation?.revision, mariadb.installation?.revision]);
+        const editingMobile = !serverBusy && !busy && ($("gateway-transition-execution")?.contains(document.activeElement) || $("transition-package")?.files.length || $("transition-sql-consent")?.checked || [...document.querySelectorAll("#transition-sql-credentials input")].some(input => input.value && input.type !== "checkbox") || $("gateway-fcm")?.contains(document.activeElement) || $("fcm-credential")?.files.length || $("shared-public-form")?.contains(document.activeElement) || $("mobile-sql-credentials")?.contains(document.activeElement) || $("backup-sql-credentials")?.contains(document.activeElement) || $("preparation-sql-credentials")?.contains(document.activeElement) || $("operation-dialog").open);
         if (stamp !== lastRevision && !editingMobile) {
           lastRevision = stamp;
           installation = result.installation;
