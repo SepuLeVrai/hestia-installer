@@ -79,6 +79,8 @@ class BrowserWizardTests(unittest.TestCase):
             body = options.get("body")
             # Match native fetch's UTF-8 JSON transport, including operator names.
             if isinstance(body, str): body = body.encode('utf-8')
+            # Blob bytes cross the DOM bridge explicitly, as native fetch sends them.
+            if isinstance(body, dict) and set(body) == {'blob_bytes'}: body = bytes(body['blob_bytes'])
             conn.request(options.get("method", "GET"), path, body=body, headers=headers)
             response = conn.getresponse()
             body = response.read().decode("utf-8")
@@ -122,6 +124,7 @@ class BrowserWizardTests(unittest.TestCase):
           window.fetch = async (path, options = {}) => {
             window.__requests++;
             try {
+              if (options.body instanceof Blob) options = {...options, body: {blob_bytes: Array.from(new Uint8Array(await options.body.arrayBuffer()))}};
               const reply = await window.__httpsBridge(path, options);
               return new Response(reply.status === 204 ? null : reply.body, {status:reply.status, headers:reply.headers});
             } finally {window.__requests--;}
