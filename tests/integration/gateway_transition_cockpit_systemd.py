@@ -5,9 +5,11 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import time
+import traceback
 from unittest.mock import patch
 from playwright.sync_api import expect
 
@@ -26,7 +28,17 @@ class CockpitTransitionLive(prior.ActiveProfileLive):
         pid = os.fork()
         if pid == 0:
             try: action()
-            except BaseException: os._exit(98)
+            except BaseException as error:
+                chain = []; current = error
+                while current is not None and len(chain) < 12:
+                    code = str(current)
+                    chain.append({'type': type(current).__name__,
+                        'code': code if re.fullmatch('[A-Z][A-Z0-9_]{1,100}', code) else 'REDACTED',
+                        'frames': [{'file': Path(row.filename).name, 'line': row.lineno, 'function': row.name}
+                                   for row in traceback.extract_tb(current.__traceback__)]})
+                    current = current.__context__
+                Path('/evidence/cockpit-child-failure.json').write_text(json.dumps({'chain': chain}, indent=2) + '\n')
+                os._exit(98)
             os._exit(97)
         deadline = time.monotonic() + 1800
         while time.monotonic() < deadline:
@@ -90,6 +102,9 @@ class CockpitTransitionLive(prior.ActiveProfileLive):
             page.locator('#apply-transition-execution').click(); page.keyboard.press('Escape')
             self.assertIsNone(control._read('approved.json'))
             for name in values: expect(page.locator('#transition-' + name)).to_have_value('')
+        # Bootstrap shutdown closes its TransactionService. Resume with the
+        # actual persisted journals through a new service, never reopen that object.
+        self.service = self.build_service(); control = self.service.gateway_transition_execution
         profile = control.profile(); backups = control.backup.backups(profile); lease_id = profile['lease_id']
         scope = http._scope(http._inspect_configuration()[0])
         request = {'confirmation': control.state()['confirmation'], 'confirm': True,
