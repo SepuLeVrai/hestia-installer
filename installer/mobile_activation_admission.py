@@ -41,6 +41,15 @@ class ActivationWindow:
     def __reduce__(self):raise TypeError('Activation windows cannot be serialized')
 
     @t.closed
+    def boundary(self):
+        """Check live guards between owned marker writes, within full audits."""
+        require(not self.closed and self.pid==os.getpid(),'MOBILE_ACTIVATION_WINDOW_CLOSED')
+        self.fence.assert_held();self.schedulers.assert_held();self.locked.assert_held()
+        self.control.lease.assert_held()
+        if self.record is not None:self.record.check()
+        self.fence.assert_held()
+
+    @t.closed
     def assert_held(self):
         require(not self.closed and self.pid==os.getpid(),'MOBILE_ACTIVATION_WINDOW_CLOSED')
         self.fence.assert_held();self.schedulers.assert_held();self.locked.assert_held()

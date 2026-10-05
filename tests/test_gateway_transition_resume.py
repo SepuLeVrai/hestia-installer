@@ -169,6 +169,80 @@ class SuccessorAuthorityTests(unittest.TestCase):
         with self.authority.admitted(), patch.object(h.files, '_new', side_effect=AssertionError('write')):
             with self.assertRaises(h.c.g.GatewayStateError): self.authority.consume(Mock(), Mock())
 
+    def consumption_window(self):
+        from installer.mobile_activation_admission import ActivationWindow
+        owner = h.c._json(self.armed())['activation']
+        fd = os.open(self.gate, os.O_RDONLY | os.O_DIRECTORY); self.addCleanup(os.close, fd)
+        self.write(self.gate / 'maintenance.attempt', {'closed': True})
+        record = SimpleNamespace(native=SimpleNamespace(http=self.runtime.web), lease_id=self.lease_id,
+            backups=self.backups, value={'runtime': {'gateway_successor': self.authority.binding()}},
+            read=lambda name: canonical_bytes(owner) if name == 'armed.json' else None,
+            owner=lambda: canonical_bytes(owner), check=Mock())
+        lease = SimpleNamespace(_directory=fd, assert_held=Mock())
+        guards = [SimpleNamespace(assert_held=Mock()) for _ in range(3)]
+        window = ActivationWindow(SimpleNamespace(lease=lease), *guards, Mock(), Mock(), Mock(), record)
+        window.assert_held = Mock()
+        return window, record
+
+    def test_consumption_exhausted_live_fence_stops_prefix_and_resumes_without_gate_release(self):
+        window, record = self.consumption_window()
+        def held():
+            if not (self.gate / h.MARKERS[0]).exists(): raise RuntimeError('expired')
+        window.fence.assert_held.side_effect = held
+        with self.assertRaises(native.ActivationError): self.authority.consume(window, record)
+        self.assertTrue((self.gate / 'maintenance.attempt').exists())
+        self.assertIsNotNone(self.authority.read(h.MARKERS[0] + '.removed.json'))
+        self.assertTrue(all((self.gate / name).exists() for name in h.MARKERS[1:]))
+        self.assertIsNone(self.authority.read('consumed.json'))
+        window.fence.assert_held.side_effect = None
+        self.authority.consume(window, record)
+        self.assertFalse(any(self.authority.markers().values()))
+        self.assertTrue((self.gate / 'maintenance.attempt').exists())
+
+    def test_final_full_audit_failure_cannot_commit_consumption_or_open_maintenance(self):
+        window, record = self.consumption_window()
+        def full_audit():
+            if not any((self.gate / name).exists() for name in h.MARKERS):
+                raise native.ActivationError('archives changed')
+        window.assert_held.side_effect = full_audit
+        with self.assertRaises(native.ActivationError): self.authority.consume(window, record)
+        self.assertIsNone(self.authority.read('consumed.json'))
+        self.assertTrue((self.gate / 'maintenance.attempt').exists())
+        self.assertTrue(all(self.authority.read(name + '.removed.json') for name in h.MARKERS))
+        window.assert_held.side_effect = None
+        self.authority.consume(window, record)
+        self.assertEqual(self.authority.read('consumed.json'), self.authority.activation_owner())
+
+    def test_marker_drift_between_owned_unlinks_is_refused(self):
+        window, record = self.consumption_window(); original = window.boundary
+        def boundary():
+            original()
+            if not (self.gate / h.MARKERS[0]).exists():
+                (self.gate / h.MARKERS[1]).write_bytes(b'{}')
+        window.boundary = boundary
+        with self.assertRaises(h.c.g.GatewayStateError): self.authority.consume(window, record)
+        self.assertIsNone(self.authority.read('consumed.json'))
+        self.assertTrue((self.gate / 'maintenance.attempt').exists())
+        self.assertTrue((self.gate / h.MARKERS[1]).exists())
+
+    def test_activation_boundary_refuses_closed_foreign_process_and_lost_guards(self):
+        window, record = self.consumption_window()
+        for field in ('fence', 'schedulers', 'locked'):
+            with self.subTest(guard=field):
+                guard = getattr(window, field); guard.assert_held.side_effect = RuntimeError('lost guard')
+                with self.assertRaises(native.ActivationError): window.boundary()
+                guard.assert_held.side_effect = None
+        for guard in (window.control.lease, record):
+            method = guard.assert_held if guard is window.control.lease else guard.check
+            method.side_effect = RuntimeError('lost guard')
+            with self.assertRaises(native.ActivationError): window.boundary()
+            method.side_effect = None
+        window.closed = True
+        with self.assertRaises(native.ActivationError): window.boundary()
+        window.closed = False
+        with patch.object(h.os, 'getpid', return_value=os.getpid() + 1):
+            with self.assertRaises(native.ActivationError): window.boundary()
+
     def test_reconstruction_does_not_audit_partial_data_access_before_qualified_reclosure(self):
         foundation_root = self.runtime.web.spec.root.parent / 'foundation'; foundation_root.mkdir(mode=0o700)
         self.write(foundation_root / 'staged.json', {'web_plan_sha256': 'a' * 64})

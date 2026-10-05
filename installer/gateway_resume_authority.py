@@ -255,7 +255,11 @@ class Authority:
         owner = canonical_bytes({'handoff': self.binding(), 'activation': c._json(record.owner())})
         self.save('activation-owner.json', owner)
         for name in MARKERS:
-            window.assert_held(); present = self.markers()
+            # Full native/archive audits bracket this short, owned prefix.
+            # Rewalking every archive for each unlink exhausted the cold
+            # activation's 180s SQL fence. Live guards and exact marker/owner
+            # checks still precede every mutation; no gate opens in this loop.
+            window.boundary(); present = self.markers()
             if present[name]:
                 os.unlink(name, dir_fd=window.control.lease._directory)
                 os.fsync(window.control.lease._directory)
