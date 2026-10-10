@@ -305,7 +305,8 @@ def transfer_systemd(generation, lease, confirmation, *, confirmed):
     generation.current_publication()
     if generation._read('staged.json') is None:
         manager.stop_public(confirmation, confirmed=True)
-        generation.stage(lease, confirmed=True)
+        with manager.locked(), manager.slot(confirmation):
+            generation.stage(lease, confirmed=True)
     else:
         require(generation._read('staged.json') == {'generation_sha256': generation.digest}, ErrorCode.SOURCE_DRIFT)
         generation.bundle()

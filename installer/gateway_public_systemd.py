@@ -71,7 +71,14 @@ class Manager:
 
     def observe(self, unit, *, reload_pending=False):
         value = show(unit)
-        expected = str(self.transfer.unit_root / self.units[-1]) if unit == self.apache else ''
+        expected = ''
+        if unit == self.apache:
+            guard = self.transfer.unit_root / (self.apache + '.d/50-hestia-maintenance.conf')
+            with f.fs._directory(guard.parent) as fd:
+                require(set(os.listdir(fd)) <= {'50-hestia-maintenance.conf', '60-hestia-public.conf',
+                    self.transfer._temporary('60-hestia-public.conf')})
+                require(f._file(fd, guard.name)[1] == boot.h.drain.condition_dropin(self.lease.scope))
+            expected = str(guard) + ' ' + str(self.transfer.unit_root / self.units[-1])
         require(value['DropInPaths'] == expected)
         require(reload_pending or value['NeedDaemonReload'] == 'no')
         if unit == self.public['timer']: require(value['Unit'] == self.public['renew'])
@@ -87,6 +94,22 @@ class Manager:
     def quiet(self, *, reload_pending=False):
         self.held()
         for unit in (*self.public.values(), self.apache): self.stopped(unit, reload_pending=reload_pending)
+
+    def guard_identity(self):
+        path = self.transfer.unit_root / (self.apache + '.d/50-hestia-maintenance.conf')
+        with f.fs._directory(path.parent) as fd:
+            identity, raw = f._file(fd, path.name)
+            require(raw == boot.h.drain.condition_dropin(self.lease.scope))
+            return identity
+
+    def lock_identity(self):
+        with f.fs._directory(self.effect_lock.parent) as fd:
+            f.files._private(fd, directory=True)
+            handle = os.open('.transaction.lock', f.files.REGULAR, dir_fd=fd)
+            try:
+                f.files._private(handle, directory=False)
+                return {'directory': f._identity(os.fstat(fd)), 'file': f._identity(os.fstat(handle))}
+            finally: os.close(handle)
 
     def prepare(self, *, confirmed):
         require(confirmed is True, 'GATEWAY_PUBLIC_CONSENT_REQUIRED')
@@ -105,7 +128,8 @@ class Manager:
             with f.fs._directory(self.root) as fd:
                 f.files._private(fd, directory=True)
                 plan = {'binding': self.binding(), 'slot': f._identity(os.fstat(fd)),
-                        'epoch': MobileBootRuntime.epoch_identity(), 'sources': sources}
+                        'epoch': MobileBootRuntime.epoch_identity(), 'sources': sources,
+                        'maintenance_guard': self.guard_identity(), 'lock': self.lock_identity()}
                 f._put(fd, 'plan.json', plan)
             return {'confirmation': f.sha(boot.canonical_bytes(plan)), 'state': 'AWAITING_CONFIRMATION',
                     'services_started': False, 'activity_resumed': False}
@@ -119,9 +143,10 @@ class Manager:
                        *(role + suffix for role in STOP for suffix in ('.intent.json', '.done.json'))}
             require(set(os.listdir(fd)) <= allowed)
             plan = f._optional(fd, 'plan.json')
-            require(type(plan) is dict and set(plan) == {'binding', 'slot', 'epoch', 'sources'}
+            require(type(plan) is dict and set(plan) == {'binding', 'slot', 'epoch', 'sources', 'maintenance_guard', 'lock'}
                 and plan['binding'] == self.binding() and plan['slot'] == f._identity(os.fstat(fd))
                 and plan['epoch'] == MobileBootRuntime.epoch_identity()
+                and plan['maintenance_guard'] == self.guard_identity() and plan['lock'] == self.lock_identity()
                 and f.sha(boot.canonical_bytes(plan)) == confirmation)
             yield fd, plan
             self.held()
@@ -160,7 +185,7 @@ class Manager:
         require(confirmed is True, 'GATEWAY_PUBLIC_CONSENT_REQUIRED')
         with self.locked(), self.slot(confirmation) as (fd, plan):
             require(f._optional(fd, 'fragment-plan.json') is None)
-            self.source_files(plan)
+            self.source_files(plan); self.stopped(self.apache)
             for role in STOP:
                 self.stop(fd, role, confirmation)
                 if role == 'timer': self.stopped(self.public['renew'])
@@ -178,7 +203,7 @@ class Manager:
         with self.locked(), self.slot(confirmation) as (fd, plan):
             fragment = f._optional(fd, 'fragment-plan.json')
             if fragment is None:
-                self.source_files(plan)
+                self.source_files(plan); self.stopped(self.apache)
                 for role in STOP:
                     self.stop(fd, role, confirmation)
                     if role == 'timer': self.stopped(self.public['renew'])

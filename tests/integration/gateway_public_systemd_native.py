@@ -51,6 +51,8 @@ class NativeSystemdTransferTests(unittest.TestCase):
             path.chmod(0o644)
         (self.unit_root / self.apache).write_bytes(b'[Service]\nType=simple\nExecStart=/usr/bin/sleep infinity\nRestart=no\n')
         (self.unit_root / self.apache).chmod(0o644)
+        guard = self.unit_root / (self.apache + '.d/50-hestia-maintenance.conf')
+        guard.write_bytes(s.boot.h.drain.condition_dropin(self.scope)); guard.chmod(0o644)
         command('daemon-reload')
         command('start', '--', names[3], names[4], names[6])
         self.refs = dict.fromkeys(f.REFS, 'b' * 64); self.refs['target_gateway'] = 'c' * 64
@@ -115,6 +117,37 @@ class NativeSystemdTransferTests(unittest.TestCase):
         with patch.object(s.boot.h, '_command', resumed): self.apply()
         self.assertFalse(any('stop' in argv and self.manager.public['timer'] in argv for argv in calls))
 
+    def test_foreign_maintenance_overlay_refuses_before_stop(self):
+        guard = self.unit_root / (self.apache + '.d/50-hestia-maintenance.conf')
+        guard.write_bytes(b'[Unit]\nConditionPathExists=/foreign\n')
+        with self.assertRaises(f.FragmentError): self.apply()
+        self.assertEqual(s.show(self.manager.public['http'])['ActiveState'], 'active')
+
+    def test_restarted_listener_after_lost_stop_reply_is_not_stopped_again(self):
+        original = s.boot.h._command
+        def interrupted(argv, *args, **kwargs):
+            result = original(argv, *args, **kwargs)
+            if 'stop' in argv and self.manager.public['https'] in argv:
+                raise RuntimeError('lost listener stop response')
+            return result
+        with patch.object(s.boot.h, '_command', interrupted), self.assertRaises(RuntimeError): self.apply()
+        command('start', '--', self.manager.public['https'])
+        new_invocation = s.show(self.manager.public['https'])['InvocationID']
+        with self.assertRaises(f.FragmentError): self.apply()
+        self.assertEqual(s.show(self.manager.public['https'])['InvocationID'], new_invocation)
+        self.assertEqual(s.show(self.manager.public['https'])['ActiveState'], 'active')
+
+    def test_partial_fragment_transfer_resumes_with_pending_manager_reload(self):
+        original = os.rename
+        def interrupted(*args, **kwargs):
+            original(*args, **kwargs); raise RuntimeError('lost fragment rename response')
+        with patch.object(f.os, 'rename', interrupted), self.assertRaises(RuntimeError): self.apply()
+        first = self.unit_root / next(iter(self.replacements)); inode = first.stat().st_ino
+        self.assertEqual(s.show(first.name)['NeedDaemonReload'], 'yes')
+        self.apply()
+        self.assertEqual(first.stat().st_ino, inode)
+        self.assertEqual(self.manager.check(self.confirmation)['state'], 'PUBLIC_FRAGMENTS_LOADED_CLOSED')
+
     def test_real_sigkill_after_reload_does_not_repeat_reload(self):
         self.lease.close(); pid = os.fork()
         if pid == 0:
@@ -145,7 +178,7 @@ if __name__ == '__main__':
     before = snapshot()
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(NativeSystemdTransferTests)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    passed = result.wasSuccessful() and result.testsRun == 6 and not result.skipped and snapshot() == before
+    passed = result.wasSuccessful() and result.testsRun == 9 and not result.skipped and snapshot() == before
     report = {'status': 'PASS' if passed else 'FAIL', 'tests_run': result.testsRun,
               'failures': len(result.failures), 'errors': len(result.errors), 'skipped': len(result.skipped),
               'source_manifest_sha256': digest(encode(before)), 'source_stable': snapshot() == before,

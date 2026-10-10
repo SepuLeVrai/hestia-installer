@@ -94,3 +94,11 @@ réponse perdue après stop, SIGKILL réel après daemon-reload. Ce n'est pas un
 recette NGINX/Gateway/TLS ni une nouvelle époque après réouverture. Ses résultats
 restent à lire sur le SHA publié. Les refus des admissions et du cockpit restent
 inchangés à ce stade.
+
+La première recette systemd (6 cas) passe sur `571fc31a04e543f6e409989c44211eaa9bf17d04`,
+run `38040712005`. La relecture a ensuite identifié la composition Apache à
+compléter : le garde de maintenance `50-hestia-maintenance.conf` doit être
+vérifié et épinglé en plus de l'overlay public 60. Le candidat suivant ajoute
+ce garde et l'inode du verrou au plan, ainsi que trois cas natifs : garde
+étranger, invocation de listener remplacée, transfert partiel avec reload en
+attente. Le résultat des 6 cas ne qualifie pas ces ajouts.
