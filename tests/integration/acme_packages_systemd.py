@@ -28,14 +28,23 @@ LEGACY = Path('/opt/hestia-legacy-installer')
 PHASE = None
 
 
-def setup():
+def setup(*, frozen_layout=False):
     boot_fixture.setup()
     service = fixture.service()
     try:
         old = {p.relative_to(LEGACY).as_posix(): p.read_bytes() for p in sorted((LEGACY / 'installer').rglob('*'))
                if p.is_file() and p.suffix in ('.py', '.php', '.json') and '__pycache__' not in p.parts}
         assert 'installer/acme_packages.py' not in old and 'installer/boot_runtime.py' in old
-        assert old['installer/boot_runtime.py'] == (ROOT / 'installer/boot_runtime.py').read_bytes()
+        expected_boot = old['installer/boot_runtime.py']
+        if frozen_layout:
+            # The later Mobile Web profile added from_draft. This recipe uses
+            # the original fresh layout; admit only that exact constructor
+            # evolution, keeping the enrolled historical bytes untouched.
+            assert service.application.read()['version'] == 1
+            old_line = b'self.layout = app.FreshProfile(self.application[\'instance\'])'
+            assert expected_boot.count(old_line) == 1
+            expected_boot = expected_boot.replace(old_line, b'self.layout = app.FreshProfile.from_draft(self.application)')
+        assert expected_boot == (ROOT / 'installer/boot_runtime.py').read_bytes()
         assert old['installer/private/boot_worker.py'] == (ROOT / 'installer/private/boot_worker.py').read_bytes()
         with patch.object(boot_runtime, 'code_files', return_value=old):
             document = service.execute('boot.plan', {'activation_sha256': service.activation.journal.read()['plan_sha256']})['boot']['installation']

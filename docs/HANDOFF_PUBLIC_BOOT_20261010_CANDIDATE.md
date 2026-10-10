@@ -61,3 +61,25 @@ complets du gel testé. Les échecs utiles restent conservés.
 Le cycle upgrade/rollback/upgrade sur un même hôte, DEV/FCM, la restauration
 sur l'origine et la clôture globale de phase 6 restent distincts. #17 et #18
 restent ouverts. Aucun changement SQL, `schema.sql` ou `install.php`.
+
+
+## Retours du premier banc composé
+
+Le run Web `38045068546` a franchi les sources privées, les paquets, Ext4,
+la préparation SQL/Web et la CA jetable, puis a échoué dans une assertion du
+setup historique : `boot_runtime.py` a évolué depuis le bundle 5D6 pour lire
+le profil Mobile Web v2. Le banc public utilise toujours le profil fresh v1.
+Le nouveau setup vérifie cette version et n'admet que le remplacement exact
+du constructeur `FreshProfile(instance)` par `FreshProfile.from_draft`.
+Le bundle historique reste inchangé ; toute autre différence est refusée.
+
+La Quality `38045041384` a réussi ses deux suites core mais échoué dans la
+construction du nouveau fixture navigateur : changer l'identité en remplaçant
+des chaînes laissait les empreintes dérivées incohérentes. Le fixture est
+reconstruit avec les factories réelles. Aucun contrôle produit n'est relâché.
+
+La relecture de l'activation ajoute une permission distincte pour les gardes
+SQL/Web requis par PHP avant l'ouverture publique. Elle exige le propriétaire
+consommé, l'intention PHP durable et l'époque PID 1 de l'activation. Mobile et
+renouvellement restent fermés. Une nouvelle époque ne peut pas réutiliser cette
+permission locale. Cette évolution doit encore passer la recette composée.

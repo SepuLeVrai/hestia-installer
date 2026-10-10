@@ -158,4 +158,47 @@ class PublicOpeningNewEpochTests(unittest.TestCase):
         self.opening.authority.check.assert_called_once()
 
 
+
+class PublicLocalGuardTests(unittest.TestCase):
+    def setUp(self):
+        temp = TemporaryDirectory(prefix='hestia-local-guard-', dir='/var/lib')
+        self.addCleanup(temp.cleanup); self.root = Path(temp.name); self.lease = 'e' * 32
+        self.owner = {'generation_sha256': 'a' * 64, 'fragment_plan_sha256': 'b' * 64, 'admission_sha256': 'c' * 64}
+        self.activation = {'version': 1, 'instance': 'a' * 32, 'lease_id': self.lease,
+                           'activation_plan_sha256': 'd' * 64, 'resume_plan_sha256': 'f' * 64}
+        self.raw = o.g.canonical_bytes({'handoff': {}, 'activation': self.activation})
+        self.epoch = {'boot_id': 'a' * 36, 'pid1_start': '123'}
+        self.enterContext(patch.object(o.g.mobile.MobileBootRuntime, 'epoch_identity', return_value=self.epoch))
+        self.values = {'activation-epoch.json': {'owner': self.owner, 'epoch': dict(self.epoch)}}
+        self.generation = SimpleNamespace(digest='a' * 64, _read=lambda name: self.values.get(name))
+        self.authority = SimpleNamespace(backups=self.root, lease_id=self.lease, activation_owner=lambda: self.raw,
+            read=lambda name: self.raw if name == 'consumed.json' else None,
+            runtime=SimpleNamespace(web=SimpleNamespace(unit=lambda role: 'hestia-' + 'a' * 32 + '-php.service')))
+        owned = SimpleNamespace(generation=self.generation, owner=self.owner)
+        self.enterContext(patch.object(o, 'Opening', return_value=owned))
+        self.record = self.root / ('mobile-activation-' + self.lease); self.record.mkdir(mode=0o700)
+        self.admitted = {'owner': self.activation, 'state': 'ACTIVITY_GATE_RELEASED', 'services_started': False,
+                         'current_sql_admission': False, 'automatic_start_retry_allowed': False}
+        self.intent = {'owner': self.activation, 'role': 'php', 'not_before_monotonic_us': 1,
+            'before': {'unit': self.authority.runtime.web.unit('php'), 'invocation_id': '', 'active_enter_monotonic_us': 0}}
+        with o.g.boot.fs._directory(self.record) as fd:
+            o.f._put(fd, 'admitted.json', self.admitted); o.f._put(fd, 'php.intent.json', self.intent)
+
+    def test_same_epoch_consumed_php_intent_allows_dependency_guards_only(self):
+        for role in ('sql', 'web'): o.worker_admitted(self.generation, role, self.authority)
+        for role in ('mobile', 'renew'):
+            with self.assertRaises(InstallerError): o.worker_admitted(self.generation, role, self.authority)
+
+    def test_new_pid1_cannot_reuse_local_activation_dependency_permission(self):
+        self.epoch['pid1_start'] = '456'
+        with self.assertRaises(InstallerError): o.worker_admitted(self.generation, 'web', self.authority)
+
+    def test_missing_or_foreign_php_intent_never_allows_guard(self):
+        path = self.record / 'php.intent.json'; path.unlink()
+        with self.assertRaises(InstallerError): o.worker_admitted(self.generation, 'sql', self.authority)
+        self.intent['owner'] = {'foreign': True}
+        with o.g.boot.fs._directory(self.record) as fd: o.f._put(fd, path.name, self.intent)
+        with self.assertRaises(InstallerError): o.worker_admitted(self.generation, 'web', self.authority)
+
+
 if __name__ == '__main__': unittest.main()

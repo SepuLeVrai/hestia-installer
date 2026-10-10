@@ -43,8 +43,8 @@ def done(result):
     return result
 
 
-def setup(*, dev_enabled=True, release_commit=None):
-    public.setup()
+def setup(*, dev_enabled=True, release_commit=None, frozen_layout=False):
+    public.setup(frozen_layout=frozen_layout)
     service = fixture.service()
     try:
         parent = service.engine.report()

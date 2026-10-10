@@ -43,8 +43,8 @@ PHASE = None
 def runtime(service): return service.public_tls.engine(service.engine.report())[1]
 
 
-def setup():
-    acquired.setup()
+def setup(*, frozen_layout=False):
+    acquired.setup(frozen_layout=frozen_layout)
     service = fixture.service()
     try:
         document = service.execute('acme-packages.install.plan', {'acquisition_sha256': service.acme_packages.journals['acquire'].read()['plan_sha256']})['acme_packages']['installation']

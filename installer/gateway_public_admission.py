@@ -100,6 +100,8 @@ class PublicAdmission:
                  'admission_sha256': g.boot.f._sha(authority.raw)}
         with g.boot.fs._directory(self.generation.root) as fd:
             g.fragments.files._private(fd, directory=True)
+            g.fragments._put(fd, 'activation-epoch.json', {'owner': owner,
+                'epoch': g.mobile.MobileBootRuntime.epoch_identity()})
             g.fragments._put(fd, 'activated.json', owner)
         window.assert_held()
 

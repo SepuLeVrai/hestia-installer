@@ -183,7 +183,7 @@ if __name__ == '__main__':
     if os.environ.get('HESTIA_PUBLIC_COMPOSED_TEST') != '1' or DIRECTION not in ('upgrade', 'rollback') or os.geteuid() != 0:
         raise RuntimeError('Disposable opt-in and direction required')
     if Path('/proc/1/comm').read_text().strip() != 'systemd': raise RuntimeError('Real PID 1 required')
-    if phase == 'setup': shared.setup(dev_enabled=False, release_commit=SOURCE); sys.exit(0)
+    if phase == 'setup': shared.setup(dev_enabled=False, release_commit=SOURCE, frozen_layout=True); sys.exit(0)
     before = quality.snapshot(ROOT)
     acquire = activation.a.c.rf.acquire
     windows = []

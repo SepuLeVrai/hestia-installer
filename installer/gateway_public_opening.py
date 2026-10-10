@@ -238,6 +238,35 @@ def worker_admitted(generation, role, authority):
     if opened is not None:
         g.require(opened == opening.owner, g.ErrorCode.SOURCE_DRIFT)
         return
+    if role in ('sql', 'web'):
+        # PHP activation can pull in its enrolled Web/SQL dependencies before
+        # public opening. These guards do not start a service themselves. They
+        # require the consumed activation and its PHP intent in this PID 1 epoch.
+        g.require(generation._read('activation-epoch.json') == {'owner': opening.owner,
+            'epoch': g.mobile.MobileBootRuntime.epoch_identity()}, g.ErrorCode.DEPENDENCY_BLOCKED)
+        raw = authority.activation_owner()
+        g.require(raw is not None and authority.read('consumed.json') == raw, g.ErrorCode.DEPENDENCY_BLOCKED)
+        owner = a.c._json(raw)['activation']
+        with g.boot.fs._directory(authority.backups / ('mobile-activation-' + authority.lease_id)) as fd:
+            f.files._private(fd, directory=True)
+            admitted = f._optional(fd, 'admitted.json')
+            g.require(admitted == {'owner': owner, 'state': 'ACTIVITY_GATE_RELEASED',
+                'services_started': False, 'current_sql_admission': False,
+                'automatic_start_retry_allowed': False}, g.ErrorCode.SOURCE_DRIFT)
+            intent = f._optional(fd, 'php.intent.json')
+            g.require(type(intent) is dict and set(intent) == {'owner', 'role', 'before', 'not_before_monotonic_us'}
+                and intent['owner'] == owner and intent['role'] == 'php'
+                and type(intent['not_before_monotonic_us']) is int
+                and 0 < intent['not_before_monotonic_us'] <= time.monotonic_ns() // 1000,
+                g.ErrorCode.DEPENDENCY_BLOCKED)
+            before = intent['before']
+            g.require(type(before) is dict and set(before) == {'unit', 'invocation_id', 'active_enter_monotonic_us'}
+                and before['unit'] == authority.runtime.web.unit('php')
+                and type(before['invocation_id']) is str
+                and (before['invocation_id'] == '' or re.fullmatch('[a-f0-9]{32}', before['invocation_id']))
+                and type(before['active_enter_monotonic_us']) is int and before['active_enter_monotonic_us'] >= 0,
+                g.ErrorCode.SOURCE_DRIFT)
+        return
     g.require(role in ('http', 'https'), g.ErrorCode.DEPENDENCY_BLOCKED)
     with opening.slot() as (fd, plan):
         digest = f.sha(g.canonical_bytes(plan))

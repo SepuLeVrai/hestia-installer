@@ -498,10 +498,15 @@ class BrowserWizardTests(unittest.TestCase):
         fixture = fixtures.GatewayTransitionExecutionTests('test_plan_and_get_are_file_only_and_keep_all_parents')
         self.addCleanup(fixture.doCleanups); fixture.setUp()
         if public:
-            from test_mobile_boot import profile
+            from test_public_tls import profile
+            from test_shared_public_runtime import selected
             from installer import mobile_boot_runtime as boot
             instance = fixture.control.binding(fixture.service.engine.report())['instance']
-            mobile = json.loads(json.dumps(profile()).replace('a' * 32, instance))
+            web = profile(); web['boot']['application']['instance'] = instance
+            web['boot']['application']['configuration']['web'] = boot.boot.app.FreshProfile(instance).web('hestia.example.test')
+            source_public = selected(web)
+            mobile = boot.selection(source_public, {'web': source_public['preparation']['parents']['web'],
+                'shared_public': 'b' * 64, 'shared_journal': 'c' * 64})
             runtime = boot.MobileBootRuntime(mobile)
             fixture.selection['assessment']['source'] = runtime.gateway.profile.binding()
             fixture.write(fixture.service.gateway_transition.root / 'profile.json', fixture.selection)
