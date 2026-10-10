@@ -109,3 +109,11 @@ L'unité inactive peut être déchargée puis relue par PID 1. Le candidat suiva
 contrôle donc la frontière de reload par le journal (premier reload exécuté
 explicitement), et vérifie aussi les Description/ExecStart/ExecStartPre chargés
 par PID 1. L'échec n'est pas converti en skip ; le cas reste exécuté.
+
+Le run `38041175181` révèle ensuite l'omission des propriétés de commande vides
+par `systemctl show`. Le lecteur demande désormais `--all` en conservant son
+schéma exact obligatoire. Les neuf contrats systemd sont ajoutés à la baseline
+et la recette refuse les tests absents, skips et échecs attendus. Les commandes
+chargées sont comparées au résultat des générateurs, pas déduites du seul bit
+NeedDaemonReload. Référence de syntaxe : manuel officiel systemd/systemctl,
+option --all (https://github.com/systemd/systemd/blob/main/man/systemctl.xml).

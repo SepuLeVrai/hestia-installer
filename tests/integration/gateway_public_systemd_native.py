@@ -184,11 +184,16 @@ if __name__ == '__main__':
     from scripts.quality import snapshot, encode, digest
     before = snapshot()
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(NativeSystemdTransferTests)
+    ids = [test.id().replace('__main__.', 'gateway_public_systemd_native.') for test in suite]
+    required = json.loads(Path('/opt/hestia-installer/tests/quality-baseline.json').read_text())['required_tests']['public_systemd']
     result = unittest.TextTestRunner(verbosity=2).run(suite)
-    passed = result.wasSuccessful() and result.testsRun == 9 and not result.skipped and snapshot() == before
+    passed = (result.wasSuccessful() and set(ids) == set(required) and len(set(ids)) == len(ids)
+        and result.testsRun == len(required) and not result.skipped and not result.expectedFailures
+        and not result.unexpectedSuccesses and snapshot() == before)
     report = {'status': 'PASS' if passed else 'FAIL', 'tests_run': result.testsRun,
               'failures': len(result.failures), 'errors': len(result.errors), 'skipped': len(result.skipped),
               'source_manifest_sha256': digest(encode(before)), 'source_stable': snapshot() == before,
+              'discovered_ids': ids, 'missing_ids': sorted(set(required) - set(ids)),
               'scope': 'systemd transfer subsystem with real fixture services',
               'native_public_boot_qualified': False}
     Path('/evidence/public-systemd.json').write_bytes(encode(report))

@@ -2140,6 +2140,17 @@
       "test_quality_gate.QualityGateTests.test_source_manifest_detects_content_and_executable_mode_changes",
       "test_quality_gate.QualityGateTests.test_source_symlinks_are_refused",
       "test_quality_gate.QualityGateTests.test_unsafe_archive_paths_are_rejected"
+    ],
+    "public_systemd": [
+      "gateway_public_systemd_native.NativeSystemdTransferTests.test_active_renewal_refuses_and_does_not_kill_renewal",
+      "gateway_public_systemd_native.NativeSystemdTransferTests.test_foreign_maintenance_overlay_refuses_before_stop",
+      "gateway_public_systemd_native.NativeSystemdTransferTests.test_lost_stop_reply_observes_stopped_without_replay",
+      "gateway_public_systemd_native.NativeSystemdTransferTests.test_partial_fragment_transfer_resumes_with_pending_manager_reload",
+      "gateway_public_systemd_native.NativeSystemdTransferTests.test_real_sigkill_after_reload_does_not_repeat_reload",
+      "gateway_public_systemd_native.NativeSystemdTransferTests.test_real_stops_fragments_reload_and_read_only_check",
+      "gateway_public_systemd_native.NativeSystemdTransferTests.test_restarted_listener_after_lost_stop_reply_is_not_stopped_again",
+      "gateway_public_systemd_native.NativeSystemdTransferTests.test_same_byte_foreign_source_inode_refuses_before_stop",
+      "gateway_public_systemd_native.NativeSystemdTransferTests.test_wrong_consent_and_confirmation_leave_running_listeners"
     ]
   },
   "schema": 1

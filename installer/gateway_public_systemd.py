@@ -28,7 +28,7 @@ def show(unit):
     props = observations.COMMON + ('InvocationID', 'Description') + (('Unit',) if unit.endswith('.timer')
         else observations.SERVICE + ('ExecStart', 'ExecStartPre'))
     raw = observations._capture(['/usr/bin/systemctl', '--system', '--no-pager', '--no-ask-password',
-        'show', '--property=' + ','.join(props), '--', unit])
+        'show', '--all', '--property=' + ','.join(props), '--', unit])
     rows = raw.decode('ascii').splitlines(); values = {}
     for row in rows:
         key, sep, value = row.partition('=')
