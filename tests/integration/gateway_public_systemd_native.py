@@ -57,7 +57,16 @@ class NativeSystemdTransferTests(unittest.TestCase):
         command('start', '--', names[3], names[4], names[6])
         self.refs = dict.fromkeys(f.REFS, 'b' * 64); self.refs['target_gateway'] = 'c' * 64
         self.manager = self.new()
-        self.confirmation = self.manager.prepare(confirmed=True)['confirmation']
+        try: self.confirmation = self.manager.prepare(confirmed=True)['confirmation']
+        except Exception:
+            if not getattr(type(self), '_diagnosed', False):
+                type(self)._diagnosed = True
+                for unit in (names[0], names[6], self.apache):
+                    # Only synthetic fixture commands; no application secrets.
+                    raw = subprocess.check_output(['/usr/bin/systemctl', 'show', '--all',
+                        '--property=Id,LoadState,FragmentPath,DropInPaths,NeedDaemonReload,ActiveState,SubState,Job,InvocationID,Description,ControlGroup,MainPID,ControlPID,Result,ExecStart,ExecStartPre,Unit', '--', unit])
+                    print('FIXTURE_MANAGER_PROPERTIES', raw.decode(), flush=True)
+            raise
 
     def clean_units(self):
         command('stop', '--', *self.all_units)
