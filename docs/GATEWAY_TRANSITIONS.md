@@ -1,6 +1,25 @@
 # Gateway : changements de version, lot 3
 
-## 3B2.2c1 — Références figées pour les nouveaux profils public/boot
+## État courant : premier transfert public/boot
+
+Le code produit `24a210d3ffceda40c0adec4d5f505f0b2a3784b6` raccorde le
+transfert des huit fragments, le successeur public/boot, les admissions,
+l'activation locale et l'ouverture au cockpit à sept étapes.
+Le verdict exact, les campagnes et les limites se trouvent dans
+[GATEWAY_PUBLIC_BOOT_QUALIFICATION_20261010.md](GATEWAY_PUBLIC_BOOT_QUALIFICATION_20261010.md).
+
+La première génération MAIN sans DEV/FCM est distincte des transitions
+successives sur le même hôte, des variantes DEV/FCM et de la restauration sur
+l'origine. Ces lots restent ouverts. Lire
+[GATEWAY_PUBLIC_FRAGMENT_PROTOCOL.md](GATEWAY_PUBLIC_FRAGMENT_PROTOCOL.md)
+pour le contrat courant et [PHASE6_REMAINING_LOTS.md](PHASE6_REMAINING_LOTS.md)
+pour la suite.
+
+Les sections suivantes conservent l'historique des tranches. Leurs mentions
+« prépare », « aucun transfert » ou « restant » s'appliquent à la tranche
+concernée, et ne remplacent pas le verdict courant référencé ci-dessus.
+
+## 3B2.2c1 - Références figées pour les nouveaux profils public/boot
 
 Base : reprise locale 3B2.2b qualifiée sur
 `875e9b3a15fd27f4840900e748d162337a5f6236`. Cette tranche prépare le transfert
@@ -232,7 +251,7 @@ qualifie pas une bascule réelle. Les résultats et SHA du gel se trouvent dans
 les preuves du checkpoint ; aucun succès d'un gel antérieur n'est réattribué.
 
 
-## 3B2.2b — Admission du profil successeur et reprise locale
+## 3B2.2b - Admission du profil successeur et reprise locale
 
 Le coordinateur privé `gateway_transition_resume` prépare une autorité liée à
 la publication complète, aux deux profils, au drain original et au répertoire
@@ -269,7 +288,7 @@ l’UUID/schema SQLite et l’intégrité des parents. Le verdict de ce candidat
 être établi sur son commit exact ; les PASS antérieurs ne le qualifient pas.
 
 
-## Raccordement cockpit privé — candidat du 5 octobre 2026
+## Raccordement cockpit privé - candidat du 5 octobre 2026
 
 Une carte distincte exécute la transition compatible après une sauvegarde
 mobile composée vérifiée. Le plan de compatibilité conserve son ancien contrat

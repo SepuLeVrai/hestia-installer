@@ -1,4 +1,13 @@
-# Transfert public/boot - qualification en cours, 10 octobre 2026
+# Transfert public/boot - historique des candidats du 10 octobre 2026
+
+Ce document conserve les étapes et les échecs rencontrés pendant la construction.
+Les mentions « en cours », « restant » et les limites ci-dessous décrivent leur
+état à cette étape ; elles ne constituent pas le verdict courant.
+Lire [GATEWAY_PUBLIC_BOOT_QUALIFICATION_20261010.md](GATEWAY_PUBLIC_BOOT_QUALIFICATION_20261010.md)
+pour la qualification finale et [HANDOFF_WORK_20261010.md](HANDOFF_WORK_20261010.md)
+pour reprendre le travail au bon commit.
+
+## État historique avant les campagnes finales
 
 Le périmètre demandé n'est pas encore qualifié de bout en bout. La branche
 canonique `quality/phase6-gateway-lifecycle-20261004` reste à
