@@ -80,6 +80,11 @@ class NativeRuntime:
             'cleaner_plan_sha256': f._sha(cleaner_plan),
             'timer_sha256': f._sha(collector[drain.UNIT_ROOT/self.activation.cleaner.timer]),
             'foundation': b.m.fd.binding(self.foundation), 'gateway_service': b.m.gd.binding(self.gateway)}
+        if 'public_ingress' in self.profile:
+            from installer.public_tls_profile import overlay_evidence
+            from installer.gateway_public_admission import historical_overlay
+            current['public_ingress'] = historical_overlay(self.http,
+                overlay_evidence(scope, rows[0]['fragment_sha256']))
         require(h.p._json(current) == self.original_profile, 'MOBILE_ACTIVATION_PROFILE_CHANGED')
         for row in rows:
             drain.audit_unit(scope, drain.UnitBinding(row['role'], row['fragment_sha256']),

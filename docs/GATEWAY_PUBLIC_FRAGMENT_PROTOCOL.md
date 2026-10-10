@@ -160,3 +160,26 @@ L'indicateur `aria-busy` ne couvrait pas la file `saveChain`. Il couvre désorma
 chaque sauvegarde en attente, jusqu'à sa réponse ou son erreur, tout en laissant
 les champs modifiables. Un contrat à sauvegarde volontairement retardée vérifie
 la file et le rafraîchissement dans les deux parcours navigateur, bridge et HTTPS.
+
+## Admission publique : raccordement en cours, non qualifié de bout en bout
+
+`gateway_public_admission` conserve le profil HTTP source dans un contexte lié
+au même objet HTTP et au même processus. L'entrée vérifie le bundle, la
+publication, les inodes, les commandes chargées, les arrêts publics et l'époque
+PID 1, sous le verrou public historique. Seul ce contexte peut présenter
+l'ancien binding d'overlay au drain conservé ; `system_drain.audit_unit` observe
+toujours l'overlay successeur réel. Les profils privés gardent leur format.
+
+L'autorité de reprise lie maintenant le pointeur public à son plan. Les refus
+publics de réouverture ne sont levés que dans cette autorité vivante. La fenêtre
+SQL finale produit `activated.json` après consommation durable des gardes.
+Ce propriétaire autorise le garde Apache ; les autres rôles restent bloqués
+sans la frontière distincte `opened.json`, dont le producteur et la reprise
+publique sont encore à raccorder. Huit tests de contrats de contexte passent
+localement, ainsi que les 22 tests de reprise Gateway existants. Ce ne sont pas
+des preuves natives publiques complètes.
+
+Le test local large `test_mobile_activation*.py` ne peut pas être qualifié sur
+ce conteneur : 15 cas échouent dès le setup exigeant le volume Ext4 jetable,
+sans exécuter leur scénario. Ne pas masquer cette exigence ; utiliser le gate
+Debian avec son véritable volume et ses identités natives.

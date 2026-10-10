@@ -49,6 +49,25 @@ def show(unit):
     return values
 
 
+def loaded_commands(value, raw, *, overlay=False):
+    """Validate commands from an already strict native show observation."""
+    lines = raw.decode('ascii').splitlines()
+    descriptions = [line.partition('=')[2] for line in lines if line.startswith('Description=')]
+    if descriptions: require(value['Description'] == descriptions[-1])
+    for field in ('ExecStart', 'ExecStartPre'):
+        directives = [line.partition('=')[2] for line in lines if line.startswith(field + '=')]
+        if not directives:
+            if not overlay and value['Id'].endswith('.service'):
+                require(value[field] == '', 'GATEWAY_PUBLIC_UNEXPECTED_LOADED_COMMAND')
+            continue  # An Apache overlay may inherit the base command.
+        expected = []
+        for directive in directives:
+            if not directive: expected.clear()
+            else: expected.append(' '.join(shlex.split(directive)))
+        actual = re.findall(r'\{ path=[^;{}]+ ; argv\[\]=([^;{}]+) ;', value[field])
+        require(actual == expected, 'GATEWAY_PUBLIC_LOADED_COMMAND_CHANGED')
+
+
 class Manager:
     """Internal primitive: fixed units, real lease and public effect lock."""
     def __init__(self, transfer, effect_lock):
@@ -94,23 +113,7 @@ class Manager:
         return value
 
     def loaded(self, unit, raw):
-        """Compare the selected executable argv against PID 1's loaded view."""
-        value = self.observe(unit)
-        lines = raw.decode('ascii').splitlines()
-        descriptions = [line.partition('=')[2] for line in lines if line.startswith('Description=')]
-        if descriptions: require(value['Description'] == descriptions[-1])
-        for field in ('ExecStart', 'ExecStartPre'):
-            directives = [line.partition('=')[2] for line in lines if line.startswith(field + '=')]
-            if not directives:
-                if unit != self.apache and unit.endswith('.service'):
-                    require(value[field] == '', 'GATEWAY_PUBLIC_UNEXPECTED_LOADED_COMMAND')
-                continue  # An Apache overlay may inherit the base command.
-            expected = []
-            for directive in directives:
-                if not directive: expected.clear()
-                else: expected.append(' '.join(shlex.split(directive)))
-            actual = re.findall(r'\{ path=[^;{}]+ ; argv\[\]=([^;{}]+) ;', value[field])
-            require(actual == expected, 'GATEWAY_PUBLIC_LOADED_COMMAND_CHANGED')
+        loaded_commands(self.observe(unit), raw, overlay=unit == self.apache)
 
     def stopped(self, unit, *, reload_pending=False):
         value = self.observe(unit, reload_pending=reload_pending)

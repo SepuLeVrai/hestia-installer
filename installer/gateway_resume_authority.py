@@ -5,7 +5,7 @@ The selected runtime and every native binary inspection remain target-bound.
 The three transition blockers survive until the existing final SQL window has
 armed a target-bound activation record. No historical receipt starts a unit.
 """
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from contextvars import ContextVar
 import os
 
@@ -112,6 +112,11 @@ class Authority:
         self.runtime, self.backups, self.lease_id = runtime, backups, lease_id
         self.root = runtime.root / 'control' / ('resume-' + lease_id)
         self.raw, self.value, self.pid = raw, c._json(raw), os.getpid()
+        self.public = None
+        if 'public_generation' in self.value:
+            from installer import gateway_public_admission as public
+            self.public = public.load(runtime.web, lease_id, self.value['http_profile'])
+            require(self.public.binding() == self.value['public_generation'], 'GATEWAY_RESUME_PUBLIC_CHANGED')
         self.check()
 
     def __reduce__(self): raise TypeError('Successor admissions cannot be serialized')
@@ -124,14 +129,23 @@ class Authority:
         return cls(runtime, backups, lease_id, raw)
 
     @staticmethod
-    def plan(runtime, backups, lease_id, profile):
+    def plan(runtime, backups, lease_id, profile, *, public=None):
         a.verify(runtime)
         with fs._directory(backups) as fd:
             files._private(fd, directory=True); identity = _identity(fd)
-        return canonical_bytes({'version': 1, 'policy': POLICY,
+        value = {'version': 1, 'policy': POLICY,
             'instance': runtime.web.spec.instance, 'lease_id': lease_id,
             'backup_root': str(backups), 'backup_identity': identity,
-            'publication': c._json(runtime._active_profile), 'http_profile': c._json(profile)})
+            'publication': c._json(runtime._active_profile), 'http_profile': c._json(profile)}
+        if public is not None:
+            from installer.gateway_public_admission import PublicAdmission
+            require(type(public) is PublicAdmission and public.http is runtime.web
+                and public.lease_id == lease_id and public.profile == value['http_profile'],
+                'GATEWAY_RESUME_PUBLIC_CHANGED')
+            public.check(); value['public_generation'] = public.binding()
+        require(('public_ingress' in value['http_profile']) == (public is not None),
+                'GATEWAY_RESUME_PUBLIC_ADMISSION_REQUIRED')
+        return canonical_bytes(value)
 
     def binding(self):
         return binding_for(self.raw)
@@ -175,7 +189,7 @@ class Authority:
         with fs._directory(self.runtime.web.spec.maintenance_directory) as fd:
             profile = c.hd.h.f._read(fd, 'http-drain-' + self.lease_id + '.attempt',
                                    account.pw_gid)
-        require(self.raw == self.plan(self.runtime, self.backups, self.lease_id, profile)
+        require(self.raw == self.plan(self.runtime, self.backups, self.lease_id, profile, public=self.public)
             and self.value['publication']['cutover']['lease_id'] == self.lease_id
             and self.value['http_profile']['gateway_service'] == self.source_binding(),
             'GATEWAY_RESUME_PARENT_CHANGED')
@@ -237,11 +251,16 @@ class Authority:
         return present
 
     @contextmanager
-    def admitted(self):
+    def admitted(self, *, public_closed=True):
+        require(type(public_closed) is bool, 'GATEWAY_RESUME_PUBLIC_MODE_REJECTED')
         require(_CURRENT.get() is None, 'GATEWAY_RESUME_NESTED_SCOPE')
         self.check(); self.markers()
         token = _CURRENT.set(self)
-        try: yield self
+        try:
+            with ExitStack() as stack:
+                if self.public is not None:
+                    stack.enter_context(self.public.scoped(authority=self, closed=public_closed))
+                yield self
         finally: _CURRENT.reset(token)
 
     def consume(self, window, record):
@@ -265,3 +284,4 @@ class Authority:
                 os.fsync(window.control.lease._directory)
             self.save(name + '.removed.json', self.removed(name, owner))
         window.assert_held(); self.save('consumed.json', owner); self.markers()
+        if self.public is not None: self.public.activate(window, self)

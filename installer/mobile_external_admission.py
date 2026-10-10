@@ -81,10 +81,14 @@ class _ParentFiles:
     def live(self, *, locked=None, configuration=None):
         self.external._held(); self.barrier.assert_held(); self.data.assert_held(); self._guard.assert_held()
         profile = a.strict_json_loads(self.barrier._profile)
-        require('public_ingress' not in profile and 'foundation' in profile and 'gateway_service' in profile
+        require('foundation' in profile and 'gateway_service' in profile
             and self.barrier._drain.cleaner is not None, 'MOBILE_EXTERNAL_PROFILE_REJECTED')
-        with fs._directory(self.data._runtime.spec.root.parent) as root:
-            for name in ('boot', 'public'): fs._absent(root, name)
+        if 'public_ingress' in profile:
+            from installer.gateway_public_admission import require_profile
+            require_profile(self.data._runtime, profile)
+        else:
+            with fs._directory(self.data._runtime.spec.root.parent) as root:
+                for name in ('boot', 'public'): fs._absent(root, name)
         released = r.gateway.recover(self.gateway, self.barrier, self.backups, confirmed=True).report()
         parent = self.profile()
         require(parent['instance'] == self.lease.scope.instance and parent['lease_id'] == self.lease.lease_id

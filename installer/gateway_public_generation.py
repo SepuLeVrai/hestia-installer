@@ -230,6 +230,11 @@ class Generation:
         authority = admission.Authority.load(runtime, Path(plan['backup_root']), self.value['lease_id'])
         authority.markers()
         require(authority.read('consumed.json') is not None, ErrorCode.DEPENDENCY_BLOCKED)
+        # Local activation authorizes the Apache guard only. Public listeners,
+        # renewal and a later boot also require the public opening boundary.
+        # Its producer is deliberately separate from SQL admission.
+        if role != 'backend':
+            require(self._read('opened.json') == owner, ErrorCode.DEPENDENCY_BLOCKED)
         web, shared, boot_mobile = self.readers()
         if role in ('sql', 'web'): web.boot(role); return None
         if role == 'mobile': boot_mobile.boot(); return None

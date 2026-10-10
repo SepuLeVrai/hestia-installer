@@ -148,11 +148,14 @@ class ReopenFilesPlan:
         self.lease.assert_held(); self.barrier.assert_held(); self.data.assert_held()
         self.configuration.assert_held(); self.external.assert_held()
         profile = strict_json_loads(self.barrier._profile)
-        require('public_ingress' not in profile and 'foundation' in profile and 'gateway_service' in profile
+        require('foundation' in profile and 'gateway_service' in profile
                 and self.barrier._drain.cleaner is not None, ErrorCode.INCOMPATIBLE_STATE)
-        # Any staged native boot/public enrollment is outside this local profile.
-        with fs._directory(self.data._runtime.spec.root.parent) as fd:
-            for name in ('boot', 'public'): fs._absent(fd, name)
+        if 'public_ingress' in profile:
+            from installer.gateway_public_admission import require_profile
+            require_profile(self.data._runtime, profile)
+        else:
+            with fs._directory(self.data._runtime.spec.root.parent) as fd:
+                for name in ('boot', 'public'): fs._absent(fd, name)
 
     def _backup(self):
         # Completed 6B7a recovery rechecks native ownership, stopped services,

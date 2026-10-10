@@ -128,8 +128,11 @@ class _ParentFiles:
         require(marker is None or mode == 0o700, 'MOBILE_DATA_RECLOSE_REQUIRED')
         self.barrier.assert_held(); self._guard.assert_held()
         profile = a.strict_json_loads(self.barrier._profile)
-        require('public_ingress' not in profile and 'foundation' in profile and 'gateway_service' in profile
+        require('foundation' in profile and 'gateway_service' in profile
             and self.barrier._drain.cleaner is not None, 'MOBILE_DATA_PROFILE_REJECTED')
+        if 'public_ingress' in profile:
+            from installer.gateway_public_admission import require_profile
+            require_profile(self.plan.runtime, profile)
         released = r.gateway.recover(self.gateway, self.barrier, self.backups, confirmed=True).report()
         parent = self.profile()
         require(parent['instance'] == self.lease.scope.instance and parent['lease_id'] == self.lease.lease_id

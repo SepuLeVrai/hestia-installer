@@ -4,6 +4,7 @@ This first successor admission is restricted to the existing pre-public MAIN
 profile. An already enrolled public/boot profile remains a separate handoff.
 """
 import os
+from contextlib import ExitStack
 from pathlib import Path
 import re
 
@@ -38,11 +39,18 @@ def prepare(runtime, backups, lease_id, *, source_package, target_package, targe
         return {'state': 'GATEWAY_SUCCESSOR_ADMISSION_PREPARED', **authority.binding(),
                 'historical_only': True, 'services_started': False, 'phase6_complete': False}
     require(action != 'check', 'GATEWAY_RESUME_NOT_READY')
-    with scope.recover(lease_id, confirmed=True) as lease:
+    with scope.recover(lease_id, confirmed=True) as lease, ExitStack() as stack:
         raw = c._optional(lease._directory, c.MARKER)
         require(raw is not None, 'GATEWAY_RESUME_CUTOVER_REQUIRED')
-        with fs._directory(runtime.web.spec.root.parent) as fd:
-            fs._absent(fd, 'boot'); fs._absent(fd, 'public')
+        profile = c.hd.h.f._read(lease._directory, 'http-drain-' + lease_id + '.attempt', scope.web_gid)
+        public = None
+        if 'public_ingress' in c._json(profile):
+            from installer import gateway_public_admission
+            public = gateway_public_admission.load(selected.web, lease_id, c._json(profile))
+            stack.enter_context(public.scoped(lease=lease))
+        else:
+            with fs._directory(runtime.web.spec.root.parent) as fd:
+                fs._absent(fd, 'boot'); fs._absent(fd, 'public')
         prepared, binaries = c._preparation(runtime, backups, lease_id,
             source_package, target_package, target_commit, direction)
         control = c._Cutover(runtime, lease, backups, prepared, binaries, raw)
@@ -51,7 +59,7 @@ def prepare(runtime, backups, lease_id, *, source_package, target_package, targe
             require(c._optional(lease._directory, a.MARKER) == selected._active_profile,
                     'GATEWAY_RESUME_PUBLICATION_CHANGED')
             profile = c.hd.h.f._read(lease._directory, 'http-drain-' + lease_id + '.attempt', scope.web_gid)
-            plan = h.Authority.plan(selected, backups, lease_id, profile)
+            plan = h.Authority.plan(selected, backups, lease_id, profile, public=public)
             marker = canonical_bytes(h.binding_for(plan)); old = c._optional(lease._directory, h.MARKER)
             if action == 'apply':
                 require(old is None and not root.exists(), 'GATEWAY_RESUME_EXPLICIT_RECOVERY_REQUIRED')

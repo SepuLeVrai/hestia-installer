@@ -52,7 +52,12 @@ def _digest(value):
 def _services(profile, instance):
     """Bound order only, not start intents or a claim of running invocations."""
     require(type(instance) is str and re.fullmatch('[a-f0-9]{32}', instance), 'MOBILE_RESUME_PROFILE_REJECTED')
-    require(type(profile) is dict and 'public_ingress' not in profile, 'MOBILE_RESUME_PROFILE_REJECTED')
+    require(type(profile) is dict, 'MOBILE_RESUME_PROFILE_REJECTED')
+    if 'public_ingress' in profile:
+        from installer.gateway_public_admission import current, require_profile
+        public = current()
+        require(public is not None, 'MOBILE_RESUME_PROFILE_REJECTED')
+        require_profile(public.http, profile, closed=False)
     rows = profile.get('units')
     require(type(rows) is list and len(rows) == 3 and all(type(row) is dict
         and set(row) == {'role', 'fragment_sha256'} for row in rows), 'MOBILE_RESUME_PROFILE_REJECTED')

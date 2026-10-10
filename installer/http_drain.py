@@ -168,6 +168,8 @@ class HttpDrain:
                      'timer_sha256': f._sha(files[s.UNIT_ROOT / self.cleaner.timer])}
         from installer.public_tls_profile import overlay_evidence
         public = overlay_evidence(scope, bindings[0].fragment_sha256)
+        from installer.gateway_public_admission import historical_overlay
+        public = historical_overlay(self.runtime, public)
         if public is not None: extra['public_ingress'] = public
         from installer import foundation_drain
         foundation = foundation_drain.attached(self.runtime)
