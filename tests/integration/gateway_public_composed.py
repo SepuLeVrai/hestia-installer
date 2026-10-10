@@ -185,7 +185,18 @@ if __name__ == '__main__':
     if Path('/proc/1/comm').read_text().strip() != 'systemd': raise RuntimeError('Real PID 1 required')
     if phase == 'setup': shared.setup(dev_enabled=False, release_commit=SOURCE); sys.exit(0)
     before = quality.snapshot(ROOT)
-    result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Transfer if phase == 'transfer' else Restart))
+    acquire = activation.a.c.rf.acquire
+    windows = []
+    @contextmanager
+    def timed(*args, **kwargs):
+        with acquire(*args, **kwargs) as held:
+            began = held._deadline - 180
+            yield held
+            held.assert_held()
+            windows.append({'seconds': time.monotonic() - began})
+            save('public-sql-windows-' + phase + '.json', windows)
+    with patch.object(activation.a.c.rf, 'acquire', timed):
+        result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Transfer if phase == 'transfer' else Restart))
     stable = before == quality.snapshot(ROOT)
     passed = result.wasSuccessful() and result.testsRun == 1 and not result.skipped and stable
     save('public-composed-' + phase + '.json', {'status': 'PASS' if passed else 'FAIL', 'tests': result.testsRun,

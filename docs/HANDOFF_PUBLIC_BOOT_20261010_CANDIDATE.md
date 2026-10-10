@@ -1,73 +1,63 @@
-# Reprise public/boot - candidat partiel du 10 octobre 2026
+# Transfert public/boot - qualification en cours, 10 octobre 2026
 
-## État exact
+Le périmètre demandé n'est pas encore qualifié de bout en bout. La branche
+canonique `quality/phase6-gateway-lifecycle-20261004` reste à
+`1028c05ce48d0f528f8b6f71837be51ee15710a0`. Les candidats sont publiés sur
+`validation/phase6-public-fragments-20261010`. Aucun merge ni déploiement.
 
-Le bloc demandé n'est pas terminé et n'est pas qualifié. Ce document complète
-`HANDOFF_WORK_20261010.md` fourni dans la livraison documentaire du 10 octobre.
+## Implémentation actuelle
 
-Le HEAD distant de travail est toujours
-`1028c05ce48d0f528f8b6f71837be51ee15710a0`, branche
-`quality/phase6-gateway-lifecycle-20261004`. Le clone est complet. Aucun
-AGENTS.md n'a été trouvé dans ce clone. La livraison précédente a été
-contrôlée par son SHA-256 et son `verify_delivery.py` : intégrité PASS.
+Les huit fragments ont un transfert durable par inode, un arrêt natif préalable
+et un rechargement systemd explicite. Les générations successeurs conservent les
+anciens bundles et les chemins des certificats. Le pointeur de sélection est
+immuable et refuse toute incohérence, sans repli implicite vers la source.
 
-## Travail réalisé
+L'admission publique lie exactement le drain historique, le contexte HTTP,
+la publication cible et les inodes installés. Les gardes SQL natifs restent
+bornés à 180 secondes. La consommation des gardes autorise l'activation locale.
 
-- Lecture des workers figés, de l'overlay Apache et des admissions natives.
-- Développement du protocole interne `gateway_public_fragments.py`.
-- 25 nouveaux contrats ajoutés à la baseline, dont 23 tests de fichiers réels.
-- Workflow Debian 13 ciblé, branche technique
-  `validation/phase6-public-fragments-20261010` uniquement.
-- Documentation de portée et limites dans
-  [GATEWAY_PUBLIC_FRAGMENT_PROTOCOL.md](GATEWAY_PUBLIC_FRAGMENT_PROTOCOL.md).
+Le cockpit public comporte sept étapes : binaires, bascule, publication,
+transfert public/boot, admission, activation locale et ouverture publique.
+Les intentions de démarrage HTTP, HTTPS et timer précèdent leurs effets.
+Une réponse perdue exige l'observation du processus déjà lancé ; un démarrage
+ambigu sur un service arrêté n'est jamais rejoué. Les contrôles d'une nouvelle
+époque PID 1 lisent les preuves du boot successeur, sans recycler les anciennes
+invocations ni démarrer les services.
 
-Le protocole n'est appelé par aucun contrôleur. Les refus public/boot acquis
-sont conservés. Aucune modification SQL, aucun changement à schema.sql ou
-install.php n'est nécessaire. Les branches actives et la production restent
-inchangées.
+## Preuves déjà obtenues et limites
 
-## Validation et autorisation
+- Admission : candidat `b7974e273f117753ad3b3e925f06a7f27984a5b6`, arbre
+  `c6923ddadcb60766f3929915c02f03d0c64720e8`, 540 fichiers. Quality
+  `38043452943` et protocole/systemd `38043452912` terminés avec succès.
+- Première ouverture : candidat `f614b202af19143aeec0f398c0efadbcefcb4159`,
+  arbre `e766c74c0c64382f3c5ea8c0f9b92ec8820037db`, 544 fichiers.
+  Protocole/systemd `38044621397` terminé avec succès ; Quality
+  `38044621429` : suites Debian 12/13 et navigateur réussies ; gate final
+  à consulter avant toute annonce de PASS global.
+- Recette composée `38044621464` : échec avant essais, le jeton Installer ne
+  peut pas lire le dépôt Web privé. Aucun PASS natif public issu de ce run.
+  La recette réutilisable est désormais appelée depuis une branche technique
+  Web privée, avec un SHA Installer exact. Aucun paquet privé n'est copié dans
+  le dépôt public Installer et aucun nouveau credential interdépôts n'est créé.
+- Localement : 13 contrats d'ouverture, 5 de profil/progression publics et
+  23 contrats cockpit existants passent. Les tests nécessitant les vrais UID
+  système ne passent pas dans le namespace local limité à root. Les assertions
+  de propriétaires et les exigences Ext4 restent intactes.
 
-L'utilisateur a autorisé la poursuite et la publication sur la branche technique
-`validation/phase6-public-fragments-20261010`. Le refus initial est levé.
-Les branches actives restent inchangées.
+La recette composée crée des hôtes Debian 13/Ext4/PID 1 indépendants pour
+upgrade et rollback MAIN, sans DEV/FCM. Elle réutilise les sources Web figées,
+les vrais paquets Gateway et une CA ACME jetable. Elle doit prouver les SIGKILL,
+la conservation des sources/clés/UUID/certificats, les accès Web/Mobile, puis
+une nouvelle époque PID 1 dans le même noyau. Aucun résultat n'est anticipé.
 
-La recette Debian 13 du protocole initial a réussi : run GitHub `38038107737`,
-commit `86a65998432a7c3aa7b1bda2d266d08c0869e042`, 25 tests et contrôles statiques.
-Deux essais antérieurs ont échoué dans la préparation du workflow (Git absent,
-puis modes d'extraction trop permissifs) ; ces défauts sont corrigés.
+## Travail restant avant livraison finale
 
-Le candidat suivant ajoute un lecteur des huit inodes installés, utilisable
-après fermeture du bail, un compilateur de génération, les lecteurs successeurs
-Web/Mobile/public et un worker scellé. Les chemins des certificats, profils
-historiques, routes, dépendances et commandes de renouvellement sont conservés.
-Les contrôles natifs Gateway restent différés après Web au boot, comme dans le
-contrat acquis. Les contrôles précoces sont des lectures de fichiers.
+Obtenir et inspecter les verdicts natifs composés, corriger les refus éventuels
+sans affaiblir les contrôles, compléter la recette du cockpit public et du
+renouvellement successeur, puis exécuter la Quality du gel final. Authentifier
+les artefacts et leurs manifestes, actualiser les verdicts et livrer les fichiers
+complets du gel testé. Les échecs utiles restent conservés.
 
-Les 14 tests de compilation/bundle passent localement. Les 28 tests de fragments
-et les nouveaux contrats sont requis dans la baseline. Le workflow ciblé exécute
-les 42 tests ; Quality complète est aussi déclenchée sur la branche technique.
-Ces résultats à venir doivent être lus sur le SHA exact, sans extrapoler le
-succès précédent au code nouveau.
-
-Localement, seuls UID/GID 0 sont mappés. La maintenance utilisant GID 65534 ne
-peut pas être testée ici. Aucun contrôle chown n'est simulé ou supprimé.
-
-## Travaux restant obligatoires
-
-1. Lire les résultats du gel courant, ciblés et Quality complète.
-2. Qualifier la copie native du bundle, sa reprise et les lecteurs en conditions
-   systemd réelles avant toute intégration.
-3. Développer l'autorité et les bundles successeurs complets, avec arrêt et
-   contrôle des workers publics. La primitive seule n'accorde aucune admission.
-4. Raccorder les admissions fermées dans `mobile_reopen_files.py`,
-   `mobile_external_admission.py`, `mobile_data_admission.py` et
-   `mobile_resume_plan.py`, puis `gateway_transition_native.py` et
-   `gateway_transition_resume.py`, sans supprimer simplement leurs refus.
-5. Traiter les lecteurs réellement exécutés par les boot Web et Mobile, le
-   transfert systemd et la reprise après perte de réponse, puis le cockpit.
-6. Recette native Web/Mobile, certificats, renouvellement, interruptions et
-   nouvelle époque PID 1, installation initiale et upgrade ; Quality globale.
-
-Ne pas clôturer #17, #18 ni la phase 6 sur ce candidat. Le ZIP est un checkpoint
-de développement, pas un correctif de production ni un lot qualifié.
+Le cycle upgrade/rollback/upgrade sur un même hôte, DEV/FCM, la restauration
+sur l'origine et la clôture globale de phase 6 restent distincts. #17 et #18
+restent ouverts. Aucun changement SQL, `schema.sql` ou `install.php`.

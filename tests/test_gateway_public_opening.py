@@ -139,4 +139,23 @@ class PublicOpeningOwnershipTests(unittest.TestCase):
         owned.slot.assert_not_called()
 
 
+
+class PublicOpeningNewEpochTests(unittest.TestCase):
+    setUp = PublicOpeningOwnershipTests.setUp
+
+    def test_same_epoch_check_only_delegates_to_observation_path(self):
+        self.opening.apply = Mock(return_value={'state': 'fixture'})
+        self.assertEqual(self.opening.check(), {'state': 'fixture'})
+        self.opening.apply.assert_called_once_with(confirmed=True, check_only=True)
+
+    def test_new_epoch_never_reuses_first_epoch_start_protocol(self):
+        self.epoch['pid1_start'] = '456'
+        self.opening.apply = Mock(side_effect=AssertionError('first epoch reused'))
+        self.opening.generation = SimpleNamespace(original=SimpleNamespace(shared=SimpleNamespace(root=self.root)))
+        self.opening.authority = SimpleNamespace(check=Mock(side_effect=InstallerError(o.g.ErrorCode.SOURCE_DRIFT)))
+        with self.assertRaises(InstallerError): self.opening.check()
+        self.opening.apply.assert_not_called()
+        self.opening.authority.check.assert_called_once()
+
+
 if __name__ == '__main__': unittest.main()

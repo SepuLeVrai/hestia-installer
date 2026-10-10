@@ -1,9 +1,11 @@
 name: Public Gateway composed transition and boot
 on:
-  push:
-    branches: ['validation/phase6-public-fragments-20261010']
-    paths: ['installer/**', 'tests/**', '.github/workflows/public-composed-validation.yml']
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      installer_ref:
+        description: Exact Installer commit tested by the private Web fixture host
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
@@ -18,6 +20,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          repository: SepuLeVrai/hestia-installer
+          ref: ${{ inputs.installer_ref }}
           persist-credentials: false
           fetch-depth: 0
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -31,7 +35,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p "$RUNNER_TEMP/proxy-installer" "$RUNNER_TEMP/legacy-installer" "$RUNNER_TEMP/public-parent" evidence
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "${{ inputs.installer_ref }}"
           test "$(git -C web-checkout rev-parse HEAD)" = 367b562f087a4c4b9d376fb2402016d3b79fa55b
           git -c tar.umask=0022 archive HEAD | tar -x -C "$RUNNER_TEMP/proxy-installer"
           git -c tar.umask=0022 archive dc0dca3ae0d33baafa136f002b2fdeff7f6095a8 | tar -x -C "$RUNNER_TEMP/public-parent"
@@ -190,7 +194,7 @@ jobs:
           test "$state" = running || test "$state" = degraded
           docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase restart 2>&1 | tee evidence/shared-restart.log
           docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report /evidence/source-pins-after-boot.json
-      - name: Require all three exact-source composed proofs
+      - name: Require all four exact-source composed proofs
         run: |
           set -Eeuo pipefail
           docker cp mariadb-target:/evidence/. evidence/

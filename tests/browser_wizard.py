@@ -493,10 +493,21 @@ class BrowserWizardTests(unittest.TestCase):
         expect(self.page.locator('#mobile-boot-verification')).to_contain_text('Configuration contrôlée')
         self.assertEqual(calls, ['stage', 'enable']); self.assertEqual(len(fixture.calls), 7)
 
-    def transition_execution_fixture(self):
+    def transition_execution_fixture(self, public=False):
         import test_gateway_transition_execution as fixtures
         fixture = fixtures.GatewayTransitionExecutionTests('test_plan_and_get_are_file_only_and_keep_all_parents')
         self.addCleanup(fixture.doCleanups); fixture.setUp()
+        if public:
+            from test_mobile_boot import profile
+            from installer import mobile_boot_runtime as boot
+            instance = fixture.control.binding(fixture.service.engine.report())['instance']
+            mobile = json.loads(json.dumps(profile()).replace('a' * 32, instance))
+            runtime = boot.MobileBootRuntime(mobile)
+            fixture.selection['assessment']['source'] = runtime.gateway.profile.binding()
+            fixture.write(fixture.service.gateway_transition.root / 'profile.json', fixture.selection)
+            source = {'mobile': mobile, 'successor_code': mobile['code'],
+                      'mobile_journal_sha256': 'a' * 64, 'shared_journal_sha256': 'b' * 64}
+            self.enterContext(patch.object(fixture.control, 'public_source', return_value=source))
         self.quiesce_page(); self.service.close(); self.service = fixture.service
         self.server.state.transaction_service = self.service
         self.refresh(); self.step(5); self.page.locator('#plan-transition-execution').click()
@@ -505,6 +516,35 @@ class BrowserWizardTests(unittest.TestCase):
 
     def transition_package(self, fixture):
         self.page.locator('#transition-package').set_input_files({'name': 'target.zip', 'mimeType': 'application/zip', 'buffer': fixture.responses.package})
+
+    def test_public_transition_consent_seven_steps_resume_and_read_only_refresh(self):
+        fixture = self.transition_execution_fixture(public=True)
+        self.page.set_viewport_size({'width': 480, 'height': 900})
+        expect(self.page.locator('#gateway-transition-execution')).to_contain_text('MAIN déjà exposé')
+        self.transition_package(fixture); self.page.locator('#import-transition-package').click(); self.dialog()
+        expect(self.page.locator('#apply-transition-execution')).to_be_visible()
+        self.transition_credentials(fixture); self.page.locator('#apply-transition-execution').click()
+        expect(self.page.locator('#operation-description')).to_contain_text('Le frontal HTTPS et le démarrage automatique seront transférés')
+        self.dialog('cancel'); fixture.native.execute.assert_not_called()
+        for name in fixture.credentials: expect(self.page.locator('#transition-' + name)).to_have_value('')
+        def execute(stage):
+            if stage == 'public-transfer': raise RuntimeError('public transfer interrupted')
+            return {'stage': stage}
+        fixture.native.execute.side_effect = execute
+        self.transition_credentials(fixture); self.page.locator('#apply-transition-execution').click(); self.dialog()
+        expect(self.page.locator('#transition-execution-state')).to_have_attribute('data-state', 'RESUME_REQUIRED')
+        before = fixture.native.execute.call_count
+        self.refresh(); self.step(5); self.assertEqual(fixture.native.execute.call_count, before)
+        fixture.native.execute.side_effect = lambda stage: {'stage': stage}
+        self.transition_credentials(fixture); self.page.locator('#resume-transition-execution').click(); self.dialog()
+        expect(self.page.locator('#transition-execution-state')).to_have_attribute('data-state', 'DONE')
+        self.assertEqual([r['stage'] for r in fixture.control.state()['steps']],
+            ['binaries', 'cutover', 'publication', 'public-transfer', 'admission', 'activation', 'public-open'])
+        expect(self.page.locator('#transition-execution-state')).to_contain_text('réouverture publique')
+        before = fixture.native.execute.call_count
+        self.refresh(); self.step(5); self.page.locator('#check-transition-execution').click()
+        expect(self.page.locator('#gateway-transition-execution')).to_contain_text('services locaux et frontal contrôlés')
+        self.assertEqual(fixture.native.execute.call_count, before)
 
     def transition_credentials(self, fixture):
         for name, value in fixture.credentials.items(): self.page.locator('#transition-' + name).fill(value)

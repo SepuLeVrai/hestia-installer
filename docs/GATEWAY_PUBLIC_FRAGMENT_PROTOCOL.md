@@ -174,8 +174,10 @@ L'autorité de reprise lie maintenant le pointeur public à son plan. Les refus
 publics de réouverture ne sont levés que dans cette autorité vivante. La fenêtre
 SQL finale produit `activated.json` après consommation durable des gardes.
 Ce propriétaire autorise le garde Apache ; les autres rôles restent bloqués
-sans la frontière distincte `opened.json`, dont le producteur et la reprise
-publique sont encore à raccorder. Huit tests de contrats de contexte passent
+sans la frontière distincte `opened.json`. Le producteur est désormais
+raccordé par `gateway_public_opening`, avec intentions durables par rôle,
+contrôle des invocations et refus de rejeu ambigu. Le timer est démarré après
+libération du verrou public pour ne pas bloquer son renouvellement immédiat. Huit tests de contrats de contexte passent
 localement, ainsi que les 22 tests de reprise Gateway existants. Ce ne sont pas
 des preuves natives publiques complètes.
 
@@ -183,3 +185,18 @@ Le test local large `test_mobile_activation*.py` ne peut pas être qualifié sur
 ce conteneur : 15 cas échouent dès le setup exigeant le volume Ext4 jetable,
 sans exécuter leur scénario. Ne pas masquer cette exigence ; utiliser le gate
 Debian avec son véritable volume et ses identités natives.
+
+
+## Cockpit et preuve après nouveau PID 1
+
+Le profil public fige les sources SharedPublic v1/MobileBoot ainsi que le code
+successeur consenti. Les sept étapes durables incluent le transfert des unités
+et l'ouverture publique. La progression enregistrée n'est pas un contrôle de
+la disponibilité actuelle. Un check ne crée pas de fichier d'intention.
+
+La reprise d'une ouverture exige son époque PID 1 initiale. Après une ouverture
+complète, le contrôle d'une nouvelle époque observe les nouveaux services,
+les preuves MobileBoot de cette époque et le Web local. Les anciennes
+invocations ne sont pas adoptées. La preuve Docker distingue explicitement
+nouveau PID 1 et reboot noyau. La qualification native composée reste en cours ;
+les tests de registre seuls ne prouvent ni TLS public ni persistance au boot.

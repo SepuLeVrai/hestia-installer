@@ -189,8 +189,10 @@ class Opening:
         with self.slot(current_epoch=False) as (_, plan):
             if plan['epoch'] == g.mobile.MobileBootRuntime.epoch_identity():
                 return self.apply(confirmed=True, check_only=True)
-        with self.authority.admitted(public_closed=False):
-            self.generation.configuration()
+        # New boot readers observe the target directly. Historical admission
+        # uses one exact HTTP object and is not transferable to these readers.
+        with StateJournal(self.generation.original.shared.root / 'effect-lock.json').locked(create=False):
+            self.authority.check(); self.public.check(); self.generation.configuration()
             scope = self.public.http._scope(self.generation.layout.identity.account())
             with scope.writer(), self.slot(current_epoch=False) as (fd, plan):
                 epoch = g.mobile.MobileBootRuntime.epoch_identity()
@@ -211,7 +213,6 @@ class Opening:
                     g.require(observed != done['observed'], g.ErrorCode.SOURCE_DRIFT)
                 web, _, mobile = self.generation.readers()
                 web.live(); mobile.live()
-                local_web = web.activation.check()
                 for role in ('foundation', 'gateway'):
                     runtime = getattr(mobile, role)
                     owner = {'profile_sha256': g.mobile.digest(mobile.profile), 'epoch': epoch,
@@ -221,6 +222,10 @@ class Opening:
                         g.ErrorCode.SOURCE_DRIFT)
                 self.shared.web.certificate(minimum_lifetime=0); self.shared.mobile.verify(minimum_lifetime=0)
                 g.require(g.mobile.MobileBootRuntime.epoch_identity() == epoch, g.ErrorCode.SOURCE_DRIFT)
+            # A real HTTP request needs the activity lock shared by PHP.
+            local_web = web.activation.check()
+            self.public.check()
+            g.require(g.mobile.MobileBootRuntime.epoch_identity() == epoch, g.ErrorCode.SOURCE_DRIFT)
         return {'state': 'PUBLIC_LISTENERS_RUNNING', **self.owner, 'services_started': False,
                 'local_web': local_web, 'boot_requalified': True, 'epoch': epoch, 'phase6_complete': False}
 
