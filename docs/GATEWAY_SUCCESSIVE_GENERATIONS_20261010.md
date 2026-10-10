@@ -1,7 +1,38 @@
 # Générations publiques successives - candidat de qualification
 
-État : implémentation en cours de qualification. Aucun résultat natif de ce lot
-ne doit être déduit des preuves du premier transfert à `24a210d`.
+État : candidat implémenté, non qualifié nativement à ce stade. Aucun résultat
+de ce lot ne doit être déduit des preuves du premier transfert à `24a210d`.
+
+## Gel et résultats acquis
+
+Candidat : `dd4d89af9ee6d5ff62621ba77aba36f194c53b5d`, arbre
+`6739bfa15369c9ed18671da702f108dba70fe336`, 555 fichiers. Branche
+`validation/phase6-public-generations-20261010`. Appelant Web :
+`c826a48bbe62e9e0121a13ba654496a1416e2599`, épinglé sur le candidat exact.
+
+| Campagne sur ce candidat | Résultat | Preuve |
+| --- | --- | --- |
+| Core Debian 12 | PASS, 2138 tests | Artefact `11680083676` |
+| Core Debian 13 | PASS, 2138 tests | Artefact `11680421936` |
+| Navigateur bridge et HTTPS | PASS, 38 et 50 tests | Artefact `11680696567` |
+| Quality finale | PASS | Run `38080884154`, source complète `11679889328` |
+| Protocole public | PASS, 109 tests | Run `38080884162`, artefact `11680761073` |
+| Contrats systemd natifs | PASS, 10 tests | Même run, artefact `11680073329` |
+| Upgrade indépendant | En cours, aucun verdict | Run `38080901195`, job `114297421605` |
+| Rollback indépendant | Échec de préparation avant transfert | Même run, job `114297421526`, artefact `11680751576` |
+| Trois cycles sur le même hôte | Premier upgrade en cours | Même run, job `114297421437` |
+
+Les artefacts téléchargés sont comparés aux empreintes de GitHub. Les rapports
+acquis n'ont ni erreur, ni échec, ni test sauté. Les manifestes des 555 fichiers
+et les modes Unix de la source livrée par Quality correspondent au commit.
+Le tableau ne constitue pas une qualification globale : les transferts natifs
+et leurs redémarrages doivent encore tous réussir.
+
+Le rollback indépendant échoue dans `shared.public.handoff.prepare`, sur un
+contrôle strict de l'unité session-cleaner. Le journal montre son démarrage et
+sa fin réussie à 19:50:12 UTC, au même instant que le refus
+`SYSTEM_DRAIN_UNIT_REJECTED`. L'artefact est conservé. GitHub a refusé la
+relance ciblée tant que les autres jobs tournent ; aucune relance n'a démarré.
 
 Le périmètre reste MAIN avec SharedPublic v1 et MobileBoot historiques, sans
 DEV ni FCM actif. Les deux paquets du catalogue restent les seules cibles.
@@ -70,8 +101,17 @@ produites et empêche l'exécution des cycles suivants.
 
 ## Diagnostic intermédiaire
 
+Sur `f59494e`, le premier upgrade indépendant est PASS ; le rollback indépendant
+échoue au watchdog et le premier cycle à sa reprise explicite. La correction de
+fixture navigateur et les sceaux d'admission sont inclus dans `20a5e75`.
+
 Sur `20a5e75`, le premier cycle et son redémarrage sont PASS, avec deux
 renouvellements réels. Le deuxième cycle refuse sa sauvegarde préalable.
+L'upgrade indépendant passe également ; le rollback indépendant échoue une
+nouvelle fois au watchdog de 1800 s avant le reçu de démarrage HTTP. Ses six
+fenêtres SQL terminées restent inférieures à 180 s, maximum 167,770744 s.
+Les artefacts `11680566349`, `11680401164` et `11680184074` conservent ces trois
+résultats sur la source exacte `20a5e75`. Aucun de leurs PASS ne qualifie `dd4d89a`.
 Le lecteur de petits reçus y était utilisé pour un profil complet de génération
 qui dépasse sa limite de 64 Kio. La correction utilise le lecteur privé borné
 du profil de génération, conserve sa grammaire et son empreinte, puis vérifie

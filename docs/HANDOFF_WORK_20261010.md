@@ -2,24 +2,42 @@
 
 ## Source de reprise
 
-Lire d'abord [GATEWAY_PUBLIC_BOOT_QUALIFICATION_20261010.md](GATEWAY_PUBLIC_BOOT_QUALIFICATION_20261010.md)
-pour le verdict public/boot et les éventuelles limites encore ouvertes.
-Le dernier code produit est `24a210d3ffceda40c0adec4d5f505f0b2a3784b6`,
-arbre `f503bc740e258e37e78e6f541d8878ebb0cd5f54`, 545 fichiers.
+Le chantier courant est la chaîne de générations publiques successives,
+implémentée mais pas encore qualifiée. Lire d'abord
+[GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md](GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md).
+Le candidat produit est `dd4d89af9ee6d5ff62621ba77aba36f194c53b5d`,
+arbre `6739bfa15369c9ed18671da702f108dba70fe336`, 555 fichiers.
 
-La branche technique est `validation/phase6-public-fragments-20261010` dans
-`SepuLeVrai/hestia-installer`. Relire son HEAD avant toute modification et
-préserver les changements ultérieurs. La base canonique du patch reste
+Branche technique Installer : `validation/phase6-public-generations-20261010`.
+Relire son HEAD avant toute modification et préserver les changements ultérieurs.
+L'appelant Web `verification/phase6-public-generations-20261010`, à
+`c826a48bbe62e9e0121a13ba654496a1416e2599`, épingle ce candidat exact.
+La base canonique des fichiers livrés reste
 `quality/phase6-gateway-lifecycle-20261004` à `1028c05ce48d0f528f8b6f71837be51ee15710a0`.
-`main` est restée à `c0dcb902663130302599635b36c7fb8deab80a47` lors de la reprise.
 Aucune intégration main ni intervention sur la production n'est revendiquée.
 
-Le ZIP de checkpoint `9dc7e3a` est antérieur au raccordement complet.
-Ne pas repartir de ce checkpoint ni du seul `main`. Les étapes suivantes sont
-désormais implémentées : transfert natif des huit fragments, bundle successeur,
-reload systemd, sélection explicite de l'overlay, admissions publiques,
-activation locale et réouverture, cockpit à sept étapes et lecture après
-nouveau PID 1. Leur verdict est distinct de leur existence dans le code.
+Le premier transfert public/boot est un acquis distinct à `24a210d`, documenté
+dans [sa qualification](GATEWAY_PUBLIC_BOOT_QUALIFICATION_20261010.md).
+Ne pas repartir du checkpoint `9dc7e3a`, de ce précédent lot ou du seul `main`
+pour poursuivre les générations successives.
+
+## Point de qualification du candidat
+
+- Quality `38080884154` PASS : 2138 tests sur chacun de Debian 12 et 13,
+  38 bridge et 50 HTTPS ; sources exactes, aucune erreur ni aucun saut.
+- Protocole/systemd `38080884162` PASS : 109 et 10 tests respectivement.
+- Recette native `38080901195` : deux jobs continuent ; le rollback indépendant
+  a échoué en préparation, avant son transfert. Aucun PASS global natif.
+- Le workflow présente six étapes sur le même hôte : upgrade puis redémarrage,
+  rollback puis redémarrage, upgrade puis redémarrage.
+- Une relance ciblée du rollback indépendant attend la fin du run. GitHub a
+  refusé la première demande car ce run tournait encore ; aucune relance n'a
+  été exécutée. Conserver l'artefact d'échec `11680751576`.
+
+Le code corrigé lit les profils de génération complets avec leur lecteur privé
+borné à 256 Kio. Le lecteur de petits reçus, limité à 64 Kio, refusait le profil
+valide du deuxième cycle. Les empreintes, permissions, archives distinctes et
+contrôles natifs avant nouveau bail restent obligatoires.
 
 ## Acquis et limites à préserver
 
@@ -37,18 +55,20 @@ nouveau PID 1. Leur verdict est distinct de leur existence dans le code.
 
 ## Prochain travail
 
-Après clôture effective du bloc public/boot selon son document de qualification :
-
-1. Définir et implémenter la chaîne de générations successives, avec parcours
-   upgrade/rollback/upgrade sur le même hôte. Le refus actuel d'adopter une
-   génération déjà publiée doit rester fermé jusqu'à ce nouveau contrat.
-2. Étendre seulement aux variantes DEV/FCM compatibles et les qualifier.
-   Un retour 0.12.3 vers 0.12.2 avec le profil FCM actuel reste incompatible.
-3. Restauration sur l'instance originale : autorité distincte, époque
-   d'authentification, révocations, données et services. Aucun reçu de backup
-   historique ne l'autorise à lui seul.
-4. Recette 6C et intégration #18, puis clôture justifiée de #17 et de la phase 6.
-5. Les phases réseau général, APK et import/restauration guidés restent séparées.
+1. Recueillir les résultats natifs de `38080901195`, avec les manifestes et
+   empreintes des artefacts. Examiner toute chaîne d'erreur ou trace du watchdog.
+   Le candidat reste non qualifié jusqu'aux trois transferts et trois boots.
+2. Relancer uniquement le job rollback indépendant si l'analyse de son échec
+   le justifie, sur le même SHA et après fin du run. Ne pas relancer en boucle.
+3. Corriger les défauts démontrés, puis qualifier le gel exact. Ne jamais
+   attribuer un PASS d'une ancienne source à la nouvelle. SQL 180 s et watchdog
+   1800 s restent inchangés.
+4. Finaliser les documents et le ZIP de fichiers modifiés complets, vérifier
+   avant/après extraction et par reconstruction depuis la base canonique.
+5. Étendre seulement ensuite aux variantes DEV/FCM compatibles. Un retour
+   0.12.3 vers 0.12.2 avec le profil FCM actuel reste incompatible.
+6. Restauration originale, recette 6C et intégration #18 restent séparées.
+   Ne pas clôturer #17 ni la phase 6 au seul succès de ce lot MAIN.
 
 ## Règles techniques
 
@@ -77,7 +97,7 @@ systemd pour obtenir un PASS. La CI native technique utilise Debian 13,
 Ext4, PID 1, Web privé figé, vrais paquets Gateway et CA ACME jetable.
 
 Le workflow réutilisable Installer `public-composed-validation.yml` est appelé
-par la branche technique Web `verification/phase6-public-boot-20261010` avec
+par la branche technique Web `verification/phase6-public-generations-20261010` avec
 un SHA Installer exact. Son jeton lit le Web privé ; aucun nouveau credential
 interdépôts ni source Web privée n'est publié dans le dépôt Installer public.
 

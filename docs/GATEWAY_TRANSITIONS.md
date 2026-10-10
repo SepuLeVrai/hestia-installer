@@ -1,6 +1,14 @@
 # Gateway : changements de version, lot 3
 
-## État courant : premier transfert public/boot
+## État courant : générations successives en qualification
+
+Le candidat `dd4d89a` étend les transferts MAIN aux générations successives
+sur le même hôte. Quality, protocole et systemd sont PASS ; la recette native
+complète reste ouverte. Le verdict courant et les échecs conservés sont dans
+[GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md](GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md).
+Aucune transition DEV/FCM ni restauration originale n'est qualifiée par ce lot.
+
+## Acquis : premier transfert public/boot
 
 Le code produit `24a210d3ffceda40c0adec4d5f505f0b2a3784b6` raccorde le
 transfert des huit fragments, le successeur public/boot, les admissions,

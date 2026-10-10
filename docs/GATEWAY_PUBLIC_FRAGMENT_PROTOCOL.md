@@ -1,5 +1,10 @@
 # Transfert public/boot Gateway
 
+L'extension aux générations successives est décrite séparément dans
+[GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md](GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md).
+Son candidat `dd4d89a` est en qualification native ; le présent document
+conserve le contrat acquis du premier transfert.
+
 ## Périmètre implémenté
 
 Le cockpit prend en charge le premier transfert d'une Gateway MAIN déjà exposée

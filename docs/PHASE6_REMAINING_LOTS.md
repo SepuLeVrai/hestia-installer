@@ -8,7 +8,7 @@
 | DEV distinct initial, #16 | Terminé, fermé et livré, `eaa2faf` | Ne qualifie pas une transition de version avec DEV/FCM |
 | Compatibilité et cockpit privé Gateway, #17 | Terminé dans son périmètre, `1028c05` | Première génération MAIN avant public/boot |
 | Premier transfert public/boot MAIN | Qualifié à `24a210d` ; preuves dans le document lié ci-dessous | Deux paquets catalogue, sans DEV/FCM actif |
-| Générations successives et aller-retour sur le même hôte | À faire | Nouveau contrat de chaîne de générations nécessaire |
+| Générations successives et aller-retour sur le même hôte | Implémenté, qualification native en cours sur `dd4d89a` | Pas de PASS global ; trois cycles et six étapes à prouver |
 | Transitions avec DEV/FCM compatibles | À faire | Retour FCM 0.12.3 vers 0.12.2 incompatible |
 | Restauration sur l'instance originale | À faire | Autorité distincte, époque d'authentification et révocations |
 | Recette 6C et intégration, #18 | À faire | Qualifier les périmètres restants avant clôture de phase 6 |
@@ -19,27 +19,22 @@ Voir [la qualification public/boot](GATEWAY_PUBLIC_BOOT_QUALIFICATION_20261010.m
 #17 et #18 restent ouverts. Un succès du premier transfert ne clôture pas ces
 issues composites ni l'ensemble de la phase 6.
 
-## Prochain lot : générations successives
+## Lot courant : générations successives
 
-Le parcours courant choisit un SharedPublic v1 et des parents historiques
-immuables. Il ne peut pas être réutilisé pour une deuxième transition en
-remplaçant simplement sa source par la version publiée. Le pointeur de sélection,
-les journaux d'exécution et les preuves de boot ont une identité propre.
+Le contrat de chaîne, la sélection publique successive, les archives distinctes,
+les liens de journaux et le cockpit sont implémentés. Le candidat `dd4d89a`
+passe Quality, protocole et systemd. La recette native complète reste ouverte.
+Voir [le contrat et son diagnostic](GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md).
 
-Le prochain contrat doit :
+Le prochain jalon exige upgrade/rollback/upgrade sur le même hôte, chaque fois
+avec interruption, reprise explicite, nouveau PID 1, Web/Mobile accessibles,
+clés/UUID/anciens fichiers conservés et deux renouvellements réels. Les recettes
+indépendantes d'upgrade et rollback doivent aussi passer sur le gel exact.
+Un échec conservé ne devient pas un PASS parce qu'un test voisin réussit.
 
-1. Lier explicitement la génération active et son admission consommée à une
-   nouvelle sauvegarde/bail, une nouvelle cible et de nouveaux journaux.
-2. Préserver chaque ancien bundle et reçu, tout en transférant la sélection
-   courante de manière durable avec contrôle de l'ancien propriétaire.
-3. Résoudre les lecteurs réellement utilisés au boot Web/Mobile et par le
-   renouvellement après chaque génération, sans adoption implicite.
-4. Qualifier upgrade/rollback/upgrade sur un même hôte avec interruptions,
-   conservation des clés/UUID/données et absence de rejeu ambigu.
-5. Raccorder le cockpit aux générations et maintenir les lectures sans effet.
-
-Les refus actuels restent obligatoires jusqu'à ce nouveau contrat et ses preuves.
-Une archive SQLite ne restaure pas les clés P-256 ni un credential Firebase.
+Les variantes DEV/FCM, la restauration originale et un reboot noyau restent
+hors de ce lot. Une archive SQLite ne restaure pas les clés P-256 ni un
+credential Firebase.
 
 ## Restauration originale et 6C
 
