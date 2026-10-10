@@ -3,7 +3,8 @@ from installer import gateway_public_fragments as f
 from installer.model import canonical_bytes
 
 FIELDS = {'lease_id', 'generation_sha256', 'publication_sha256',
-          'fragment_plan_sha256', 'completion_sha256', 'activation_sha256'}
+          'fragment_plan_sha256', 'completion_sha256', 'activation_sha256',
+          'admission_sha256', 'consumed_sha256'}
 
 
 def validate(value):
@@ -26,11 +27,30 @@ def binding(generation, pointer):
         and activation.get('fragment_plan_sha256') == pointer['fragment_plan_sha256'])
     for name in ('plan_sha256', 'receipts_sha256'): f._digest(completion[name])
     f._digest(activation['admission_sha256'])
+    admitted = admission_seal(generation, activation)
     return {'lease_id': generation.value['lease_id'], 'generation_sha256': generation.digest,
         'publication_sha256': generation.value['publication_sha256'],
         'fragment_plan_sha256': pointer['fragment_plan_sha256'],
         'completion_sha256': f.sha(canonical_bytes(completion)),
-        'activation_sha256': f.sha(canonical_bytes(activation))}
+        'activation_sha256': f.sha(canonical_bytes(activation)), **admitted}
+
+
+def admission_seal(generation, activation):
+    """Retain the exact consumed authority without reviving an old admission."""
+    from installer import gateway_resume_authority as a
+    root = generation.original.gateway.root / 'control' / ('resume-' + generation.value['lease_id'])
+    with a.fs._directory(root) as fd:
+        a.files._private(fd, directory=True)
+        plan = a.files._read(fd, 'plan.json', a.c.MAX_RECORD * 2)
+        consumed = a.files._read(fd, 'consumed.json', a.c.MAX_RECORD * 2)
+        f.require(a.files._read(fd, 'activation-owner.json', a.c.MAX_RECORD * 2) == consumed)
+    value, owner = a.c._json(plan), a.c._json(consumed)
+    f.require(f.sha(plan) == activation['admission_sha256']
+        and value['lease_id'] == generation.value['lease_id']
+        and f.sha(canonical_bytes(value['publication'])) == generation.value['publication_sha256']
+        and type(owner) is dict and set(owner) == {'handoff', 'activation'}
+        and owner['handoff'] == a.binding_for(plan) and type(owner['activation']) is dict)
+    return {'admission_sha256': f.sha(plan), 'consumed_sha256': f.sha(consumed)}
 
 
 def load(child):

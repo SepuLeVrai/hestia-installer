@@ -9,7 +9,7 @@ from installer import gateway_transition_cycles as cycles
 from installer import gateway_transition_execution as execution
 from installer import gateway_public_generation as g
 from installer import gateway_public_selection as selection
-from installer.gateway_transition import FCM_COMMIT
+from installer.gateway_transition import FCM_COMMIT, LEGACY_COMMIT
 from installer.model import canonical_bytes
 import test_gateway_public_cockpit as fixture
 
@@ -43,6 +43,8 @@ class TransitionCycleTests(unittest.TestCase):
         # Only the prior native seals are fixtures. Consent, closed parsing,
         # immutable journal writes, stage hashes and path routing are real.
         self.enterContext(patch.object(g.Generation, '_read', side_effect=lambda name: deepcopy(records[name])))
+        self.enterContext(patch.object(cycles.ancestry, 'admission_seal',
+            return_value={'admission_sha256': 'b' * 64, 'consumed_sha256': 'e' * 64}))
         self.enterContext(patch.object(cycles, 'pointer', return_value=selection.binding(self.generation, 'a' * 64)))
         self.payload = {'confirmation': execution.digest(self.value), 'confirm': True}
 
@@ -94,6 +96,25 @@ class TransitionCycleTests(unittest.TestCase):
         second = child.backup.backups({'instance': self.value['instance'], 'source_generation': child.transition.cycle})
         self.assertNotEqual(first, second)
         self.assertEqual(second.name, 'gateway-backup-' + self.generation.digest)
+
+    def test_second_execution_profile_uses_published_source_even_when_target_matches_enrollment(self):
+        child = cycles.open_next(self.control, self.payload)
+        service = child.transition.service
+        service.engine = lambda parent: (Mock(report=lambda: {'state': 'DONE', 'plan_sha256': 'a' * 64}), self.generation.original.gateway)
+        service.profile = lambda: {'binding': self.generation.original.gateway.profile.binding()}
+        planned = child.transition.current({}, LEGACY_COMMIT, 'rollback')
+        self.assertTrue(planned['assessment']['configuration_compatible'])
+        self.assertEqual(planned['assessment']['source']['release']['commit'], FCM_COMMIT)
+        self.assertEqual(planned['assessment']['target'], self.generation.original.gateway.profile.binding())
+        child.transition._write('profile.json', planned)
+        value = deepcopy(self.value)
+        value.update(lease_id='8' * 32, transition_sha256=execution.digest(planned), source_generation=child.transition.cycle)
+        value['public_source']['predecessor'] = child.transition.cycle['predecessor']
+        child._write('profile.json', value)
+        self.assertEqual(child.profile(), value)
+        damaged = deepcopy(value); damaged['public_source']['predecessor']['lease_id'] = '7' * 32
+        path = child.root / 'profile.json'; path.write_bytes(canonical_bytes(damaged))
+        with self.assertRaises(Exception): child.profile()
 
 
 if __name__ == '__main__': unittest.main()

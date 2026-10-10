@@ -578,14 +578,23 @@ class BrowserWizardTests(unittest.TestCase):
         # Backend cycle routing has its own durable-file tests and native recipe.
         # This fixture isolates consent and selection of the next UI source.
         original = fixture.service.execute
+        original_state = fixture.service.wizard_state
         requests = []
+        next_state = {'gateway_transition_execution': {'state': 'NOT_PLANNED', 'profile': None, 'steps': [], 'acquisition': None},
+            'gateway_transition': {'state': 'NOT_PLANNED', 'profile': None, 'source_commit': FCM_COMMIT},
+            'mobile_backup': {'state': 'NOT_PLANNED', 'profile': None}}
         def execute(action, payload):
             if action != 'gateway-transition-execution.next': return original(action, payload)
             requests.append((action, payload))
-            return {'gateway_transition_execution': {'state': 'NOT_PLANNED', 'profile': None, 'steps': [], 'acquisition': None},
-                'gateway_transition': {'state': 'NOT_PLANNED', 'profile': None, 'source_commit': FCM_COMMIT},
-                'mobile_backup': {'state': 'NOT_PLANNED', 'profile': None}}
-        with patch.object(fixture.service, 'execute', side_effect=execute):
+            return next_state
+        def state():
+            result = original_state()
+            # A successful next-cycle response persists in subsequent reads.
+            # Keep polling active, including a read racing with confirmation.
+            if requests: result.update(next_state)
+            return result
+        with patch.object(fixture.service, 'execute', side_effect=execute), \
+             patch.object(fixture.service, 'wizard_state', side_effect=state):
             self.page.locator('#next-transition-execution').click()
             expect(self.page.locator('#operation-description')).to_contain_text('journaux et sauvegardes précédents seront conservés')
             self.dialog('cancel'); self.assertEqual(requests, [])

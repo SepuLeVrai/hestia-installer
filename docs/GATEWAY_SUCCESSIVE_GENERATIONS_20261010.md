@@ -35,7 +35,9 @@ bail d'origine peut reprendre cet enfant à partir de son parent épinglé.
 Le pointeur public initial reste conservé. Chaque successeur ajoute un lien
 dans `public/shared/private/gateway-generations/`, nommé par l'empreinte de la
 génération précédente. Le profil v2 épingle les reçus d'activation et d'ouverture
-du parent, ses fragments, sa publication et son bail. Les huit fragments cibles
+du parent, son plan d'admission et son reçu de consommation, ses fragments,
+sa publication et son bail. Ces reçus privés sont relus dans leur emplacement
+d'origine, sans réactiver une ancienne autorité. Les huit fragments cibles
 référencent le nouveau worker ; le calendrier de renouvellement est inchangé.
 
 L'enveloppe de configuration HTTP peut observer les anciens fragments pendant
