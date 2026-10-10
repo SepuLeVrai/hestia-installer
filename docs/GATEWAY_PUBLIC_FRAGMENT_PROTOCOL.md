@@ -200,3 +200,11 @@ les preuves MobileBoot de cette époque et le Web local. Les anciennes
 invocations ne sont pas adoptées. La preuve Docker distingue explicitement
 nouveau PID 1 et reboot noyau. La qualification native composée reste en cours ;
 les tests de registre seuls ne prouvent ni TLS public ni persistance au boot.
+
+
+L'ouverture complète scelle les empreintes des trois reçus de démarrage après
+le timer. Le worker de renouvellement peut précéder ce dernier reçu uniquement
+dans l'époque en cours, car le timer Persistent peut le déclencher aussitôt.
+Une nouvelle époque exige le sceau complet et refuse les anciens reçus altérés.
+Les gardes SQL/Web de l'activation locale ont une permission distincte, liée
+à l'intention PHP et à l'époque d'activation ; ils ne rouvrent pas le frontal.

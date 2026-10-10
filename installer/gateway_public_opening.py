@@ -156,6 +156,24 @@ class Opening:
         g.require(observed['invocation'] != intent['before']['invocation'], g.ErrorCode.SOURCE_DRIFT)
         f._put(fd, role + '.done.json', {'intent': intent, 'observed': observed})
 
+    def completion(self, fd, plan):
+        receipts = {}
+        digest = f.sha(g.canonical_bytes(plan))
+        for role in ROLES:
+            intent = f._optional(fd, role + '.intent.json')
+            intent_owner(intent, {'plan_sha256': digest, 'role': role, 'unit': self.shared.web.unit(role)})
+            done = f._optional(fd, role + '.done.json')
+            g.require(type(done) is dict and set(done) == {'intent', 'observed'} and done['intent'] == intent,
+                      g.ErrorCode.SOURCE_DRIFT)
+            observed = done['observed']
+            g.require(type(observed) is dict and set(observed) == {'unit', 'invocation'}
+                and observed['unit'] == intent['owner']['unit'] and type(observed['invocation']) is str
+                and re.fullmatch('[a-f0-9]{32}', observed['invocation'])
+                and observed['invocation'] not in ('0' * 32, intent['before']['invocation']), g.ErrorCode.SOURCE_DRIFT)
+            receipts[role] = done
+        return {'owner': self.owner, 'plan_sha256': digest,
+                'receipts_sha256': f.sha(g.canonical_bytes(receipts))}
+
     def apply(self, *, confirmed, check_only=False):
         g.require(confirmed is True and type(check_only) is bool, g.ErrorCode.CONFIRMATION_REQUIRED)
         with self.slot(): pass  # A missing/replaced lock must not be recreated.
@@ -180,6 +198,11 @@ class Opening:
                 g.require(scope.observe()['state'] == 'SERVING', g.ErrorCode.MANUAL_ACTION_REQUIRED)
                 self.public.check()
                 self.start(fd, plan, 'timer', check_only=check_only)
+                completed = self.completion(fd, plan)
+                with g.boot.fs._directory(self.generation.root) as root:
+                    if check_only:
+                        g.require(f._optional(root, 'opening-completed.json') == completed, g.ErrorCode.SOURCE_DRIFT)
+                    else: f._put(root, 'opening-completed.json', completed)
         return {'state': 'PUBLIC_LISTENERS_RUNNING', **self.owner,
                 'local_web': local['local_web'],
                 'services_started': not check_only, 'boot_requalified': False, 'phase6_complete': False}
@@ -200,6 +223,8 @@ class Opening:
                 digest = f.sha(g.canonical_bytes(plan))
                 g.require(self.generation._read('opening.json') == {'plan_sha256': digest}
                     and self.generation._read('opened.json') == self.owner, g.ErrorCode.SOURCE_DRIFT)
+                g.require(self.generation._read('opening-completed.json') == self.completion(fd, plan),
+                          g.ErrorCode.SOURCE_DRIFT)
                 for role in ROLES:
                     intent = f._optional(fd, role + '.intent.json')
                     intent_owner(intent, {'plan_sha256': digest, 'role': role, 'unit': self.shared.web.unit(role)})
@@ -237,6 +262,16 @@ def worker_admitted(generation, role, authority):
     opened = generation._read('opened.json')
     if opened is not None:
         g.require(opened == opening.owner, g.ErrorCode.SOURCE_DRIFT)
+        with opening.slot(current_epoch=False) as (fd, plan):
+            g.require(generation._read('opening.json') == {'plan_sha256': f.sha(g.canonical_bytes(plan))},
+                      g.ErrorCode.SOURCE_DRIFT)
+            completed = generation._read('opening-completed.json')
+            if completed is None:
+                # The timer may immediately invoke renewal before the caller
+                # seals its final receipt. This is valid only in the same epoch.
+                g.require(plan['epoch'] == g.mobile.MobileBootRuntime.epoch_identity(), g.ErrorCode.DEPENDENCY_BLOCKED)
+            else:
+                g.require(completed == opening.completion(fd, plan), g.ErrorCode.SOURCE_DRIFT)
         return
     if role in ('sql', 'web'):
         # PHP activation can pull in its enrolled Web/SQL dependencies before

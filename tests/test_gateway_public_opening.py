@@ -201,4 +201,39 @@ class PublicLocalGuardTests(unittest.TestCase):
         with self.assertRaises(InstallerError): o.worker_admitted(self.generation, 'web', self.authority)
 
 
+
+class PublicOpeningCompletionTests(unittest.TestCase):
+    setUp = PublicOpeningLedgerTests.setUp
+
+    def test_completion_requires_all_three_distinct_role_receipts(self):
+        self.opening.owner = {'fixture': 'bound'}
+        with o.g.boot.fs._directory(self.root) as fd:
+            self.opening.start(fd, self.plan, 'http')
+            self.opening.start(fd, self.plan, 'https')
+            with self.assertRaises(InstallerError): self.opening.completion(fd, self.plan)
+            self.opening.start(fd, self.plan, 'timer')
+            sealed = self.opening.completion(fd, self.plan)
+            self.assertEqual(sealed['owner'], self.opening.owner)
+            self.assertEqual(sealed, self.opening.completion(fd, self.plan))
+            path = self.root / 'http.done.json'
+            receipt = o.f._optional(fd, path.name); receipt['observed']['invocation'] = 'c' * 32
+            path.unlink(); o.f._put(fd, path.name, receipt)
+            self.assertNotEqual(sealed, self.opening.completion(fd, self.plan))
+
+    def test_new_epoch_cannot_boot_after_unsealed_public_opening(self):
+        from contextlib import contextmanager
+        plan = {'epoch': {'boot_id': 'a' * 36, 'pid1_start': '1'}}
+        owner = {'fixture': 'bound'}
+        values = {'opened.json': owner, 'opening.json': {'plan_sha256': o.f.sha(o.g.canonical_bytes(plan))}}
+        generation = SimpleNamespace(digest='a' * 64, _read=lambda name: values.get(name))
+        @contextmanager
+        def slot(**kwargs): yield None, plan
+        owned = SimpleNamespace(generation=generation, owner=owner, slot=slot)
+        with patch.object(o, 'Opening', return_value=owned), \
+                patch.object(o.g.mobile.MobileBootRuntime, 'epoch_identity', return_value={**plan['epoch'], 'pid1_start': '2'}):
+            for role in ('sql', 'web', 'mobile', 'http', 'https', 'renew'):
+                with self.subTest(role=role), self.assertRaises(InstallerError):
+                    o.worker_admitted(generation, role, object())
+
+
 if __name__ == '__main__': unittest.main()

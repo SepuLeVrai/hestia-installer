@@ -50,6 +50,18 @@ def identity(runtime):
         return hashlib.sha256(rows[0][0].encode()).hexdigest()
 
 
+def public_access(case):
+    shared.public.login(case)
+    case.assertEqual(shared.mobile_request()[0], 200)
+    case.assertEqual(shared.public.request(source='127.0.0.9')[0], 403)
+    case.assertEqual(shared.mobile_request(source='127.0.0.9')[0], 403)
+    token = shared.native.gateway_service_probe._b64(os.urandom(32))
+    status, body, _ = shared.mobile_request(shared.PATH, 'POST', json.dumps({'enrollment_token': token}).encode(),
+        {'Content-Type': 'application/json', 'Origin': shared.ORIGIN})
+    case.assertEqual(status, 200)
+    case.assertIn(json.loads(body)['data']['state'], ('invalid', 'unavailable'))
+
+
 def kill(action):
     pid = os.fork()
     if pid == 0:
@@ -141,7 +153,7 @@ class Transfer(unittest.TestCase):
         selected = authority.selected_for_admission(old_boot.http)
         self.assertEqual(identity(selected), saved['uuid_sha256'])
         self.assertEqual(selected.profile.selected_release['commit'], TARGET)
-        shared.public.login(self); self.assertEqual(shared.mobile_request()[0], 200)
+        public_access(self)
         before = {str(p): (digest(p), p.stat().st_mtime_ns) for p in control.root.rglob('*') if p.is_file()}
         with patch.object(opening.g.public.SharedPublic.control, side_effect=AssertionError('check starts')):
             checked = service.execute('gateway-transition-execution.check', {'confirmation': planned['confirmation'], 'confirm': True})['gateway_transition_execution']
@@ -167,14 +179,29 @@ class Restart(unittest.TestCase):
         self.assertEqual(identity(selected), before['uuid_sha256'])
         self.assertEqual(selected.profile.selected_release['commit'], TARGET)
         for path, sha in before['preserved'].items(): self.assertEqual(digest(Path(path)), sha, path)
-        shared.public.login(self); self.assertEqual(shared.mobile_request()[0], 200)
+        public_access(self)
         admitted = authority.Authority.load(selected, control.backup.backups(control.profile()), control.profile()['lease_id'])
         generation = admitted.public.generation; mobile = generation.readers()[2]; mobile.attach_gateway()
         processes = {role: mobile.process(getattr(mobile, role)) for role in ('foundation', 'gateway')}
         opening.g.public.old.command(['/usr/bin/python3.13', '-I', '-B', str(generation.root / 'worker.py'), 'mobile'])
         self.assertEqual(processes, {role: mobile.process(getattr(mobile, role)) for role in processes})
+        public = generation.readers()[1]
+        pid = public.web.systemctl('show', 'https')['MainPID']
+        leaves = [public.web.acme_root / 'live/hestia-web/cert.pem',
+                  public.shared.acme_root / 'live/hestia-mobile/cert.pem']
+        leaf_before = {str(path): path.read_bytes() for path in leaves}
+        for argv in (public.web.certbot(renew=True), public.shared.certbot(renew=True)):
+            opening.g.public.old.command([*argv, '--force-renewal'], timeout=840)
+        opening.g.public.old.command(['/usr/bin/systemctl', '--no-pager', '--no-ask-password',
+            'start', '--', public.web.unit('renew')], timeout=1800)
+        self.assertEqual(public.web.systemctl('show', 'https')['MainPID'], pid)
+        for path in leaves: self.assertNotEqual(path.read_bytes(), leaf_before[str(path)])
+        public.web.certificate(); public.mobile.verify()
+        public_access(self)
         save('public-restart-proof.json', {'status': 'PASS', 'new_pid1_same_kernel': True,
-             'epoch': current, 'target': TARGET, 'no_mobile_start_replay': True, 'phase6_complete': False})
+             'epoch': current, 'target': TARGET, 'no_mobile_start_replay': True,
+             'two_actual_acme_renewals_with_successor_worker': True, 'https_master_preserved': True,
+             'phase6_complete': False})
 
 
 if __name__ == '__main__':
@@ -186,15 +213,16 @@ if __name__ == '__main__':
     if phase == 'setup': shared.setup(dev_enabled=False, release_commit=SOURCE, frozen_layout=True); sys.exit(0)
     before = quality.snapshot(ROOT)
     acquire = activation.a.c.rf.acquire
-    windows = []
     @contextmanager
     def timed(*args, **kwargs):
         with acquire(*args, **kwargs) as held:
             began = held._deadline - 180
             yield held
             held.assert_held()
+            path = EVIDENCE / ('public-sql-windows-' + phase + '.json')
+            windows = json.loads(path.read_bytes()) if path.exists() else []
             windows.append({'seconds': time.monotonic() - began})
-            save('public-sql-windows-' + phase + '.json', windows)
+            save(path.name, windows)
     with patch.object(activation.a.c.rf, 'acquire', timed):
         result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Transfer if phase == 'transfer' else Restart))
     stable = before == quality.snapshot(ROOT)

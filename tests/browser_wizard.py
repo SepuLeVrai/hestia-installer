@@ -550,6 +550,12 @@ class BrowserWizardTests(unittest.TestCase):
         self.refresh(); self.step(5); self.page.locator('#check-transition-execution').click()
         expect(self.page.locator('#gateway-transition-execution')).to_contain_text('services locaux et frontal contrôlés')
         self.assertEqual(fixture.native.execute.call_count, before)
+        card = self.page.locator('#gateway-transition-execution')
+        self.assertTrue(card.evaluate('(node) => node.scrollWidth <= node.clientWidth'))
+        screenshots = os.environ.get('HESTIA_QC_SCREENSHOTS')
+        if screenshots:
+            Path(screenshots).mkdir(parents=True, exist_ok=True)
+            card.screenshot(path=str(Path(screenshots) / (self.__class__.__name__ + '-public-transition-480.png')))
 
     def transition_credentials(self, fixture):
         for name, value in fixture.credentials.items(): self.page.locator('#transition-' + name).fill(value)

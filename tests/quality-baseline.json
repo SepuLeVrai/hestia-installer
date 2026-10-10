@@ -495,6 +495,8 @@
       "test_gateway_public_opening.PublicLocalGuardTests.test_missing_or_foreign_php_intent_never_allows_guard",
       "test_gateway_public_opening.PublicLocalGuardTests.test_new_pid1_cannot_reuse_local_activation_dependency_permission",
       "test_gateway_public_opening.PublicLocalGuardTests.test_same_epoch_consumed_php_intent_allows_dependency_guards_only",
+      "test_gateway_public_opening.PublicOpeningCompletionTests.test_completion_requires_all_three_distinct_role_receipts",
+      "test_gateway_public_opening.PublicOpeningCompletionTests.test_new_epoch_cannot_boot_after_unsealed_public_opening",
       "test_gateway_public_opening.PublicOpeningLedgerTests.test_check_only_pending_does_not_create_intent",
       "test_gateway_public_opening.PublicOpeningLedgerTests.test_completed_but_different_invocation_is_not_adopted",
       "test_gateway_public_opening.PublicOpeningLedgerTests.test_completed_start_check_never_replays_command_or_changes_receipt",

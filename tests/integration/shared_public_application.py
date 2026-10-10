@@ -172,10 +172,10 @@ class Browser(unittest.TestCase):
             expect(page.locator('#mobile-boot-verification')).to_contain_text('Configuration contrôlée')
 
 
-def mobile_request(path='/health', method='GET', body=None, headers=None):
+def mobile_request(path='/health', method='GET', body=None, headers=None, *, source='127.0.0.1'):
     host = ORIGIN[8:]; context = ssl.create_default_context()
     connection = http.client.HTTPSConnection(host, 443, context=context, timeout=15)
-    raw = socket.create_connection(('127.0.0.1', 443), timeout=15)
+    raw = socket.create_connection(('127.0.0.1', 443), timeout=15, source_address=(source, 0))
     try:
         connection.sock = context.wrap_socket(raw, server_hostname=host)
         connection.request(method, path, body=body, headers={'Host': host, 'Connection': 'close', **(headers or {})})

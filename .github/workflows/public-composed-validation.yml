@@ -210,7 +210,15 @@ jobs:
               assert value['source_stable'] and value['source_files']==pin['files']
               manifests.append(json.loads((root/('SOURCE-MANIFEST-'+name+'.json')).read_bytes()))
           assert all(manifest==manifests[0] for manifest in manifests)
-          assert json.loads((root/'public-restart-proof.json').read_bytes())['new_pid1_same_kernel'] is True
+          restart=json.loads((root/'public-restart-proof.json').read_bytes())
+          assert all(restart[name] is True for name in ('new_pid1_same_kernel', 'no_mobile_start_replay',
+              'two_actual_acme_renewals_with_successor_worker', 'https_master_preserved'))
+          transfer=json.loads((root/'public-transfer-proof.json').read_bytes())
+          assert transfer['sigkill_boundaries']==['public-transfer','admission',
+              'http-start-before-receipt','https-start-before-receipt','timer-start-before-receipt']
+          assert transfer['completed_check_read_only'] is True and transfer['public_web_mobile_available'] is True
+          windows=json.loads((root/'public-sql-windows-transfer.json').read_bytes())
+          assert windows and all(0 < row['seconds'] < 180 for row in windows)
           killed=json.loads((root/'certificate-effect-killed.json').read_bytes())
           assert killed=={'returncode':-9,'effect_process_killed':True,'cockpit_process_survived':True}
           print('Exact-source Web/Gateway/ACME/cockpit and new PID 1: PASS')
