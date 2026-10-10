@@ -124,3 +124,28 @@ uniquement cette représentation des deux tableaux Exec en liste vide ; tous
 les champs scalaires restent obligatoires. Une commande exigée et absente reste
 refusée. Un dixième contrat natif vérifie ce refus et celui d'un garde différent,
 avec les propriétés réelles de PID 1, sans substituer le lecteur systemd.
+
+## Sélection explicite de l'overlay après transfert
+
+`gateway_public_selection` publie `gateway-successor.json` dans le répertoire
+privé SharedPublic source. Le producteur est appelé après `Manager.apply`, sous
+le verrou public historique, avec un nouveau contrôle du bail, de l'époque PID 1,
+des arrêts, du reload et des huit fragments. Le pointeur lie le bail, le profil
+SharedPublic, la génération scellée et le plan des fragments. Il ne crée aucun
+`activated.json` et n'accorde aucun droit de démarrer.
+
+Le lecteur vérifie le bundle complet, la publication cible, les configurations
+et les identités des huit fragments terminés. `shared_public_runtime.overlay`
+retourne alors les octets réellement sélectionnés, y compris l'empreinte de la
+génération. Un pointeur corrompu, incomplet, lié à un autre parent ou un lien
+symbolique pendant refuse sans repli vers l'ancien worker. Un pointeur absent
+conserve le contrat historique, dont la vérification des anciens fragments.
+Le profil de drain historique n'est pas remappé par ce lecteur.
+
+Neuf tests de contrats couvrent cette sélection et sa délégation d'overlay ;
+ils utilisent des fichiers privés réels et isolent les contrôles natifs. Ils ne
+prouvent pas une admission ou un boot. Le gel précédent `70a4ca6` a passé le
+run natif `38041537966` (10 cas PID 1) et Quality `38041537919` ; ces preuves
+restent attachées à cet ancien gel. L'admission publique, le producteur de
+l'autorité d'activation, la réouverture, le cockpit et la nouvelle époque PID 1
+complète restent à raccorder et qualifier avant toute clôture du bloc.

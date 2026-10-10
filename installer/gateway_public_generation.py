@@ -312,4 +312,6 @@ def transfer_systemd(generation, lease, confirmation, *, confirmed):
         generation.bundle()
     result = manager.apply(confirmation, confirmed=True)
     generation.configuration(); generation.installed_fragments(result['plan_sha256'])
+    from installer.gateway_public_selection import publish
+    publish(generation, lease, confirmation)
     return result

@@ -441,7 +441,14 @@ def overlay(profile, scope, fragment_sha256):
     require(runtime.root == reader.root and runtime.web.value == profile.value
         and runtime.http.spec.maintenance_directory == scope.directory
         and profile.value['backend_fragment_sha256'] == fragment_sha256, ErrorCode.SOURCE_DRIFT)
-    runtime.configuration()
-    return {'path': str(runtime.dropin), 'profile_sha256': profile.digest,
+    from installer.gateway_public_selection import selected
+    generation = selected(runtime)
+    if generation is not None:
+        runtime = generation.readers()[1]
+    else:
+        runtime.configuration()
+    evidence = {'path': str(runtime.dropin), 'profile_sha256': profile.digest,
         'configuration_sha256': f._sha(profile.apache_include()), 'dropin_sha256': f._sha(runtime.apache_dropin()),
         'successor_profile_sha256': runtime.digest}
+    if generation is not None: evidence['gateway_generation_sha256'] = generation.digest
+    return evidence
