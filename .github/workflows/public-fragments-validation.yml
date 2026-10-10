@@ -15,13 +15,13 @@ jobs:
     container:
       image: debian:13-slim
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
       - name: Install disposable test dependencies
         run: |
           apt-get update -qq
-          apt-get install -y --no-install-recommends python3 nodejs git
+          apt-get install -y --no-install-recommends python3 nodejs git ca-certificates
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - name: Check exact source and real filesystem protocol
         shell: bash
         run: |
