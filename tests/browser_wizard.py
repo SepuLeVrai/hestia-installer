@@ -555,7 +555,18 @@ class BrowserWizardTests(unittest.TestCase):
         screenshots = os.environ.get('HESTIA_QC_SCREENSHOTS')
         if screenshots:
             Path(screenshots).mkdir(parents=True, exist_ok=True)
-            card.screenshot(path=str(Path(screenshots) / (self.__class__.__name__ + '-public-transition-480.png')))
+            # Polling replaces this card even after DONE. Capture its page region,
+            # not an ElementHandle that can detach between scroll and screenshot.
+            clip = card.evaluate("""node => {
+                node.scrollIntoView({block: 'center', inline: 'nearest'});
+                const box = node.getBoundingClientRect();
+                return {x: box.x + scrollX, y: box.y + scrollY,
+                        width: box.width, height: box.height};
+            }""")
+            self.assertGreater(clip['width'], 0)
+            self.assertGreater(clip['height'], 0)
+            self.page.screenshot(clip=clip, path=str(Path(screenshots) /
+                (self.__class__.__name__ + '-public-transition-480.png')))
 
     def transition_credentials(self, fixture):
         for name, value in fixture.credentials.items(): self.page.locator('#transition-' + name).fill(value)
