@@ -48,7 +48,7 @@
   let csrf = "", current = 0, initialized = false, busy = false, serverBusy = false;
   let installation = null, preflight = null, github = {ready: false, repositories: [], checks: []};
   let draft = {revision: 0, step: 0, modules: ["web"], refs: {}, mode: "fresh"};
-  let saveChain = Promise.resolve(), draftConflict = false, polling = false, confirmed = false;
+  let saveChain = Promise.resolve(), pendingDraftSaves = 0, draftConflict = false, polling = false, confirmed = false;
   let pendingAction = null, lastRevision = "", pollCount = 0;
   let application = {draft: null, missing_credentials: []}, useApplication = false, applicationDirty = false;
   let upgrade = {profile: null, missing_credentials: []}, useUpgrade = false;
@@ -165,11 +165,13 @@
     for (const b of content.querySelectorAll("button")) b.disabled = busy || serverBusy || draftConflict;
     const retry = $("reload-state");
     if (retry) retry.disabled = busy;
-    content.setAttribute("aria-busy", busy || serverBusy ? "true" : "false");
+    content.setAttribute("aria-busy", busy || serverBusy || pendingDraftSaves > 0 ? "true" : "false");
   }
 
   function saveDraft() {
     const snapshot = {step: Math.min(current, 3), ...selection()};
+    pendingDraftSaves++;
+    controls();
     saveChain = saveChain.catch(() => {}).then(async () => {
       if (draftConflict || installation) return;
       try {
@@ -182,7 +184,7 @@
         controls();
         throw error;
       }
-    });
+    }).finally(() => { pendingDraftSaves--; controls(); });
     return saveChain;
   }
   async function run(work, status) {

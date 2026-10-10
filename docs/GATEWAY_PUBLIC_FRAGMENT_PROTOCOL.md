@@ -149,3 +149,14 @@ run natif `38041537966` (10 cas PID 1) et Quality `38041537919` ; ces preuves
 restent attachées à cet ancien gel. L'admission publique, le producteur de
 l'autorité d'activation, la réouverture, le cockpit et la nouvelle époque PID 1
 complète restent à raccorder et qualifier avant toute clôture du bloc.
+
+### Régression observée au gate navigateur
+
+Le premier gate du gel `47b8903` (`38042358724`) échoue sur le rafraîchissement
+du brouillon du wizard : le mode affiché revient à fresh pendant une sauvegarde
+encore en cours. Les 51 contrats ciblés, les 10 cas PID 1 et les deux suites core
+passent à ce gel ; cet échec navigateur n'est pas un PASS global.
+L'indicateur `aria-busy` ne couvrait pas la file `saveChain`. Il couvre désormais
+chaque sauvegarde en attente, jusqu'à sa réponse ou son erreur, tout en laissant
+les champs modifiables. Un contrat à sauvegarde volontairement retardée vérifie
+la file et le rafraîchissement dans les deux parcours navigateur, bridge et HTTPS.

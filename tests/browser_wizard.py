@@ -355,6 +355,29 @@ class BrowserWizardTests(unittest.TestCase):
         expect(self.page.locator("#module-web")).not_to_be_checked()
         expect(self.page.locator("#installation-mode")).to_have_value("upgrade")
 
+    def test_draft_busy_covers_queued_saves_until_last_selection_is_durable(self):
+        self.modules(); entered = threading.Event(); release = threading.Event()
+        original = self.service.wizard.save
+        def held(value):
+            entered.set()
+            if not release.wait(8): raise RuntimeError('Draft fixture release timeout')
+            return original(value)
+        try:
+            with patch.object(self.service.wizard, 'save', side_effect=held):
+                self.page.locator('#module-apk').check()
+                self.page.wait_for_timeout(100)
+                self.page.locator('#installation-mode').select_option('upgrade')
+                expect(self.page.locator('#wizard-form')).to_have_attribute('aria-busy', 'true')
+                release.set()
+                expect(self.page.locator('#wizard-form')).to_have_attribute('aria-busy', 'false')
+                saved = self.service.wizard.read()
+                self.assertEqual(saved['mode'], 'upgrade')
+                self.assertEqual(set(saved['modules']), {'web', 'apk'})
+            self.refresh(); self.step(3)
+            expect(self.page.locator('#installation-mode')).to_have_value('upgrade')
+            expect(self.page.locator('#module-apk')).to_be_checked()
+        finally: release.set()
+
     def test_reset_unapproved_plan_then_new_selection(self):
         self.plan()
         self.page.locator("#previous-button").click(); self.dialog("cancel")
