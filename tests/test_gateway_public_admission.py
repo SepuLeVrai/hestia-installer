@@ -1,8 +1,12 @@
 """Scoped binding contracts only; native admission is qualified separately."""
 from copy import deepcopy
+from dataclasses import replace
 import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from installer import gateway_public_admission as p
 from installer import gateway_resume_authority as a
@@ -75,6 +79,61 @@ class PublicAdmissionScopeTests(unittest.TestCase):
                 p.PublicAdmission(self.generation.http, lease, profile, self.generation)
         self.profile['public_ingress']['dropin_sha256'] = 'foreign'
         self.assertNotEqual(self.context.profile, self.profile)
+
+
+class PublicClosedPathTests(unittest.TestCase):
+    def setUp(self):
+        PublicAdmissionScopeTests.setUp(self)
+        temp = TemporaryDirectory(prefix='hestia-public-paths-', dir='/var/lib')
+        self.addCleanup(temp.cleanup); self.root = Path(temp.name)
+        self.http = self.generation.http
+        maintenance = self.root / 'maintenance'; maintenance.mkdir(mode=0o700)
+        self.http.spec = replace(self.http.spec, root=self.root / 'web', maintenance_directory=maintenance)
+        self.lease = object.__new__(p.g.MaintenanceLease)
+        self.lease.lease_id = self.context.lease_id
+        self.lease.scope = SimpleNamespace(directory=maintenance, web_gid=0)
+        self.lease.assert_held = Mock()
+        self.lease._directory = os.open(maintenance, os.O_RDONLY | os.O_DIRECTORY)
+        self.addCleanup(os.close, self.lease._directory)
+        self.record = maintenance / ('http-drain-' + self.lease.lease_id + '.attempt')
+        self.record.write_bytes(p.g.canonical_bytes(self.profile)); self.record.chmod(0o640)
+        self.authority = object.__new__(a.Authority)
+        self.authority.pid = os.getpid(); self.authority.runtime = SimpleNamespace(web=self.http)
+        self.authority.public = self.context
+
+    def admit(self):
+        for var, value in ((p._CURRENT, self.context), (a._CURRENT, self.authority)):
+            token = var.set(value); self.addCleanup(var.reset, token)
+        self.context.closed = True
+
+    def test_private_path_keeps_absence_checks_for_both_enrollments(self):
+        p.require_closed_paths(self.http, self.lease)
+        for name in ('boot', 'public'):
+            path = self.root / name; path.mkdir()
+            with self.assertRaisesRegex(p.g.boot.fs.AccountConfigurationError, 'CONFIGURATION_TARGET_OCCUPIED'):
+                p.require_closed_paths(self.http, self.lease)
+            path.rmdir()
+        self.check.assert_not_called()
+
+    def test_closed_public_path_requires_exact_live_drain_and_lease(self):
+        self.admit()
+        for name in ('boot', 'public'): (self.root / name).mkdir()
+        p.require_closed_paths(self.http, self.lease)
+        self.assertEqual(self.lease.assert_held.call_count, 2)
+        self.check.assert_called_once()
+        self.record.write_bytes(p.g.canonical_bytes({'public_ingress': {'foreign': True}}))
+        with self.assertRaises(InstallerError): p.require_closed_paths(self.http, self.lease)
+
+    def test_public_path_refuses_open_scope_foreign_lease_and_missing_authority(self):
+        self.admit(); self.context.closed = False
+        with self.assertRaises(InstallerError): p.require_closed_paths(self.http, self.lease)
+        self.context.closed = True; self.lease.lease_id = 'f' * 32
+        with self.assertRaises(InstallerError): p.require_closed_paths(self.http, self.lease)
+        self.lease.lease_id = self.context.lease_id
+        token = a._CURRENT.set(None)
+        try:
+            with self.assertRaises(InstallerError): p.require_closed_paths(self.http, self.lease)
+        finally: a._CURRENT.reset(token)
 
 
 if __name__ == '__main__': unittest.main()

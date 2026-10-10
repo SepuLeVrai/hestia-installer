@@ -62,7 +62,12 @@ def public_access(case):
     case.assertIn(json.loads(body)['data']['state'], ('invalid', 'unavailable'))
 
 
-def kill(action):
+def kill(action, boundary):
+    progress = EVIDENCE / 'public-recovery-progress.json'
+    rows = json.loads(progress.read_bytes()) if progress.exists() else []
+    rows.append({'boundary': boundary, 'status': 'STARTED'})
+    save(progress.name, rows)
+    began = time.monotonic()
     pid = os.fork()
     if pid == 0:
         try: action()
@@ -81,6 +86,8 @@ def kill(action):
         found, status = os.waitpid(pid, os.WNOHANG)
         if found:
             assert os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGKILL, status
+            rows[-1].update(status='SIGKILL_OBSERVED', seconds=time.monotonic() - began)
+            save(progress.name, rows)
             return
         time.sleep(.1)
     os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0)
@@ -134,7 +141,7 @@ class Transfer(unittest.TestCase):
                     return original_write(instance, name, value)
                 with patch.object(type(control), '_write', write):
                     service.execute('gateway-transition-execution.' + ('apply' if stage == 'public-transfer' else 'resume'), request)
-            kill(interrupted); boundaries.append(stage)
+            kill(interrupted, stage); boundaries.append(stage)
             self.assertEqual(control.state()['state'], 'RESUME_REQUIRED')
         original_put = opening.f._put
         for role in ('http', 'https', 'timer'):
@@ -144,7 +151,7 @@ class Transfer(unittest.TestCase):
                         os.kill(os.getpid(), signal.SIGKILL)
                     return original_put(fd, name, value)
                 with patch.object(opening.f, '_put', put): service.execute('gateway-transition-execution.resume', request)
-            kill(interrupted); boundaries.append(role + '-start-before-receipt')
+            kill(interrupted, role + '-start-before-receipt'); boundaries.append(role + '-start-before-receipt')
         result = service.execute('gateway-transition-execution.resume', request)['gateway_transition_execution']
         self.assertEqual(result['state'], 'DONE', result)
         for path, sha in preserved.items(): self.assertEqual(digest(Path(path)), sha, path)

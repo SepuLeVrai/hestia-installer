@@ -94,3 +94,20 @@ HTTP/HTTPS/timer. Un nouveau PID 1 ne peut pas utiliser une ouverture incomplèt
 Le banc vérifie aussi les politiques d'accès après transfert et après boot,
 puis deux renouvellements ACME réels avec le worker successeur. Ces ajouts ne
 sont pas encore qualifiés par les runs ci-dessus.
+
+Ce candidat `72375aebf69eb1e236502416de62e099a6e3330c`, arbre
+`9d539d30fd6f7494dfce4aa26b39dcbb61dcac92`, a passé Quality `38046408523`
+et protocole/systemd `38046408531` : 2 098 tests core par Debian, 37 bridge,
+49 HTTPS natif, 84 contrats ciblés et 10 tests systemd. Ses six archives et
+cinq manifestes exacts sont vérifiés ; les captures publiques à 480 px sont
+lisibles. La recette composée Web `38047122006` a été lancée sur ce SHA.
+
+La recette précédente `38045509282` a franchi les SIGKILL après transfert et
+admission, puis l'upgrade a refusé l'activation dans `DataReleasePlan._held` :
+`CONFIGURATION_TARGET_OCCUPIED`, dû au refus privé historique de `boot/public`.
+Le même refus subsistait dans `BlockerState.static` et son admission.
+Le correctif exige le contexte public vivant, la même identité HTTP, le bail
+exact et le profil de drain natif conservé ; hors de ce contexte, l'absence
+de `boot/public` reste obligatoire. Aucun contrôle de données ou SQL n'est retiré.
+Trois contrats ciblés vérifient ces autorisations et refus. Les deux campagnes
+précédentes ne peuvent pas qualifier ce correctif.

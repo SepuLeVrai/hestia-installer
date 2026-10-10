@@ -1,7 +1,7 @@
 """Explicit preparation and fresh local activation of a published successor.
 
-This first successor admission is restricted to the existing pre-public MAIN
-profile. An already enrolled public/boot profile remains a separate handoff.
+The pre-public MAIN path retains its absence checks. An enrolled public/boot
+profile requires the separate completed transfer and its live admission scope.
 """
 import os
 from contextlib import ExitStack

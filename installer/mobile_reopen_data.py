@@ -107,8 +107,8 @@ class DataReleasePlan:
         for module in source.MODULES.values():
             fs._absent(self.lease._directory, module.MARKER); fs._absent(self.lease._directory, module.RELEASE)
         external._absent()
-        with fs._directory(self.runtime.spec.root.parent) as fd:
-            for name in ('boot', 'public'): fs._absent(fd, name)
+        from installer.gateway_public_admission import require_closed_paths
+        require_closed_paths(self.runtime, self.lease)
         original = e._read_path(external.source_root, 'data-access-original.json', 2048)
         with fs._directory(self.runtime.spec.root / 'data') as fd:
             info = os.fstat(fd); fs._no_acl(fd)

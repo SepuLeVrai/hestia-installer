@@ -90,8 +90,11 @@ class _ParentFiles:
     def live(self, *, locked):
         account = self.state.static(); self.state.state(); self.barrier.assert_held()
         profile = s.strict_json_loads(self.barrier._profile)
-        require('public_ingress' not in profile and 'foundation' in profile and 'gateway_service' in profile
+        require('foundation' in profile and 'gateway_service' in profile
             and self.barrier._drain.cleaner is not None, 'MOBILE_BLOCKER_PROFILE_REJECTED')
+        if 'public_ingress' in profile:
+            from installer.gateway_public_admission import require_profile
+            require_profile(self.state.runtime, profile)
         released = self._gateway(); parent = self.profile()
         require(parent['instance'] == self.lease.scope.instance and parent['lease_id'] == self.lease.lease_id
             and parent['backup_root'] == str(self.backups)

@@ -168,3 +168,18 @@ def require_profile(http, profile, *, closed=True):
     g.require(type(closed) is bool and (not closed or value.closed is True), g.ErrorCode.INCOMPATIBLE_STATE)
     value.check()
     return value
+
+
+def require_closed_paths(http, lease):
+    """Keep private absence rules unless this exact live public lease is admitted."""
+    value = current(http)
+    if value is None:
+        with g.boot.fs._directory(http.spec.root.parent) as fd:
+            for name in ('boot', 'public'): g.boot.fs._absent(fd, name)
+        return
+    g.require(type(lease) is g.MaintenanceLease and lease.lease_id == value.lease_id
+        and lease.scope.directory == http.spec.maintenance_directory, g.ErrorCode.INCOMPATIBLE_STATE)
+    lease.assert_held()
+    raw = g.boot.f._read(lease._directory, 'http-drain-' + lease.lease_id + '.attempt', lease.scope.web_gid)
+    require_profile(http, g.fragments.strict_json_loads(raw))
+    lease.assert_held()
