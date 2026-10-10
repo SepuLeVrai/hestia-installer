@@ -1466,6 +1466,8 @@
       "test_shared_public_runtime.ListenerObservationTests.test_exact_master_arguments_cgroup_observation_and_listening_fd_are_required",
       "test_shared_public_runtime.ListenerObservationTests.test_foreign_listening_inode_cannot_complete_a_start",
       "test_shared_public_runtime.ListenerObservationTests.test_manager_pid_drift_during_observation_is_refused",
+      "test_shared_public_runtime.ListenerObservationTests.test_start_never_accepts_persistent_drift_or_other_validation_error",
+      "test_shared_public_runtime.ListenerObservationTests.test_start_rechecks_transient_exec_identity_without_repeating_start",
       "test_shared_public_runtime.ListenerObservationTests.test_start_waits_boundedly_for_nginx_without_repeating_the_start_command",
       "test_shared_public_runtime.ListenerObservationTests.test_wrong_stage_configuration_is_rejected_despite_active_nginx",
       "test_shared_public_runtime.NativeOrderingTests.test_busy_renewal_refuses_before_listener_stop_or_any_replacement",

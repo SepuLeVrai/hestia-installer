@@ -167,3 +167,21 @@ sont ainsi authentifiées. L'absence du quatrième manifeste de boot est explici
 Aucun PASS complet public/boot n'est encore acquis. Les recettes des candidats
 optimisés antérieurs restent utiles pour le diagnostic, mais contiennent encore
 la faute du banc corrigée ici et ne peuvent pas qualifier ce dernier gel.
+
+
+Le correctif de banc `28fdb19288a36625053fd92f944359a80fa36493`, arbre
+`a882c953c044a8f0c32a64c2a94478671913be27`, a passé toute la Quality
+`38050830320` et le protocole/systemd `38050830430`.
+Un hôte du run antérieur `38050581370` a refusé plus tôt le handoff du
+frontal partagé, dans l'observation de la ligne de commande NGINX pendant
+son démarrage (`SharedPublic.listener`, `SOURCE_DRIFT`). Son archive
+`11669138079` et son manifeste sont authentifiés ; les frames sont relevées
+par le run de diagnostic séparé `38051328363`.
+
+L'attente de démarrage est donc rendue bornée face à une observation
+`SOURCE_DRIFT` transitoire : elle réobserve pendant au plus les dix secondes
+déjà prévues, sans répéter la commande start. Le lecteur strict reste inchangé
+(exécutable, arguments exacts, socket détenu et observation systemd stable).
+Une dérive persistante et les autres erreurs restent bloquantes. Deux contrats
+supplémentaires imposent ces comportements. La qualification native du nouveau
+code reste à obtenir ; les autres campagnes ne peuvent pas le qualifier.

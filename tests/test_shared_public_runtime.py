@@ -405,3 +405,23 @@ class ListenerObservationTests(unittest.TestCase):
         with patch.object(self.r,'listener',return_value=False),patch.object(self.r,'control') as control,patch.object(s.time,'sleep'),patch.object(s.time,'monotonic',side_effect=[0,11]):
             with self.assertRaisesRegex(InstallerError,'VALIDATION_FAILED'): self.r.start_listener('http')
             control.assert_called_once_with('start','http')
+
+    def test_start_rechecks_transient_exec_identity_without_repeating_start(self):
+        with patch.object(self.r, 'listener', side_effect=[InstallerError('SOURCE_DRIFT'), False, True]) as listener, \
+             patch.object(self.r, 'control') as control, patch.object(s.time, 'sleep') as sleep, \
+             patch.object(s.time, 'monotonic', return_value=0):
+            self.r.start_listener('http')
+            control.assert_called_once_with('start', 'http')
+            self.assertEqual(listener.call_count, 3)
+            self.assertEqual(sleep.call_count, 2)
+
+    def test_start_never_accepts_persistent_drift_or_other_validation_error(self):
+        for code, clock in (('SOURCE_DRIFT', [0, 11]), ('INVALID_STATE', [0])):
+            with self.subTest(code=code), \
+                 patch.object(self.r, 'listener', side_effect=InstallerError(code)) as listener, \
+                 patch.object(self.r, 'control') as control, patch.object(s.time, 'sleep') as sleep, \
+                 patch.object(s.time, 'monotonic', side_effect=clock):
+                with self.assertRaisesRegex(InstallerError, code): self.r.start_listener('http')
+                control.assert_called_once_with('start', 'http')
+                listener.assert_called_once_with('http')
+                sleep.assert_not_called()

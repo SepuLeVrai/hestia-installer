@@ -17,7 +17,7 @@ from installer import gateway_frozen_reference
 from installer.engine import TransactionEngine
 from installer.foundation_runtime import FoundationRuntime
 from installer.gateway_service_profile import GatewayServiceProfile
-from installer.model import ErrorCode, Receipt, ResourceSpec, StepSpec, canonical_bytes, exact_keys, require
+from installer.model import ErrorCode, InstallerError, Receipt, ResourceSpec, StepSpec, canonical_bytes, exact_keys, require
 from installer.operations import Operation, OperationRegistry, Recovery, RecoveryDecision
 from installer.shared_mobile_tls import SharedMobileTLS, CERT_NAME
 from installer.shared_public_plan import candidate, digest
@@ -270,7 +270,14 @@ class SharedPublic(old.Profile):
 
     def start_listener(self, role):
         self.control('start', role); deadline = time.monotonic() + 10
-        while not self.listener(role):
+        while True:
+            try:
+                if self.listener(role): return
+            except InstallerError as error:
+                # exec/proctitle can change while /proc is being sampled.
+                # Re-observe, never repeat the start or relax listener checks.
+                if error.code != ErrorCode.SOURCE_DRIFT or time.monotonic() >= deadline:
+                    raise
             require(time.monotonic() < deadline, ErrorCode.VALIDATION_FAILED)
             time.sleep(.05)
 
