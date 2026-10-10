@@ -41,7 +41,7 @@ class NativeSystemdTransferTests(unittest.TestCase):
         self.addCleanup(self.clean_units)
         self.replacements = {}
         for name in names:
-            if name.endswith('.conf'): raw = b'[Service]\nEnvironment=HESTIA_GENERATION=source\n'
+            if name.endswith('.conf'): raw = b'[Service]\nExecStartPre=/usr/bin/true source\nEnvironment=HESTIA_GENERATION=source\n'
             elif name.endswith('.timer'):
                 raw = ('[Unit]\nDescription=source\n[Timer]\nOnActiveSec=1d\nUnit=' + names[5] + '\n').encode()
             else: raw = b'[Unit]\nDescription=source\n[Service]\nType=simple\nExecStart=/usr/bin/sleep infinity\nRestart=no\n'
@@ -143,8 +143,15 @@ class NativeSystemdTransferTests(unittest.TestCase):
             original(*args, **kwargs); raise RuntimeError('lost fragment rename response')
         with patch.object(f.os, 'rename', interrupted), self.assertRaises(RuntimeError): self.apply()
         first = self.unit_root / next(iter(self.replacements)); inode = first.stat().st_ino
-        self.assertEqual(s.show(first.name)['NeedDaemonReload'], 'yes')
-        self.apply()
+        # PID 1 may garbage-collect an inactive unit and load its new bytes on
+        # show. NeedDaemonReload=no is therefore not proof that reload ran.
+        with f.fs._directory(self.manager.root) as fd:
+            self.assertIsNone(f._optional(fd, 'reload.intent.json'))
+        calls = []; native = s.boot.h._command
+        def observed(argv, *args, **kwargs):
+            calls.append(argv); return native(argv, *args, **kwargs)
+        with patch.object(s.boot.h, '_command', observed): self.apply()
+        self.assertEqual(sum('daemon-reload' in argv for argv in calls), 1)
         self.assertEqual(first.stat().st_ino, inode)
         self.assertEqual(self.manager.check(self.confirmation)['state'], 'PUBLIC_FRAGMENTS_LOADED_CLOSED')
 

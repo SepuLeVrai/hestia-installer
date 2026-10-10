@@ -8,6 +8,7 @@ from contextlib import contextmanager
 import os
 from pathlib import Path
 import re
+import shlex
 
 from installer import gateway_public_fragments as f
 from installer import systemd_observations as observations
@@ -24,7 +25,8 @@ def show(unit):
     require(type(unit) is str and re.fullmatch(
         r'hestia-[a-f0-9]{32}-(?:(?:boot-sql|boot-web|mobile-boot|apache|public-http|public-https|public-renew)\.service|public-renew\.timer)', unit))
     boot.h.p._safe_path(Path('/usr/bin/systemctl'), directory=False, system=True)
-    props = observations.COMMON + ('InvocationID',) + (('Unit',) if unit.endswith('.timer') else observations.SERVICE)
+    props = observations.COMMON + ('InvocationID', 'Description') + (('Unit',) if unit.endswith('.timer')
+        else observations.SERVICE + ('ExecStart', 'ExecStartPre'))
     raw = observations._capture(['/usr/bin/systemctl', '--system', '--no-pager', '--no-ask-password',
         'show', '--property=' + ','.join(props), '--', unit])
     rows = raw.decode('ascii').splitlines(); values = {}
@@ -84,6 +86,22 @@ class Manager:
         if unit == self.public['timer']: require(value['Unit'] == self.public['renew'])
         return value
 
+    def loaded(self, unit, raw):
+        """Compare the selected executable argv against PID 1's loaded view."""
+        value = self.observe(unit)
+        lines = raw.decode('ascii').splitlines()
+        descriptions = [line.partition('=')[2] for line in lines if line.startswith('Description=')]
+        if descriptions: require(value['Description'] == descriptions[-1])
+        for field in ('ExecStart', 'ExecStartPre'):
+            directives = [line.partition('=')[2] for line in lines if line.startswith(field + '=')]
+            if not directives: continue  # An overlay may inherit the base ExecStart.
+            expected = []
+            for directive in directives:
+                if not directive: expected.clear()
+                else: expected.append(' '.join(shlex.split(directive)))
+            actual = re.findall(r'\{ path=[^;{}]+ ; argv\[\]=([^;{}]+) ;', value[field])
+            require(actual == expected, 'GATEWAY_PUBLIC_LOADED_COMMAND_CHANGED')
+
     def stopped(self, unit, *, reload_pending=False):
         value = self.observe(unit, reload_pending=reload_pending)
         require((value['ActiveState'], value['SubState']) == ('inactive', 'dead'))
@@ -121,7 +139,8 @@ class Manager:
                 with self.transfer._parent(name) as (fd, leaf):
                     identity, raw = f._file(fd, leaf); require(raw == source)
                     sources[name] = {'file': identity, 'directory': f._identity(os.fstat(fd))}
-            for unit in (*self.units[:-1], self.apache): self.observe(unit)
+            for name, (source, _) in self.transfer.replacements.items():
+                self.loaded(self.apache if name == self.units[-1] else name, source)
             with f.fs._directory(self.root.parent) as parent:
                 f.files._private(parent, directory=True); f.fs._absent(parent, self.root.name)
                 os.mkdir(self.root.name, 0o700, dir_fd=parent); os.fsync(parent)
@@ -231,7 +250,8 @@ class Manager:
             if pending or first_reload:
                 self.quiet(reload_pending=True); self.held()
                 boot.h._command(['/usr/bin/systemctl', '--no-pager', '--no-ask-password', 'daemon-reload'])
-            for unit in (*self.units[:-1], self.apache): self.observe(unit)
+            for name, (_, target) in self.transfer.replacements.items():
+                self.loaded(self.apache if name == self.units[-1] else name, target)
             self.quiet(); self.transfer.check(); self.held()
             f._put(fd, 'reload.done.json', owner)
         return self.check(confirmation)
@@ -247,6 +267,7 @@ class Manager:
             report = self.transfer.check()
             require(report['state'] == 'FRAGMENTS_REPLACED' and report['plan_sha256'] == fragment['plan_sha256'])
             self.quiet()
-            for unit in (*self.units[:-1], self.apache): self.observe(unit)
+            for name, (_, target) in self.transfer.replacements.items():
+                self.loaded(self.apache if name == self.units[-1] else name, target)
         return {'state': 'PUBLIC_FRAGMENTS_LOADED_CLOSED', **fragment,
                 'services_started': False, 'activity_resumed': False, 'boot_requalified': False}

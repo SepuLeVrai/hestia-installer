@@ -102,3 +102,10 @@ vérifié et épinglé en plus de l'overlay public 60. Le candidat suivant ajout
 ce garde et l'inode du verrou au plan, ainsi que trois cas natifs : garde
 étranger, invocation de listener remplacée, transfert partiel avec reload en
 attente. Le résultat des 6 cas ne qualifie pas ces ajouts.
+
+Le run `38040999507` échoue sur l'assertion de la recette selon laquelle le
+premier renommage doit nécessairement produire `NeedDaemonReload=yes`.
+L'unité inactive peut être déchargée puis relue par PID 1. Le candidat suivant
+contrôle donc la frontière de reload par le journal (premier reload exécuté
+explicitement), et vérifie aussi les Description/ExecStart/ExecStartPre chargés
+par PID 1. L'échec n'est pas converti en skip ; le cas reste exécuté.
