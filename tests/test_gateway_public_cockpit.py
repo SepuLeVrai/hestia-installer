@@ -20,7 +20,7 @@ class PublicCockpitTests(unittest.TestCase):
         self.control.root = Path(temp.name)
         mobile = profile(); original = g.mobile.MobileBootRuntime(mobile)
         self.selection = {'assessment': {'source': original.gateway.profile.binding()}}
-        self.control.transition = SimpleNamespace(profile=lambda: deepcopy(self.selection))
+        self.control.transition = SimpleNamespace(profile=lambda: deepcopy(self.selection), cycle=None)
         self.value = {'version': 1, 'instance': original.layout.instance, 'lease_id': 'e' * 32,
             'policy': p.PUBLIC_POLICY, 'parents': {key: 'a' * 64 for key in p.PARENTS},
             'draft_sha256': 'b' * 64, 'backup_profile_sha256': 'c' * 64, 'backup_receipt_sha256': 'd' * 64,

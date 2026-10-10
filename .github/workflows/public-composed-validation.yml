@@ -6,6 +6,11 @@ on:
         description: Exact Installer commit tested by the private Web fixture host
         required: true
         type: string
+      include_cycles:
+        description: Also qualify three successive generations on the same host
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
 jobs:
@@ -14,9 +19,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        direction: [upgrade, rollback]
+        direction: ${{ fromJSON(inputs.include_cycles && '["upgrade","rollback","cycles"]' || '["upgrade","rollback"]') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 100
+    timeout-minutes: ${{ matrix.direction == 'cycles' && 150 || 100 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -159,7 +164,7 @@ jobs:
       - name: Prepare real Web public parent and Gateway Foundation
         run: |
           set -Eeuo pipefail
-          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase setup 2>&1 | tee evidence/public-prerequisite.log
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction == 'cycles' && 'upgrade' || matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase setup 2>&1 | tee evidence/public-prerequisite.log
       - name: Real shared cockpit consent and SIGKILL of completed certificate process
         run: |
           set -Eeuo pipefail
@@ -178,10 +183,12 @@ jobs:
           docker exec -e HESTIA_MARIADB_WIZARD_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/mariadb_wizard_systemd.py --phase stop
           docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report /evidence/source-pins-after.json
       - name: Public transfer and real SIGKILL recovery
+        if: matrix.direction != 'cycles'
         run: |
           set -Eeuo pipefail
-          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase transfer 2>&1 | tee evidence/public-transfer.log
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction == 'cycles' && 'upgrade' || matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase transfer 2>&1 | tee evidence/public-transfer.log
       - name: New PID 1 preserves the shared guard and real Web login
+        if: matrix.direction != 'cycles'
         run: |
           set -Eeuo pipefail
           docker rm -f mariadb-browser
@@ -192,9 +199,62 @@ jobs:
             sleep 1
           done
           test "$state" = running || test "$state" = degraded
-          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase restart 2>&1 | tee evidence/shared-restart.log
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction == 'cycles' && 'upgrade' || matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase restart 2>&1 | tee evidence/shared-restart.log
           docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report /evidence/source-pins-after-boot.json
+      - name: Three successive generations on one host with interruption and boot
+        if: matrix.direction == 'cycles'
+        run: |
+          set -Eeuo pipefail
+          docker rm -f mariadb-browser
+          for cycle in 1 2 3; do
+            docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_cycles.py --phase transfer --cycle "$cycle" 2>&1 | tee "evidence/cycle-$cycle-transfer.log"
+            docker restart --timeout 90 mariadb-target
+            for attempt in $(seq 1 100); do
+              state=$(docker exec mariadb-target systemctl is-system-running 2>/dev/null || true)
+              if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
+              sleep 1
+            done
+            test "$state" = running || test "$state" = degraded
+            docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_cycles.py --phase restart --cycle "$cycle" 2>&1 | tee "evidence/cycle-$cycle-restart.log"
+            docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report "/evidence/source-pins-cycle-$cycle.json"
+          done
+      - name: Require exact-source proofs for all three generations
+        if: matrix.direction == 'cycles'
+        run: |
+          set -Eeuo pipefail
+          docker cp mariadb-target:/evidence/. evidence/
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          root=Path('evidence'); read=lambda name: json.loads((root/name).read_bytes())
+          pin=read('installer-pin.json'); manifests=[]; transfers=[]
+          names=['shared-application-browser','shared-application-verify']
+          names += ['public-cycle-'+str(i)+'-'+phase for i in (1,2,3) for phase in ('transfer','restart')]
+          for name in names:
+              value=read(name+'.json')
+              assert value['status']=='PASS' and value['tests']==value['expected']==1
+              assert value['source_stable'] and value['source_files']==pin['files']
+              manifests.append(read('SOURCE-MANIFEST-'+name+'.json'))
+          assert all(value==manifests[0] for value in manifests)
+          for i, boundary in enumerate(('publication','public-transfer','public-open'),1):
+              prefix='public-cycle-'+str(i)+'-'
+              value=read(prefix+'transfer-proof.json'); transfers.append(value)
+              assert value['status']=='PASS' and value['cycle']==i and value['sigkill_boundary']==boundary
+              assert value['completed_check_read_only'] and value['public_web_mobile_available']
+              windows=read(prefix+'transfer-sql-windows.json')
+              assert windows and all(0 < row['seconds'] < 180 for row in windows)
+              restart=read(prefix+'restart-proof.json')
+              assert restart['status']=='PASS' and restart['cycle']==i and restart['target']==value['target']
+              assert all(restart[name] is True for name in ('new_pid1_same_kernel','no_mobile_start_replay',
+                  'two_actual_acme_renewals_with_successor_worker','https_master_preserved'))
+          for key in ('lease_id','generation_sha256','backup_root','execution_root'):
+              assert len({value[key] for value in transfers})==3, key
+          assert len({value['uuid_sha256'] for value in transfers})==1
+          assert [value['target'] for value in transfers]==['33927821bbda57a2c10791d0523eaf3b254c8c9e','e2c09f53593bf316906ccc4387f185e73e7f85a8','33927821bbda57a2c10791d0523eaf3b254c8c9e']
+          print('Three same-host public generations, new PID 1 and six real renewals: PASS')
+          PYTHON
       - name: Require all four exact-source composed proofs
+        if: matrix.direction != 'cycles'
         run: |
           set -Eeuo pipefail
           docker cp mariadb-target:/evidence/. evidence/

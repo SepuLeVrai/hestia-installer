@@ -619,7 +619,7 @@
     if (isApplication() && !isUpgrade() && gateway.preparation?.state === "DONE" && activation.installation?.state === "DONE") foundationForm();
     if (isApplication() && !isUpgrade() && foundation.installation?.state === "DONE") gatewayServiceForm();
     if (gatewayService.installation?.state === "DONE") gatewayTransitionForm();
-    if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") { mobileBackupForm(); if (mobileBackup.state === "DONE" && gatewayTransition.profile?.assessment.configuration_compatible) transitionExecutionForm(); if (!transitionExecution.profile) { if (mobileBackup.state === "DONE") mobilePreparationForm(); mobileActivationForm(); } }
+    if (isApplication() && !isUpgrade() && gatewayService.installation?.state === "DONE") { mobileBackupForm(); if (mobileBackup.state === "DONE" && gatewayTransition.profile?.assessment.configuration_compatible) transitionExecutionForm(); if (!transitionExecution.profile && !gatewayTransition.source_commit) { if (mobileBackup.state === "DONE") mobilePreparationForm(); mobileActivationForm(); } }
     if (sharedPreparation.plan || (publicTLS.installation?.state === "DONE" && gatewayService.installation?.state === "DONE")) sharedPublicForm();
     if (mobileBoot.installation || sharedPublic.installation?.state === "DONE") mobileBootForm();
     if (isApplication() && (installation.state !== "DONE" || isUpgrade() && !activation.installation?.approved_plan_sha256)) renewApplicationCredentials();
@@ -879,7 +879,7 @@
     card.append(element("h2", "Changement de version Gateway"));
     const profile = gatewayTransition.profile;
     if (!profile) {
-      const sourceCommit = gatewayService.profile?.binding?.release?.commit;
+      const sourceCommit = gatewayTransition.source_commit || gatewayService.profile?.binding?.release?.commit;
       if (![fcmGatewayCommit, "e2c09f53593bf316906ccc4387f185e73e7f85a8"].includes(sourceCommit)) {
         card.append(hint("Le profil de ce service ne permet pas de préparer une transition.")); content.append(card); return;
       }
@@ -970,6 +970,12 @@
         transitionExecution = (await api("/api/gateway/transition/execution/check", {confirmation: transitionExecution.confirmation, confirm: true})).gateway_transition_execution;
         show(5);
       }), "check-transition-execution"));
+      if (transitionExecution.state === "DONE" && publicTransfer) card.append(button("Préparer un nouveau changement de version", () => {
+        pendingAction = {action: "transition-execution.next", payload: {confirmation: transitionExecution.confirmation, confirm: true}};
+        $("operation-title").textContent = "Ouvrir un nouveau cycle de transition ?";
+        $("operation-description").textContent = "Les services et le frontal seront vérifiés avant de préparer ce nouveau cycle. Les journaux et sauvegardes précédents seront conservés. Une nouvelle sauvegarde et une confirmation de bascule seront ensuite nécessaires.";
+        $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
+      }, "next-transition-execution"));
       if (transitionExecution.availability) card.append(hint(publicTransfer ? "Vérification explicite : services locaux et frontal contrôlés." : "Vérification explicite : services actifs et Web local disponible."));
       if (transitionExecution.last_error_redacted) card.append(hint(errorMessage({code: transitionExecution.last_error_redacted})));
       card.append(hint("L'historique ne certifie pas la disponibilité actuelle. Actualiser la page ne relance aucune action."));
@@ -1441,7 +1447,12 @@
         finally { action.file = null; }
         show(5);
       } else if (action.action.startsWith("transition-execution.")) {
-        try { transitionExecution = (await api("/api/gateway/transition/execution/" + action.action.slice(21), action.payload)).gateway_transition_execution; }
+        try {
+          const result = await api("/api/gateway/transition/execution/" + action.action.slice(21), action.payload);
+          transitionExecution = result.gateway_transition_execution;
+          gatewayTransition = result.gateway_transition || gatewayTransition;
+          mobileBackup = result.mobile_backup || mobileBackup;
+        }
         finally { action.payload.credentials = {}; }
         show(5);
       } else if (action.action.startsWith("mobile-boot.")) {

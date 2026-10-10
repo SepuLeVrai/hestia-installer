@@ -449,7 +449,7 @@ def overlay(profile, scope, fragment_sha256):
         and runtime.http.spec.maintenance_directory == scope.directory
         and profile.value['backend_fragment_sha256'] == fragment_sha256, ErrorCode.SOURCE_DRIFT)
     from installer.gateway_public_selection import selected
-    generation = selected(runtime)
+    generation = selected(runtime, configuration_only=True)
     if generation is not None:
         runtime = generation.readers()[1]
     else:

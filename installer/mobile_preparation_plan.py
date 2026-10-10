@@ -33,6 +33,7 @@ class MobilePreparationPlan:
         receipt = self.backup.receipt(profile, lease)
         require(approved is not None and lease is not None and receipt is not None, ErrorCode.DEPENDENCY_BLOCKED)
         return {**binding, 'policy': POLICY, 'lease_id': lease['lease_id'],
+                **({} if 'source_generation' not in profile else {'source_generation': profile['source_generation']}),
                 'backup_profile_sha256': digest(profile), 'backup_receipt_sha256': digest(receipt)}
 
     def profile(self):

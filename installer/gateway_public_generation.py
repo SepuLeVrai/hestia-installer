@@ -25,12 +25,17 @@ WORKER = 'installer/private/gateway_public_worker.py'
 def sha(value): return boot.f._sha(canonical_bytes(value))
 
 
-def selection(shared, mobile_profile, target_commit, direction, publication_sha256, lease_id):
+def selection(shared, mobile_profile, target_commit, direction, publication_sha256, lease_id, *, predecessor=None, source_binding=None):
     original = mobile.MobileBootRuntime(mobile_profile)
     require(canonical_bytes(shared) == canonical_bytes(mobile_profile['shared']), ErrorCode.INCOMPATIBLE_STATE)
-    assessed = assess(original.gateway.profile, target_commit=target_commit, direction=direction).report()
+    source = original.gateway.profile
+    if predecessor is not None:
+        from installer.gateway_service_profile import GatewayServiceProfile
+        source = GatewayServiceProfile.from_binding(original.gateway.foundation, source_binding)
+    assessed = assess(source, target_commit=target_commit, direction=direction).report()
     require(assessed['configuration_compatible'], ErrorCode.INCOMPATIBLE_STATE)
-    value = {'version': 1, 'policy': POLICY, 'lease_id': lease_id,
+    value = {'version': 1 if predecessor is None else 2, 'policy': POLICY, 'lease_id': lease_id,
+             **({} if predecessor is None else {'predecessor': deepcopy(predecessor), 'source_binding': deepcopy(source_binding)}),
              'shared': deepcopy(shared), 'mobile': deepcopy(mobile_profile),
              'target_binding': assessed['target'], 'direction': direction,
              'publication_sha256': publication_sha256,
@@ -44,7 +49,11 @@ def source_configuration(original):
     original.shared.boot.configuration(); original.shared.configuration(); original.configuration()
     original.shared.completed('verify')
     require(original.shared.ready(), ErrorCode.DEPENDENCY_BLOCKED)
-    for runtime in (original.shared.boot, original):
+    enabled_sources(original.shared.boot, original)
+
+
+def enabled_sources(*runtimes):
+    for runtime in runtimes:
         owner = runtime._read('enabled.json')
         require(type(owner) is dict and owner == runtime._read('enable.attempt')
                 and set(owner) == {'version', 'installation_id', 'spec_sha256', 'profile_sha256'}
@@ -62,8 +71,9 @@ class Generation:
 
     def __init__(self, value):
         exact_keys(value, {'version', 'policy', 'lease_id', 'shared', 'mobile',
-                           'target_binding', 'direction', 'publication_sha256', 'code'})
-        require(type(value['version']) is int and value['version'] == 1 and value['policy'] == POLICY)
+                           'target_binding', 'direction', 'publication_sha256', 'code'} |
+                   ({'predecessor', 'source_binding'} if value.get('version') == 2 else set()))
+        require(type(value['version']) is int and value['version'] in (1, 2) and value['policy'] == POLICY)
         require(type(value['lease_id']) is str and re.fullmatch('[a-f0-9]{32}', value['lease_id']))
         frozen.digest(value['publication_sha256'])
         self.value = deepcopy(value)
@@ -74,7 +84,15 @@ class Generation:
         require(self.value['shared']['version'] == 1
                 and self.original.gateway.profile.dev is None and self.original.gateway.profile.push is None,
                 ErrorCode.UNSUPPORTED_MODULE)
-        assessed = assess(self.original.gateway.profile,
+        self.source_profile = self.original.gateway.profile
+        if value['version'] == 2:
+            from installer.gateway_public_ancestry import validate
+            from installer.gateway_service_profile import GatewayServiceProfile
+            validate(value['predecessor'])
+            require(value['predecessor']['lease_id'] != value['lease_id'], ErrorCode.INCOMPATIBLE_STATE)
+            self.source_profile = GatewayServiceProfile.from_binding(self.original.gateway.foundation, value['source_binding'])
+            require(self.source_profile.dev is None and self.source_profile.push is None, ErrorCode.UNSUPPORTED_MODULE)
+        assessed = assess(self.source_profile,
             target_commit=self.value['target_binding']['release']['commit'], direction=self.value['direction']).report()
         require(assessed['configuration_compatible'] and assessed['target'] == self.value['target_binding'],
                 ErrorCode.INCOMPATIBLE_STATE)
@@ -93,15 +111,23 @@ class Generation:
         require(template.count(b'__GATEWAY_PUBLIC_GENERATION_SHA256__') == 1, ErrorCode.INVALID_STATE)
         return template.replace(b'__GATEWAY_PUBLIC_GENERATION_SHA256__', self.digest.encode())
 
-    def source_units(self):
+    def original_units(self):
         original = self.original; shared = original.shared; web = shared.boot
         available = {**web.units(), **original.units(), **shared.units(),
                      str(shared.dropin.relative_to(boot.h.drain.UNIT_ROOT)): shared.apache_dropin()}
         return {name: available[name] for name in fragments.resources(self.layout.instance)}
 
-    def units(self):
+    def source_units(self):
+        if 'predecessor' not in self.value: return self.original_units()
+        previous = self.value['predecessor']
+        return self._units(self.layout.root / ('public-successor-' + previous['lease_id']),
+                           previous['generation_sha256'])
+
+    def units(self): return self._units(self.root, self.digest)
+
+    def _units(self, root, digest):
         original = self.original; shared = original.shared; web = shared.boot
-        sources = self.source_units(); result = {}
+        sources = self.original_units(); result = {}
         replacements = {
             web.guard: (web.root, 'sql', 'sql'), web.ready: (web.root, 'web', 'web'),
             original.target: (original.root, '', 'mobile'),
@@ -109,21 +135,21 @@ class Generation:
             str(shared.dropin.relative_to(boot.h.drain.UNIT_ROOT)): (shared.root, 'backend', 'backend')}
         for name, raw in sources.items():
             if name in replacements:
-                root, old_role, new_role = replacements[name]
-                before = (str(root / 'worker.py') + (' ' + old_role if old_role else '') + '\n').encode()
-                after = (str(self.root / 'worker.py') + ' ' + new_role + '\n').encode()
+                original_root, old_role, new_role = replacements[name]
+                before = (str(original_root / 'worker.py') + (' ' + old_role if old_role else '') + '\n').encode()
+                after = (str(root / 'worker.py') + ' ' + new_role + '\n').encode()
                 require(raw.count(before) == 1, ErrorCode.INVALID_STATE)
                 raw = raw.replace(before, after)
             # The timer has no worker. Bind even that fragment to this exact
             # generation, while keeping its schedule and target unchanged.
             if b'Description=' in raw:
-                raw = raw.replace(b'Description=', ('Description=Generation ' + self.digest + ' ').encode())
+                raw = raw.replace(b'Description=', ('Description=Generation ' + digest + ' ').encode())
             require(raw != sources[name], ErrorCode.INVALID_STATE)
             result[name] = raw
         return result
 
     def references(self):
-        return {'source_gateway': sha(self.original.gateway.profile.binding()),
+        return {'source_gateway': sha(self.source_profile.binding()),
                 'target_gateway': sha(self.value['target_binding']),
                 'publication': self.value['publication_sha256'],
                 'shared_public': sha(self.value['shared']),
@@ -135,7 +161,15 @@ class Generation:
         return {name: (before[name], after[name]) for name in before}
 
     def source_configuration(self):
-        source_configuration(self.original)
+        if 'predecessor' not in self.value:
+            source_configuration(self.original)
+            return
+        from installer.gateway_public_ancestry import load, history
+        history(self); previous = load(self)
+        # The next Gateway publication may already exist. Audit the exact old
+        # public fragments without pretending that the old Gateway is current.
+        previous.configuration(publication=False)
+        enabled_sources(previous.readers()[0], previous.readers()[2])
 
     def stage(self, lease, *, confirmed):
         require(confirmed is True and type(lease) is MaintenanceLease, ErrorCode.CONFIRMATION_REQUIRED)
@@ -143,7 +177,11 @@ class Generation:
                 and lease.scope.directory == self.http.spec.maintenance_directory, ErrorCode.INCOMPATIBLE_STATE)
         lease.assert_held(); self.source_configuration(); self.current_publication()
         # The caller must first stop and fence these exact public workers.
-        for role in ('timer', 'renew', 'http', 'https'): self.original.shared.stopped(role)
+        source_shared = self.original.shared
+        if 'predecessor' in self.value:
+            from installer.gateway_public_ancestry import load
+            source_shared = load(self).readers()[1]
+        for role in ('timer', 'renew', 'http', 'https'): source_shared.stopped(role)
         contents = mobile.code_files()
         require({n: boot.f._sha(raw) for n, raw in contents.items()} == self.value['code'], ErrorCode.SOURCE_DRIFT)
         payloads = {'profile.json': canonical_bytes(self.value), 'worker.py': self.runner(),
@@ -198,8 +236,13 @@ class Generation:
     def readers(self):
         return SuccessorBoot(self), SuccessorPublic(self), SuccessorMobile(self)
 
-    def configuration(self):
-        self.bundle(); self.current_publication()
+    def configuration(self, *, publication=True):
+        require(type(publication) is bool, ErrorCode.INVALID_DATA)
+        self.bundle()
+        if 'predecessor' in self.value:
+            from installer.gateway_public_ancestry import history
+            history(self)
+        if publication: self.current_publication()
         web, shared, boot_mobile = self.readers()
         web.configuration(); shared.configuration(); boot_mobile.configuration()
         shared.completed('verify'); require(shared.ready(), ErrorCode.DEPENDENCY_BLOCKED)

@@ -568,6 +568,34 @@ class BrowserWizardTests(unittest.TestCase):
                 (self.__class__.__name__ + '-public-transition-480.png')))
 
 
+    def test_public_next_cycle_dialog_cancel_and_new_source_selection(self):
+        fixture = self.transition_execution_fixture(public=True)
+        self.transition_package(fixture); self.page.locator('#import-transition-package').click(); self.dialog()
+        self.transition_credentials(fixture); self.page.locator('#apply-transition-execution').click(); self.dialog()
+        expect(self.page.locator('#next-transition-execution')).to_be_visible()
+        from installer.gateway_transition import FCM_COMMIT
+        from installer.gateway_transition_execution import digest
+        # Backend cycle routing has its own durable-file tests and native recipe.
+        # This fixture isolates consent and selection of the next UI source.
+        original = fixture.service.execute
+        requests = []
+        def execute(action, payload):
+            if action != 'gateway-transition-execution.next': return original(action, payload)
+            requests.append((action, payload))
+            return {'gateway_transition_execution': {'state': 'NOT_PLANNED', 'profile': None, 'steps': [], 'acquisition': None},
+                'gateway_transition': {'state': 'NOT_PLANNED', 'profile': None, 'source_commit': FCM_COMMIT},
+                'mobile_backup': {'state': 'NOT_PLANNED', 'profile': None}}
+        with patch.object(fixture.service, 'execute', side_effect=execute):
+            self.page.locator('#next-transition-execution').click()
+            expect(self.page.locator('#operation-description')).to_contain_text('journaux et sauvegardes précédents seront conservés')
+            self.dialog('cancel'); self.assertEqual(requests, [])
+            self.page.locator('#next-transition-execution').click(); self.dialog()
+            expect(self.page.locator('#plan-mobile-backup')).to_be_visible()
+            expect(self.page.locator('#plan-gateway-transition')).to_contain_text('retour vers 0.12.2')
+            expect(self.page.locator('#transition-sql-credentials')).to_have_count(0)
+        self.assertEqual(requests, [('gateway-transition-execution.next',
+            {'confirmation': digest(fixture.control.profile()), 'confirm': True})])
+
     def transition_credentials(self, fixture):
         for name, value in fixture.credentials.items(): self.page.locator('#transition-' + name).fill(value)
         self.page.locator('#transition-sql-consent').check()

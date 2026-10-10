@@ -26,16 +26,19 @@ class NativeTransition:
         # Do not run the full configuration audit before native data reclosure.
         self.scope = self.http._scope(cutover.hd.h._identity(self.http.spec.service_user))
         _, original = controller.transition.service.engine(parent)
+        assessment = controller.transition.profile()['assessment']
         foundation = FoundationRuntime.for_gateway(Activation(self.http, original.foundation.activation.parent_sha256),
             original.profile.main, original.profile.identity)
-        self.runtime = GatewayServiceRuntime.from_binding(foundation, original.profile.binding())
+        self.runtime = GatewayServiceRuntime.from_binding(foundation, assessment['source'])
+        if controller.transition.cycle is not None:
+            from installer.gateway_publication_chain import source
+            source(self.runtime, controller.transition.cycle['predecessor']['publication_sha256'])
         require(self.runtime.profile.dev is None and self.runtime.profile.push is None, ErrorCode.UNSUPPORTED_MODULE)
         self.backups = controller.backup.backups(profile)
         self.worker = replace(fresh.runtime(), timeout_seconds=120)
         self.source = AcquireOperation(controller.parent.journal.path.parent, 'web',
             SourceSpec(WEB_REPOSITORY, fresh.source_commit, fresh.source_commit), None).path / 'tree'
-        assessment = controller.transition.profile()['assessment']
-        self.kwargs = {'source_package': controller.transition.service.gateway.root / 'binary/package.zip',
+        self.kwargs = {'source_package': controller.source_package,
             'target_package': controller.root / 'binary/package.zip', 'target_commit': assessment['target_release']['commit'],
             'direction': assessment['direction'], 'confirmed': True}
         self.payload, self.credentials = None, None
@@ -54,7 +57,13 @@ class NativeTransition:
             from installer import gateway_public_generation as public
             original = public.mobile.MobileBootRuntime(self.profile['public_source']['mobile'])
             require(original.http.spec == self.http.spec, ErrorCode.INCOMPATIBLE_STATE)
-            public.source_configuration(original)
+            if self.controller.transition.cycle is None: public.source_configuration(original)
+            else:
+                from installer.gateway_public_selection import selected
+                previous = selected(original.shared)
+                require(previous.digest == self.controller.transition.cycle['predecessor']['generation_sha256'],
+                        ErrorCode.SOURCE_DRIFT)
+                public.enabled_sources(previous.readers()[0], previous.readers()[2])
             original.shared.web.certificate(minimum_lifetime=0)
             original.shared.mobile.verify(minimum_lifetime=0)
         else:
@@ -62,8 +71,9 @@ class NativeTransition:
                 stage.fs._absent(fd, 'boot'); stage.fs._absent(fd, 'public')
         self.runtime.stopped()
         # Exclude a previous transition or competing re-opening before approval.
-        require(not (self.runtime.root / 'control' / publication.INTENT).exists()
-                and not (self.backups / ('mobile-resume-' + self.lease_id)).exists(), ErrorCode.INCOMPATIBLE_STATE)
+        from installer.gateway_publication_chain import require_unpublished
+        require_unpublished(self.runtime)
+        require(not (self.backups / ('mobile-resume-' + self.lease_id)).exists(), ErrorCode.INCOMPATIBLE_STATE)
 
     def action(self, marker):
         with self.scope.recover(self.lease_id, confirmed=True) as lease:
@@ -144,7 +154,9 @@ class NativeTransition:
         selected = authority.selected_for_admission(self.http)
         source = self.profile['public_source']
         value = public.selection(source['mobile']['shared'], source['mobile'], self.kwargs['target_commit'],
-            self.kwargs['direction'], authority.sha(selected._active_profile), self.lease_id)
+            self.kwargs['direction'], authority.sha(selected._active_profile), self.lease_id,
+            predecessor=source.get('predecessor'),
+            source_binding=None if self.controller.transition.cycle is None else self.controller.transition.cycle['source_binding'])
         require(value['code'] == source['successor_code'], ErrorCode.SOURCE_DRIFT)
         previous = self.controller._read('public-generation.json')
         if previous is None: self.controller._write('public-generation.json', value)

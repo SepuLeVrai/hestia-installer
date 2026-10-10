@@ -49,10 +49,16 @@ class PublicAdmission:
         self.pid = os.getpid()
         self.closed = None
         self.profile = deepcopy(profile)
-        self.pointer = generation.original.shared._read(selection.NAME)
+        self.pointer = selection.pointer(generation.original.shared)
         g.require(type(self.pointer) is dict, g.ErrorCode.SOURCE_DRIFT)
+        source_overlay = overlay_binding(generation.original.shared)
+        if 'predecessor' in generation.value:
+            from installer.gateway_public_ancestry import load
+            previous = load(generation)
+            source_overlay = {**overlay_binding(previous.readers()[1]),
+                              'gateway_generation_sha256': previous.digest}
         g.require(self.pointer == selection.binding(generation, self.pointer['fragment_plan_sha256'])
-            and self.profile.get('public_ingress') == overlay_binding(generation.original.shared),
+            and self.profile.get('public_ingress') == source_overlay,
             g.ErrorCode.SOURCE_DRIFT)
         self.expected_overlay = {**overlay_binding(generation.readers()[1]),
                                  'gateway_generation_sha256': generation.digest}
@@ -63,7 +69,7 @@ class PublicAdmission:
 
     def check(self):
         g.require(self.pid == os.getpid(), g.ErrorCode.INCOMPATIBLE_STATE)
-        g.require(self.generation.original.shared._read(selection.NAME) == self.pointer,
+        g.require(selection.pointer(self.generation.original.shared) == self.pointer,
                   g.ErrorCode.SOURCE_DRIFT)
         self.generation.current_publication()
         self.generation.installed_fragments(self.pointer['fragment_plan_sha256'])

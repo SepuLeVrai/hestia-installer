@@ -2,7 +2,7 @@ name: Public fragment protocol validation
 
 on:
   push:
-    branches: ['validation/phase6-public-fragments-20261010']
+    branches: ['validation/phase6-public-fragments-20261010', 'validation/phase6-public-generations-20261010']
   workflow_dispatch:
 
 permissions:

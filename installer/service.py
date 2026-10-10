@@ -32,7 +32,7 @@ from installer.fcm_plan import FcmPlan
 
 POST_ROUTES = {
     **{'/api/gateway/transition/execution/' + action: 'gateway-transition-execution.' + action
-       for action in ('plan', 'apply', 'resume', 'check')},
+       for action in ('plan', 'apply', 'resume', 'check', 'next')},
     '/api/gateway/transition/plan': 'gateway-transition.plan',
     **{'/api/gateway/fcm/' + action: 'fcm.' + action for action in ('plan', 'check')},
     **{'/api/mobile/boot/' + action: 'mobile-boot.' + action for action in ('plan', 'apply', 'resume', 'retry', 'check')},
@@ -102,11 +102,24 @@ class TransactionService:
         self.shared_public = SharedPublicLifecycle(self.shared_public_preparation, self.gateway_service)
         self.mobile_boot = MobileBootPlan(self.shared_public)
         self.gateway_transition_execution = GatewayTransitionExecution(self.gateway_transition, self.mobile_backup, self.mobile_boot)
+        self._first_transition_execution = self.gateway_transition_execution
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()
         self._active = 0
         self._closing = False
+        self._cycle_lock = threading.Lock()
+        self._select_cycle()
+
+    def _select_cycle(self):
+        from installer.gateway_transition_cycles import selected
+        with self._cycle_lock:
+            current = selected(self._first_transition_execution)
+            if current.root == self.gateway_transition_execution.root:
+                require(current.transition.cycle == self.gateway_transition.cycle, ErrorCode.SOURCE_DRIFT)
+            else:
+                self.gateway_transition_execution = current
+                self.gateway_transition, self.mobile_backup = current.transition, current.backup
 
     @property
     def activation(self):
@@ -134,6 +147,7 @@ class TransactionService:
 
     def wizard_state(self) -> dict:
         with self._activity():
+            self._select_cycle()
             # Readers never wait for a long acquisition. A stale RUNNING snapshot
             # does not authorize a replay; mutations retain the engine's lock.
             return {"installation": self.engine.report(), "draft": self.wizard.read(),
@@ -162,6 +176,7 @@ class TransactionService:
 
     def report(self) -> dict:
         with self._activity():
+            self._select_cycle()
             result = {"installation": self.engine.report()}
             activation = self.activation.state()
             if activation['installation'] is not None: result['activation'] = activation
@@ -203,6 +218,13 @@ class TransactionService:
 
     def execute(self, action: str, payload: dict) -> dict:
         with self._activity(), self._mutation():
+            self._select_cycle()
+            if action == 'gateway-transition-execution.next':
+                from installer.gateway_transition_cycles import open_next
+                open_next(self.gateway_transition_execution, payload)
+                self._select_cycle()
+                return {'gateway_transition_execution': self.gateway_transition_execution.state(),
+                        'gateway_transition': self.gateway_transition.state(), 'mobile_backup': self.mobile_backup.state()}
             if action.startswith('gateway-transition-execution.'):
                 return {"gateway_transition_execution": self.gateway_transition_execution.execute(
                     action.removeprefix('gateway-transition-execution.'), payload)}
@@ -217,6 +239,7 @@ class TransactionService:
             if action.startswith('shared-public.'):
                 return {"shared_public": self.shared_public.execute(action.removeprefix('shared-public.'), payload)}
             if action.startswith('mobile-preparation.'):
+                require(self.gateway_transition.cycle is None, ErrorCode.UNSUPPORTED_MODULE)
                 return {"mobile_preparation": self.mobile_preparation.execute(action.removeprefix('mobile-preparation.'), payload)}
             if action.startswith('mobile-backup.'):
                 return {"mobile_backup": self.mobile_backup.execute(action.removeprefix('mobile-backup.'), payload)}
@@ -343,6 +366,7 @@ class TransactionService:
 
     def import_transition_package(self, confirmation, stream, length):
         with self._activity(), self._mutation():
+            self._select_cycle()
             return {"gateway_transition_execution": self.gateway_transition_execution.import_package(confirmation, stream, length)}
 
     def import_gateway_package(self, confirmation, stream, length):

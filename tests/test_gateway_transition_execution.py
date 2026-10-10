@@ -212,7 +212,7 @@ class GatewayTransitionExecutionHTTPTests(unittest.TestCase):
 
     def test_every_route_requires_session_csrf_and_same_origin(self):
         routes = [p for p in POST_ROUTES if p.startswith('/api/gateway/transition/execution/')]
-        self.assertEqual(len(routes), 4); routes.append(TRANSITION_PACKAGE_ROUTE)
+        self.assertEqual(len(routes), 5); routes.append(TRANSITION_PACKAGE_ROUTE)
         for route in routes: self.assertEqual(self.request('POST', route, {})[0], 401)
         self.login()
         for route in routes:
@@ -244,12 +244,14 @@ class NativeTransitionTests(unittest.TestCase):
         fresh = native.FreshProfile(runtime.web.spec.instance)
         draft = {'configuration': {'database': {'mode': 'existing_local'}}}
         controller = Mock()
+        controller.transition.cycle = None
         controller.backup.application.read.return_value = draft
         controller.transition.service.engine.return_value = (None, runtime)
         controller.transition.profile.return_value = {'assessment': assess(source, target_commit=FCM_COMMIT, direction='upgrade').report()}
         controller.root = runtime.root.parent / 'execution'
         controller.parent.journal.path = runtime.root.parent / 'installer/state.json'
         controller.transition.service.gateway.root = runtime.root.parent / 'acquisition'
+        controller.source_package = controller.transition.service.gateway.root / 'binary/package.zip'
         profile = {'instance': runtime.web.spec.instance, 'lease_id': 'c' * 32}
         with patch.object(native.FreshProfile, 'from_draft', return_value=fresh), \
              patch.object(fresh, 'http', return_value=runtime.web), \

@@ -20,19 +20,11 @@ def reference(original):
         and all(type(enrollment[k]) is int and enrollment[k] >= 0 for k in ('uid', 'gid'))
         and canonical_bytes(enrollment['binding']) == canonical_bytes(original.profile.binding()),
               'GATEWAY_FROZEN_ENROLLMENT_CHANGED')
-    with a.fs._directory(original.root / 'control') as fd:
-        a.files._private(fd, directory=True)
-        raw = a.c._optional(fd, a.INTENT)
-        completed = a.c.stage._optional(fd, a.ACTIVE, a.c.MAX_RECORD * 2)
-    if raw is None and completed is None:
-        return original.profile.binding(), None
-    a.require(raw is not None and completed == a._receipt(raw), 'GATEWAY_ACTIVE_PUBLICATION_INCOMPLETE')
-    value = a.c._json(raw)
-    runtime = GatewayServiceRuntime.from_binding(original.foundation, value['target_manifest']['binding'])
-    a.require(canonical_bytes(a._record(runtime, raw)) == canonical_bytes(enrollment),
-              'GATEWAY_FROZEN_ENROLLMENT_CHANGED')
-    a._records(runtime, raw)
-    return runtime.profile.binding(), a.sha(raw)
+    from installer.gateway_publication_chain import history
+    values = history(original)
+    if not values: return original.profile.binding(), None
+    raw = values[-1]; value = a.c._json(raw)
+    return value['target_manifest']['binding'], a.sha(raw)
 
 
 def digest(value):

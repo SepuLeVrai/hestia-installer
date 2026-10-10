@@ -27,6 +27,7 @@ class GatewayTransitionExecution:
         self.journal = StateJournal(self.root / 'acquisition/state.json')
         self.last_error = self.availability = None
         self.mobile_boot = mobile_boot
+        self.source_package = transition.service.gateway.root / 'binary/package.zip'
 
     def public_source(self, parent, assessment):
         if self.mobile_boot is None: return None
@@ -43,11 +44,13 @@ class GatewayTransitionExecution:
         require(document is not None and document['state'] == 'DONE'
             and public_document is not None and public_document['state'] == 'DONE'
             and value['shared'] == public_profile and public_profile['version'] == 1
-            and public_profile['gateway_binding'] == assessment['source']
+            and (public_profile['gateway_binding'] if self.transition.cycle is None else
+                 self.transition.cycle['source_binding']) == assessment['source']
             and value['parents'] == {'web': parent['plan_sha256'],
                 'shared_public': public_document['plan_sha256'], 'shared_journal': digest(public_document)},
             ErrorCode.INCOMPATIBLE_STATE)
         return {'mobile': value, 'successor_code': {n: boot.boot.f._sha(raw) for n, raw in boot.code_files().items()},
+                **({} if self.transition.cycle is None else {'predecessor': self.transition.cycle['predecessor']}),
                 'mobile_journal_sha256': digest(document),
                 'shared_journal_sha256': digest(public_document)}
 
@@ -75,7 +78,10 @@ class GatewayTransitionExecution:
         if value is not None:
             exact_keys(value, {'version', 'instance', 'parents', 'draft_sha256', 'policy', 'lease_id',
                                'backup_profile_sha256', 'backup_receipt_sha256', 'transition_sha256'} |
-                       ({'public_source'} if value.get('policy') == PUBLIC_POLICY else set()))
+                       ({'public_source'} if value.get('policy') == PUBLIC_POLICY else set()) |
+                       ({'source_generation'} if self.transition.cycle is not None else set()))
+            if self.transition.cycle is not None:
+                require(value['source_generation'] == self.transition.cycle, ErrorCode.INCOMPATIBLE_STATE)
             require(type(value['version']) is int and value['version'] == 1
                 and value['policy'] in (POLICY, PUBLIC_POLICY), ErrorCode.INVALID_STATE)
             exact_keys(value['parents'], PARENTS)
@@ -87,12 +93,16 @@ class GatewayTransitionExecution:
             if value['policy'] == PUBLIC_POLICY:
                 from installer.mobile_boot_runtime import MobileBootRuntime
                 source = value['public_source']
-                exact_keys(source, {'mobile', 'successor_code', 'mobile_journal_sha256', 'shared_journal_sha256'})
+                exact_keys(source, {'mobile', 'successor_code', 'mobile_journal_sha256', 'shared_journal_sha256'} |
+                           ({'predecessor'} if self.transition.cycle is not None else set()))
                 original = MobileBootRuntime(source['mobile'])
                 require(original.layout.instance == value['instance']
                     and original.shared.value['version'] == 1
-                    and original.gateway.profile.binding() == self.transition.profile()['assessment']['source'],
+                    and (original.gateway.profile.binding() if self.transition.cycle is None else
+                         self.transition.cycle['source_binding']) == self.transition.profile()['assessment']['source'],
                     ErrorCode.INCOMPATIBLE_STATE)
+                if self.transition.cycle is not None:
+                    require(source['predecessor'] == self.transition.cycle['predecessor'], ErrorCode.INCOMPATIBLE_STATE)
                 MobileBootRuntime({**source['mobile'], 'code': source['successor_code']})
                 require(all(type(source[k]) is str and re.fullmatch('[a-f0-9]{64}', source[k])
                     for k in ('mobile_journal_sha256', 'shared_journal_sha256')), ErrorCode.INVALID_STATE)
@@ -165,7 +175,7 @@ class GatewayTransitionExecution:
             return self.state()
 
     def execute(self, action, payload):
-        require(action in ('plan', 'apply', 'resume', 'check'))
+        require(action in ('plan', 'apply', 'resume', 'check', 'next'))
         with self.parent.journal.locked(create=False) as locked:
             parent = locked.read(); binding = self.binding(parent)
             if action == 'plan':
@@ -176,17 +186,18 @@ class GatewayTransitionExecution:
                 else: require(profile == binding, ErrorCode.PLAN_EXISTS)
                 self.engine(profile).plan(mode='fresh')
                 return self.state()
-            exact_keys(payload, {'confirmation', 'confirm'} | (set() if action == 'check' else {'credentials', 'allow_global_read_lock'}))
+            exact_keys(payload, {'confirmation', 'confirm'} | (set() if action in ('check', 'next') else {'credentials', 'allow_global_read_lock'}))
             profile = self.profile(); require(profile is not None, ErrorCode.NOT_PLANNED)
             require(profile == binding, ErrorCode.INCOMPATIBLE_STATE)
             require(payload['confirm'] is True and payload['confirmation'] == digest(profile), ErrorCode.CONFIRMATION_REQUIRED)
             approved, rows = self.progress(profile); complete = all(row['state'] == 'DONE' for row in rows)
             require(action == 'apply' and approved is None or action == 'resume' and approved is not None
-                    or action == 'check' and complete, ErrorCode.INCOMPATIBLE_STATE)
+                    or action in ('check', 'next') and complete, ErrorCode.INCOMPATIBLE_STATE)
+            if action == 'next': require(profile['policy'] == PUBLIC_POLICY, ErrorCode.UNSUPPORTED_MODULE)
             # A lost final HTTP response cannot initiate a second activation.
             if action == 'resume' and complete: return self.state()
-            credentials = None if action == 'check' else payload['credentials']
-            if action != 'check':
+            credentials = None if action in ('check', 'next') else payload['credentials']
+            if action not in ('check', 'next'):
                 require(type(credentials) is dict and set(credentials) == CREDENTIALS, ErrorCode.SECRET_REQUIRED)
                 validate_credentials(credentials)
                 require(payload['allow_global_read_lock'] is True, ErrorCode.CONFIRMATION_REQUIRED)
@@ -194,7 +205,12 @@ class GatewayTransitionExecution:
             self.acquired(profile)
             try:
                 native = NativeTransition(self, parent, profile, credentials)
-                if action == 'check': self.availability = native.check(); return self.state()
+                if action in ('check', 'next'):
+                    self.availability = native.check()
+                    if action == 'next':
+                        from installer.gateway_transition_cycles import record_next
+                        record_next(self, profile)
+                    return self.state()
                 if approved is None:
                     native.preflight()
                     self._write('approved.json', {'confirmation': digest(profile)})

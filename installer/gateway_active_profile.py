@@ -87,24 +87,39 @@ def _record(runtime, raw):
         and all(type(v) is dict and set(v) == {'device', 'inode'}
             and all(type(n) is int and n > 0 for n in v.values()) for v in state.values()),
         'GATEWAY_ACTIVE_STATE_CHANGED')
-    expected = {'version': 1, 'policy': POLICY, 'direction': value['direction'],
+    version = value.get('version')
+    require(type(version) is int and version in (1, 2), 'GATEWAY_ACTIVE_PROFILE_CHANGED')
+    expected = {'version': version, 'policy': POLICY, 'direction': value['direction'],
         'cutover': origin, 'source_manifest': source, 'target_manifest': runtime.manifest(account),
         'target_armed': arm, 'target_done': done, 'state': state}
+    if version == 2:
+        from installer.gateway_publication_chain import digest
+        expected['previous_publication_sha256'] = digest(value.get('previous_publication_sha256'))
     require(raw == canonical_bytes(expected), 'GATEWAY_ACTIVE_PROFILE_CHANGED')
     return source
 
 
-def _records(runtime, raw):
+def _cutover_records(runtime, raw):
     value = c._json(raw); origin = value['cutover']
-    with fs._directory(runtime.root) as fd:
-        require(files._read(fd, 'staged.json', c.MAX_RECORD) == canonical_bytes(value['source_manifest']),
-                'GATEWAY_ACTIVE_ENROLLMENT_CHANGED')
     with fs._directory(runtime.root / 'control' / ('cutover-' + origin['lease_id'])) as fd:
         files._private(fd, directory=True)
         require(set(os.listdir(fd)) == {'target.armed.json', 'target.done.json'}
             and files._read(fd, 'target.armed.json', c.MAX_RECORD) == canonical_bytes(value['target_armed'])
             and files._read(fd, 'target.done.json', c.MAX_RECORD) == canonical_bytes(value['target_done']),
             'GATEWAY_ACTIVE_CUTOVER_CHANGED')
+
+
+def _records(runtime, raw):
+    value = c._json(raw)
+    if value['version'] == 2:
+        from installer import gateway_publication_chain as chain
+        require(chain.history(runtime, through=sha(raw))[-1] == raw, 'GATEWAY_ACTIVE_PUBLICATION_CHANGED')
+        return chain.enrollment(runtime)
+    with fs._directory(runtime.root) as fd:
+        require(files._read(fd, 'staged.json', c.MAX_RECORD) == canonical_bytes(value['source_manifest']),
+                'GATEWAY_ACTIVE_ENROLLMENT_CHANGED')
+    _cutover_records(runtime, raw)
+    return value['source_manifest']
 
 
 def _validate(runtime, raw):
@@ -114,24 +129,22 @@ def _validate(runtime, raw):
     require((source['uid'], source['gid']) == (account.pw_uid, account.pw_gid),
             'GATEWAY_ACTIVE_ENROLLMENT_CHANGED')
     require(value['state'] == runtime.state_binding(), 'GATEWAY_ACTIVE_STATE_CHANGED')
-    _records(runtime, raw)
+    original = _records(runtime, raw)
     with fs._directory(runtime.root) as fd:
         info = os.stat(runtime.profile.binary.name, dir_fd=fd, follow_symlinks=False)
         require({k: v for k, v in value['target_armed']['replacement'].items() if k != 'sha256'} ==
             {'device': info.st_dev, 'inode': info.st_ino, 'bytes': info.st_size},
             'GATEWAY_ACTIVE_BINARY_CHANGED')
-    return source
+    return original
 
 
 @closed
 def verify(runtime):
     """Reobserve selection on every inspect; cached objects cannot outlive drift."""
     raw = runtime._active_profile
-    with fs._directory(runtime.root / 'control') as fd:
-        files._private(fd, directory=True)
-        require(files._read(fd, INTENT, c.MAX_RECORD) == raw
-            and files._read(fd, ACTIVE, c.MAX_RECORD * 2) == _receipt(raw),
-            'GATEWAY_ACTIVE_PUBLICATION_CHANGED')
+    from installer.gateway_publication_chain import history
+    values = history(runtime)
+    require(values and values[-1] == raw, 'GATEWAY_ACTIVE_PUBLICATION_CHANGED')
     require(_validate(runtime, raw) == runtime._enrolled_manifest, 'GATEWAY_ACTIVE_ENROLLMENT_CHANGED')
 
 
@@ -139,16 +152,11 @@ def verify(runtime):
 def selected(foundation, enrollment):
     """Return an explicitly published runtime, or None for original enrollment."""
     original = GatewayServiceRuntime.from_binding(foundation, enrollment['binding'])
-    with fs._directory(original.root / 'control') as fd:
-        files._private(fd, directory=True)
-        raw = c._optional(fd, INTENT)
-        try: completed = files._read(fd, ACTIVE, c.MAX_RECORD * 2)
-        except FileNotFoundError: completed = None
-    if raw is None and completed is None: return None
-    require(raw is not None and completed == _receipt(raw), 'GATEWAY_ACTIVE_PUBLICATION_INCOMPLETE')
-    value = c._json(raw)
-    require(canonical_bytes(value['source_manifest']) == canonical_bytes(enrollment),
-            'GATEWAY_ACTIVE_ENROLLMENT_CHANGED')
+    from installer.gateway_publication_chain import history, enrollment as enrolled
+    require(enrolled(original) == enrollment, 'GATEWAY_ACTIVE_ENROLLMENT_CHANGED')
+    values = history(original)
+    if not values: return None
+    raw = values[-1]; value = c._json(raw)
     runtime = GatewayServiceRuntime.from_binding(foundation, value['target_manifest']['binding'])
     runtime._active_profile, runtime._enrolled_manifest = raw, enrollment
     verify(runtime)
@@ -160,7 +168,11 @@ def _candidate(control):
     require(role == 'target' and done is not None, 'GATEWAY_ACTIVE_COMPLETED_TARGET_REQUIRED')
     source = control.runtime.manifest(control.runtime.account())
     assessment = control.prepared['intent']['assessment']
-    return canonical_bytes({'version': 1, 'policy': POLICY, 'direction': assessment['direction'],
+    from installer.gateway_publication_chain import parent
+    previous = parent(control.runtime)
+    return canonical_bytes({'version': 1 if previous is None else 2, 'policy': POLICY,
+        **({} if previous is None else {'previous_publication_sha256': previous}),
+        'direction': assessment['direction'],
         'cutover': control.value, 'source_manifest': source,
         'target_manifest': {**source, 'binding': assessment['target']},
         'target_armed': arm, 'target_done': c._json(done), 'state': control.runtime.state_binding()})
@@ -170,16 +182,32 @@ def _finish(control, fence, action, cancel):
     expected = control.verify_backup(fence, cancel); fence.assert_held()
     raw = _candidate(control); require(len(raw) <= c.MAX_RECORD, 'GATEWAY_ACTIVE_LIMIT')
     lease = control.lease
-    with fs._directory(control.runtime.root / 'control') as fd:
-        files._private(fd, directory=True)
-        marker, intent, completed = (c._optional(lease._directory, MARKER), c._optional(fd, INTENT),
-                                    c.stage._optional(fd, ACTIVE, c.MAX_RECORD * 2))
-        if action == 'apply':
-            require(marker is None and intent is None and completed is None,
+    from installer.gateway_publication_chain import publication_directory
+    from installer.transaction import _private_directory
+    path = publication_directory(control.runtime)
+    marker = c._optional(lease._directory, MARKER)
+    try:
+        with fs._directory(path) as fd:
+            files._private(fd, directory=True)
+            intent = c._optional(fd, INTENT)
+            completed = c.stage._optional(fd, ACTIVE, c.MAX_RECORD * 2)
+            require(path == control.runtime.root / 'control' or action != 'apply',
                     'GATEWAY_ACTIVE_EXPLICIT_RECOVERY_REQUIRED')
-            c.b._cancel(cancel, time.monotonic() + 60)
-            files._new(lease._directory, MARKER, raw); marker = raw
-        require(marker == raw, 'GATEWAY_ACTIVE_INTENT_REQUIRED')
+    except FileNotFoundError:
+        require(path != control.runtime.root / 'control', 'GATEWAY_ACTIVE_ENROLLMENT_CHANGED')
+        intent = completed = None
+    if action == 'apply':
+        require(marker is None and intent is None and completed is None,
+                'GATEWAY_ACTIVE_EXPLICIT_RECOVERY_REQUIRED')
+        c.b._cancel(cancel, time.monotonic() + 60)
+        files._new(lease._directory, MARKER, raw); marker = raw
+    require(marker == raw, 'GATEWAY_ACTIVE_INTENT_REQUIRED')
+    # The durable, fenced intent precedes creation of a successor slot.
+    with _private_directory(path, create=action != 'check') as fd:
+        files._private(fd, directory=True)
+        require(path == control.runtime.root / 'control' or set(os.listdir(fd)) <= {INTENT, ACTIVE},
+                'GATEWAY_ACTIVE_PUBLICATION_CHANGED')
+        intent, completed = c._optional(fd, INTENT), c.stage._optional(fd, ACTIVE, c.MAX_RECORD * 2)
         require(intent is None or intent == raw, 'GATEWAY_ACTIVE_PUBLICATION_CHANGED')
         require(completed is None or intent == raw and completed == _receipt(raw),
                 'GATEWAY_ACTIVE_PUBLICATION_CHANGED')

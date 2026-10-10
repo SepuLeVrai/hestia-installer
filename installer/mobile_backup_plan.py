@@ -25,16 +25,20 @@ POLICY = 'COCKPIT_MAIN_BACKUP_V1'
 class MobileBackupPlan:
     _read, _write = PackagePlan._read, PackagePlan._write
 
-    def __init__(self, activation):
+    def __init__(self, activation, *, root=None, cycle=None):
         self.activation = activation
         self.application, self.parent = activation.application, activation.parent
-        self.root = self.parent.journal.path.parent / 'mobile-backup'
+        self.root = self.parent.journal.path.parent / 'mobile-backup' if root is None else root
+        self.cycle = cycle
         self.last_error = None
 
     def profile(self):
         value = self._read('profile.json')
         if value is not None:
-            exact_keys(value, {'version', 'instance', 'parents', 'draft_sha256', 'policy'})
+            exact_keys(value, {'version', 'instance', 'parents', 'draft_sha256', 'policy'} |
+                       ({'source_generation'} if self.cycle is not None else set()))
+            if self.cycle is not None:
+                require(value['source_generation'] == self.cycle, ErrorCode.INCOMPATIBLE_STATE)
             require(type(value['version']) is int and value['version'] == 1 and value['policy'] == POLICY,
                     ErrorCode.INVALID_STATE)
             require(type(value['instance']) is str and re.fullmatch('[a-f0-9]{32}', value['instance']), ErrorCode.INVALID_STATE)
@@ -44,7 +48,13 @@ class MobileBackupPlan:
         return value
 
     @staticmethod
-    def backups(profile): return FreshProfile(profile['instance']).root / 'gateway-backup'
+    def backups(profile):
+        name = 'gateway-backup'
+        if 'source_generation' in profile:
+            from installer.gateway_public_ancestry import validate
+            source = validate(profile['source_generation']['predecessor'])
+            name += '-' + source['generation_sha256']
+        return FreshProfile(profile['instance']).root / name
 
     def records(self, profile):
         approved, lease = self._read('approved.json'), self._read('lease.json')
@@ -104,6 +114,7 @@ class MobileBackupPlan:
         require(action in ('plan', 'apply', 'resume'))
         with self.parent.journal.locked(create=False) as locked:
             binding = {**self.activation.binding(locked.read()), 'policy': POLICY}
+            if self.cycle is not None: binding['source_generation'] = self.cycle
             if action == 'plan':
                 exact_keys(payload, {'parents'})
                 require(payload['parents'] == binding['parents'], ErrorCode.CONFIRMATION_REQUIRED)
@@ -133,6 +144,20 @@ class MobileBackupPlan:
                 if lease is None:
                     # A gate created before our lease receipt is not adopted by inference.
                     require(observed['state'] == 'SERVING', ErrorCode.MANUAL_ACTION_REQUIRED)
+                    if self.cycle is not None:
+                        from installer.gateway_public_selection import selected
+                        from installer.gateway_public_generation import Generation
+                        from installer.gateway_public_opening import Opening
+                        from installer.gateway_resume_authority import Authority
+                        reference = self.cycle['predecessor']
+                        previous = Generation(read_private(fresh.root / ('public-successor-' + reference['lease_id']), 'profile.json'))
+                        generation = selected(previous.original.shared)
+                        require(generation.digest == reference['generation_sha256'], ErrorCode.SOURCE_DRIFT)
+                        runtime = generation.selected(http)
+                        # Recheck the current consumed admission before a new gate.
+                        raw = read_private(runtime.root / 'control' / ('resume-' + reference['lease_id']), 'plan.json')
+                        from pathlib import Path
+                        Opening(Authority.load(runtime, Path(raw['backup_root']), reference['lease_id'])).check()
                     with _private_directory(backups, create=True) as fd:
                         require(not os.listdir(fd), ErrorCode.MANUAL_ACTION_REQUIRED)
                     if approved is None: self._write('approved.json', {'confirmation': digest(profile)})
