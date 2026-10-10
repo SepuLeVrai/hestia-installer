@@ -162,7 +162,7 @@ class Transfer(unittest.TestCase):
         self.assertEqual(selected.profile.selected_release['commit'], TARGET)
         public_access(self)
         before = {str(p): (digest(p), p.stat().st_mtime_ns) for p in control.root.rglob('*') if p.is_file()}
-        with patch.object(opening.g.public.SharedPublic.control, side_effect=AssertionError('check starts')):
+        with patch.object(opening.g.public.SharedPublic, 'control', side_effect=AssertionError('check starts')):
             checked = service.execute('gateway-transition-execution.check', {'confirmation': planned['confirmation'], 'confirm': True})['gateway_transition_execution']
         self.assertEqual(checked['state'], 'DONE')
         self.assertEqual(before, {str(p): (digest(p), p.stat().st_mtime_ns) for p in control.root.rglob('*') if p.is_file()})

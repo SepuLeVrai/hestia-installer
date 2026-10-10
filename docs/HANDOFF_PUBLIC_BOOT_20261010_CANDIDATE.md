@@ -130,3 +130,40 @@ Six variantes conservent exactement les sorties ; 56 contrats passent.
 Le microbenchmark local de 30 manifestes passe de 1,25 s à 0,08 s ; ce n'est
 pas une preuve du temps SQL natif. Les échecs utiles des campagnes précédentes
 restent conservés et ne sont pas assimilés à un PASS.
+
+
+## Gel Quality et retours natifs suivants
+
+Le compilateur pur est publié dans `835a6fba2981a7a221269cecef40c1c1b4af1d64`,
+arbre `a78aee49d87332b951219645a5194f16c70df9b4`. Ses 2 102 tests core passent
+sur chaque Debian. Une course entre le polling du cockpit et sa capture visuelle
+a ensuite été corrigée dans le test uniquement : arrêt du polling après toutes
+les assertions fonctionnelles, puis attente des réponses en vol. Le candidat
+`2ec53187ecbac81359955f918550070f1c34ddf4`, arbre
+`a44c066ccbe5437c922339d0a90096fde3e4b99c`, a passé toute la Quality
+`38049898381` et le protocole/systemd `38049898408` : 2 102 tests core par
+Debian, 37 bridge, 49 HTTPS natif, 87 contrats ciblés et 10 tests systemd.
+Le gate a vérifié et publié le paquet source exact, 545 fichiers. Les échecs
+visuels intermédiaires sont conservés dans `38049061207` et `38049590456`.
+
+Le run composé du candidat précédent `123db0e`, `38047575225`, est terminé
+avec deux échecs distincts. L'upgrade a observé les cinq SIGKILL, terminé
+l'ouverture publique, vérifié les accès et politiques Web/Mobile, puis conservé
+les sources, clés, certificats et UUID. Ses six fenêtres SQL mesurées sont
+comprises entre 76,90 et 149,64 secondes. Il échoue ensuite dans le banc :
+`patch.object` recevait une méthode au lieu de la classe et du nom d'attribut.
+Le contrôle final en lecture seule et le boot ne sont donc pas qualifiés par
+ce run. Le correctif du banc fournit la classe `SharedPublic` et `control` ;
+l'interdiction de démarrer un service pendant le check est maintenue.
+Le rollback de ce même candidat a refusé l'admission externe sur
+`SQL_FENCE_TIMEOUT`. Il ne contient pas encore l'optimisation du compilateur.
+
+L'environnement local s'est déconnecté pendant cette reprise. Les écritures
+suivantes sont publiées directement sur les seules branches techniques GitHub.
+Le banc Web inspecte les archives par SHA-256, vérifie les manifestes présents
+contre les octets et modes du commit annoncé, puis restitue les diagnostics
+bornés. Les deux archives de `38047575225` et leurs trois manifestes chacune
+sont ainsi authentifiées. L'absence du quatrième manifeste de boot est explicite.
+Aucun PASS complet public/boot n'est encore acquis. Les recettes des candidats
+optimisés antérieurs restent utiles pour le diagnostic, mais contiennent encore
+la faute du banc corrigée ici et ne peuvent pas qualifier ce dernier gel.
