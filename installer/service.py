@@ -97,11 +97,11 @@ class TransactionService:
         self.fcm = FcmPlan(self.gateway, self.gateway_service)
         self.mobile_activation = MobileActivationPlan(self.application, self.gateway_service)
         self.mobile_backup = MobileBackupPlan(self.mobile_activation)
-        self.gateway_transition_execution = GatewayTransitionExecution(self.gateway_transition, self.mobile_backup)
         self.mobile_preparation = MobilePreparationPlan(self.mobile_backup)
         self.shared_public_preparation = SharedPublicPlan(self.public_tls, self.gateway)
         self.shared_public = SharedPublicLifecycle(self.shared_public_preparation, self.gateway_service)
         self.mobile_boot = MobileBootPlan(self.shared_public)
+        self.gateway_transition_execution = GatewayTransitionExecution(self.gateway_transition, self.mobile_backup, self.mobile_boot)
         self._preflight = None
         self._mutation_lock = threading.Lock()
         self._condition = threading.Condition()

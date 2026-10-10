@@ -1,0 +1,232 @@
+name: Public Gateway composed transition and boot
+on:
+  push:
+    branches: ['validation/phase6-public-fragments-20261010']
+    paths: ['installer/**', 'tests/**', '.github/workflows/public-composed-validation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  virgin:
+    name: Public transition / ${{ matrix.direction }}
+    strategy:
+      fail-fast: false
+      matrix:
+        direction: [upgrade, rollback]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SepuLeVrai/hestia-nexus-avv
+          ref: 367b562f087a4c4b9d376fb2402016d3b79fa55b
+          path: web-checkout
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Materialize exact candidate and both frozen parents
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/proxy-installer" "$RUNNER_TEMP/legacy-installer" "$RUNNER_TEMP/public-parent" evidence
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C web-checkout rev-parse HEAD)" = 367b562f087a4c4b9d376fb2402016d3b79fa55b
+          git -c tar.umask=0022 archive HEAD | tar -x -C "$RUNNER_TEMP/proxy-installer"
+          git -c tar.umask=0022 archive dc0dca3ae0d33baafa136f002b2fdeff7f6095a8 | tar -x -C "$RUNNER_TEMP/public-parent"
+          test "$(git -C web-checkout rev-parse 2a27c7a1f9fe0a00289eb53278f75d5f230900b7^{tree})" = 783be5abdcd5e13addefe96d743eee3a97b7a6de
+          git -C web-checkout -c tar.umask=0022 archive 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 > "$RUNNER_TEMP/proxy-web.tar"
+          python3 - <<'PYTHON'
+          import hashlib,io,json,os,stat,zipfile,subprocess
+          from pathlib import Path
+          pin='68692047f93c7cc891736fc315bd81128c01fbcc'
+          prefix='verification/phase5-work/inode-fence-overlay/'
+          raw=subprocess.check_output(['git','-C','web-checkout','show','6e599a56e4e9b0fabbdd48fc4282c28f61a04b71:verification/phase5-work/installer-source.zip'])
+          assert hashlib.sha256(raw).hexdigest()=='b46904d6f1f43a92064f90801484134c8235092b69e14c953c0fd3bd6034d9c9'
+          legacy=Path(os.environ['RUNNER_TEMP'])/'legacy-installer'
+          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+              assert archive.testzip() is None and len(archive.infolist())==267
+              for item in archive.infolist():
+                  relative=Path(item.filename)
+                  assert not relative.is_absolute() and '..' not in relative.parts and not stat.S_ISLNK(item.external_attr>>16)
+                  path=legacy/relative;path.parent.mkdir(parents=True,exist_ok=True)
+                  path.write_bytes(archive.read(item));path.chmod((item.external_attr>>16)&0o777)
+          manifest=json.loads(subprocess.check_output(['git','-C','web-checkout','show',pin+':verification/phase5-work/external-fence-source-manifest.json']))
+          for row in subprocess.check_output(['git','-C','web-checkout','ls-tree','-rz',pin,'--',prefix]).decode().strip('\0').split('\0'):
+              metadata,name=row.split('\t',1);assert name.startswith(prefix) and metadata.split()[1]=='blob'
+              relative=name.removeprefix(prefix);path=legacy/relative;assert relative in manifest
+              path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(subprocess.check_output(['git','-C','web-checkout','show',pin+':'+name]));path.chmod(int(manifest[relative]['mode'],8))
+          actual={p.relative_to(legacy).as_posix():{'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'mode':format(stat.S_IMODE(p.stat().st_mode),'04o')} for p in legacy.rglob('*') if p.is_file()}
+          assert actual==manifest and len(actual)==339
+          Path('evidence/legacy-boot-source-manifest.json').write_text(json.dumps(actual,indent=2,sort_keys=True)+'\n')
+          Path('evidence/installer-pin.json').write_text(json.dumps({'commit':subprocess.check_output(['git','rev-parse','HEAD']).decode().strip(),'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}']).decode().strip(),'files':len(subprocess.check_output(['git','ls-files','-z']).split(b'\0'))-1},indent=2)+'\n')
+          PYTHON
+          docker build -f web-checkout/.ci/phase6-shared/Dockerfile.base -t mariadb-target "$RUNNER_TEMP/proxy-installer"
+          docker build -f "$RUNNER_TEMP/proxy-installer/tests/integration/Dockerfile.package-browser" -t mariadb-browser "$RUNNER_TEMP/proxy-installer"
+      - name: Acquire official dependencies on virgin Debian
+        run: |
+          set -Eeuo pipefail
+          docker run -d --name mariadb-acquire --privileged --cgroupns=private --tmpfs /run --tmpfs /run/lock --tmpfs /tmp mariadb-target
+          for attempt in $(seq 1 60); do
+            state=$(docker exec mariadb-acquire systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
+            sleep 1
+          done
+          test "$state" = running || test "$state" = degraded
+          docker exec mariadb-acquire dpkg-query -W > evidence/before-packages.txt
+          docker cp "$RUNNER_TEMP/legacy-installer" mariadb-acquire:/opt/hestia-legacy-installer
+          docker cp "$RUNNER_TEMP/public-parent" mariadb-acquire:/opt/hestia-public-parent
+          test "$(git -C web-checkout hash-object .ci/phase6b5/gateway-package.zip)" = 4fd8f36b219fbaee0d37fafd6afb892c8bf1fde6
+          docker cp web-checkout/.ci/phase6b5/gateway-package.zip mariadb-acquire:/opt/gateway-package.zip
+          test "$(git -C web-checkout hash-object .ci/phase6-shared/gateway-fcm-qualified.zip)" = b71fe499429ca3af43a07a187f8f546b796de275
+          echo 'f31fc543fabf538ca279027c08614d7f7c6ae6e0380a8514104979b01d629a8c  web-checkout/.ci/phase6-shared/gateway-fcm-qualified.zip' | sha256sum --check --strict
+          echo 'f3138b5bd4fc5c85e4dcf9e4480d8f521f72c02db34219cb9053c38a1eae8a0e  web-checkout/.ci/phase6b5/gateway-package.zip' | sha256sum --check --strict
+          docker cp web-checkout/.ci/phase6-shared/gateway-fcm-qualified.zip mariadb-acquire:/opt/gateway-target-package.zip
+          docker exec mariadb-acquire chmod 0600 /opt/gateway-package.zip /opt/gateway-target-package.zip
+          docker cp web-checkout/.ci/phase6-shared/package_diagnostic.py mariadb-acquire:/opt/package-diagnostic.py
+          docker exec -e HESTIA_ACME_PACKAGES_TEST=1 mariadb-acquire python3 /opt/package-diagnostic.py 2>&1 | tee evidence/prerequisite-acquire.log
+          docker exec mariadb-acquire dpkg-query -W > evidence/after-acquire-packages.txt
+          cmp evidence/before-packages.txt evidence/after-acquire-packages.txt
+          docker exec mariadb-acquire test ! -d /var/lib/mysql
+          docker exec -e HESTIA_MARIADB_WIZARD_TEST=1 mariadb-acquire python3 /opt/hestia-installer/tests/integration/mariadb_wizard_systemd.py --phase install 2>&1 | tee evidence/prerequisite-install.log
+          docker exec -e HESTIA_ACME_PACKAGES_TEST=1 mariadb-acquire python3 /opt/hestia-installer/tests/integration/acme_packages_systemd.py --phase acquire 2>&1 | tee evidence/acme-acquire.log
+          docker cp mariadb-acquire:/evidence/. evidence/
+          docker commit mariadb-acquire mariadb-acquired
+          docker rm -f mariadb-acquire
+      - name: Private disposable ACME authority and DNS
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/acme-ca/tests/integration"
+          cp "$RUNNER_TEMP/proxy-installer/tests/integration/acme_fixture.py" "$RUNNER_TEMP/acme-ca/tests/integration/"
+          cp "$RUNNER_TEMP/proxy-installer/tests/integration/Dockerfile.acme-fixture" "$RUNNER_TEMP/acme-ca/"
+          curl --fail --location --retry 3 https://github.com/letsencrypt/pebble/releases/download/v2.10.1/pebble-linux-amd64.tar.gz -o "$RUNNER_TEMP/pebble.tar.gz"
+          python3 - <<'PYTHON'
+          import hashlib,os,tarfile
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP']); raw=(root/'pebble.tar.gz').read_bytes()
+          assert hashlib.sha256(raw).hexdigest() == '4f2fcb5bca8c85c9cf73ad140fccfc0d2be40bd81ab99879c79b7b8a0b4f70ed'
+          with tarfile.open(root/'pebble.tar.gz') as source:
+              matches=[x for x in source.getmembers() if x.isfile() and Path(x.name).name == 'pebble']
+              assert len(matches) == 1
+              path=root/'acme-ca/pebble'; path.write_bytes(source.extractfile(matches[0]).read()); path.chmod(0o755)
+          PYTHON
+          docker build -f "$RUNNER_TEMP/acme-ca/Dockerfile.acme-fixture" -t public-acme "$RUNNER_TEMP/acme-ca"
+          docker network create --internal --subnet 172.30.85.0/24 hestia-public
+          docker run -d --name public-acme --network hestia-public --ip 172.30.85.2 public-acme
+          for attempt in $(seq 1 60); do
+            if docker logs public-acme 2>&1 | grep -q DISPOSABLE_ACME_READY; then break; fi
+            sleep 1
+          done
+          docker logs public-acme 2>&1 | grep DISPOSABLE_ACME_READY
+      - name: Isolated Ext4 filesystem for virgin full chain
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/inode-fs"
+          truncate -s 10G "$RUNNER_TEMP/inode-fs.img"
+          sudo mkfs.ext4 -q -F "$RUNNER_TEMP/inode-fs.img"
+          sudo mount -o loop,nodev,nosuid "$RUNNER_TEMP/inode-fs.img" "$RUNNER_TEMP/inode-fs"
+          sudo chmod 0755 "$RUNNER_TEMP/inode-fs"
+          sudo mkdir -p "$RUNNER_TEMP/inode-fs/var-lib" "$RUNNER_TEMP/inode-fs/etc-hestia" "$RUNNER_TEMP/inode-fs/srv"
+          docker create --name mariadb-seed mariadb-acquired
+          sudo docker cp mariadb-seed:/var/lib/. "$RUNNER_TEMP/inode-fs/var-lib/"
+          docker rm mariadb-seed
+          sudo chmod 0755 "$RUNNER_TEMP/inode-fs/var-lib" "$RUNNER_TEMP/inode-fs/etc-hestia" "$RUNNER_TEMP/inode-fs/srv"
+          docker run -d --name mariadb-target --network hestia-public --ip 172.30.85.10 --dns 172.30.85.2 --privileged --cgroupns=private --mount "type=bind,source=$RUNNER_TEMP/inode-fs/var-lib,target=/var/lib" --mount "type=bind,source=$RUNNER_TEMP/inode-fs/etc-hestia,target=/etc/hestia" --mount "type=bind,source=$RUNNER_TEMP/inode-fs/srv,target=/srv" --tmpfs /run --tmpfs /run/lock --tmpfs /tmp --mount "type=bind,source=$GITHUB_WORKSPACE/web-checkout/.ci/phase6b5/container-init.sh,target=/opt/container-init.sh,readonly" mariadb-acquired /bin/sh /opt/container-init.sh
+          for attempt in $(seq 1 60); do
+            state=$(docker exec mariadb-target systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
+            sleep 1
+          done
+          test "$state" = running || test "$state" = degraded
+          test "$(docker exec mariadb-target findmnt --target /run --output PROPAGATION --noheadings)" = shared
+          docker exec mariadb-target mkdir -m 0755 /opt/hestia-pinned-web
+          docker exec -i mariadb-target sh -c 'umask 022; exec tar --no-same-owner --no-same-permissions -xf - -C /opt/hestia-pinned-web' < "$RUNNER_TEMP/proxy-web.tar"
+          docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report /evidence/source-pins.json
+          docker inspect --format '{{json .NetworkSettings.Networks}}' mariadb-target > evidence/network-isolated.json
+      - name: Install only disposable CA trust in the target
+        run: |
+          set -Eeuo pipefail
+          docker cp public-acme:/fixture/endpoint.crt "$RUNNER_TEMP/acme-endpoint.crt"
+          docker cp "$RUNNER_TEMP/acme-endpoint.crt" mariadb-target:/usr/local/share/ca-certificates/acme-endpoint.crt
+          docker exec mariadb-target python3 -c 'import ssl,urllib.request; from pathlib import Path; Path("/usr/local/share/ca-certificates/pebble-root.crt").write_bytes(urllib.request.urlopen("https://172.30.85.2:15000/roots/0",context=ssl._create_unverified_context()).read())'
+          docker exec mariadb-target chmod 0644 /usr/local/share/ca-certificates/acme-endpoint.crt /usr/local/share/ca-certificates/pebble-root.crt
+          docker exec mariadb-target update-ca-certificates
+      - name: Prepare real Web public parent and Gateway Foundation
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase setup 2>&1 | tee evidence/public-prerequisite.log
+      - name: Real shared cockpit consent and SIGKILL of completed certificate process
+        run: |
+          set -Eeuo pipefail
+          docker exec -d -e HESTIA_SHARED_APPLICATION_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/shared_public_application.py --phase serve
+          for attempt in $(seq 1 30); do
+            if docker exec mariadb-target test -f /var/lib/hestia-mariadb-browser.json; then break; fi
+            sleep 1
+          done
+          docker cp mariadb-target:/var/lib/hestia-mariadb-browser.json "$RUNNER_TEMP/mariadb-browser.json"
+          docker run -d --name mariadb-browser --network container:mariadb-target mariadb-browser
+          docker cp "$RUNNER_TEMP/mariadb-browser.json" mariadb-browser:/var/lib/hestia-mariadb-browser.json
+          rm "$RUNNER_TEMP/mariadb-browser.json"
+          docker exec -e HESTIA_SHARED_APPLICATION_TEST=1 mariadb-browser /opt/browser-venv/bin/python /opt/hestia-installer/tests/integration/shared_public_application.py --phase browser 2>&1 | tee evidence/public-browser.log
+          docker cp mariadb-browser:/evidence/. evidence/
+          docker exec -e HESTIA_SHARED_APPLICATION_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/shared_public_application.py --phase verify 2>&1 | tee evidence/public-verify.log
+          docker exec -e HESTIA_MARIADB_WIZARD_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/mariadb_wizard_systemd.py --phase stop
+          docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report /evidence/source-pins-after.json
+      - name: Public transfer and real SIGKILL recovery
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase transfer 2>&1 | tee evidence/public-transfer.log
+      - name: New PID 1 preserves the shared guard and real Web login
+        run: |
+          set -Eeuo pipefail
+          docker rm -f mariadb-browser
+          docker restart --timeout 90 mariadb-target
+          for attempt in $(seq 1 100); do
+            state=$(docker exec mariadb-target systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
+            sleep 1
+          done
+          test "$state" = running || test "$state" = degraded
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase restart 2>&1 | tee evidence/shared-restart.log
+          docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report /evidence/source-pins-after-boot.json
+      - name: Require all three exact-source composed proofs
+        run: |
+          set -Eeuo pipefail
+          docker cp mariadb-target:/evidence/. evidence/
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('evidence')
+          manifests=[]
+          pin=json.loads((root/'installer-pin.json').read_bytes())
+          for name in ('shared-application-browser','shared-application-verify','public-composed-transfer','public-composed-restart'):
+              value=json.loads((root/(name+'.json')).read_bytes())
+              assert value['status']=='PASS' and value['tests']==value['expected']==1
+              assert value['source_stable'] and value['source_files']==pin['files']
+              manifests.append(json.loads((root/('SOURCE-MANIFEST-'+name+'.json')).read_bytes()))
+          assert all(manifest==manifests[0] for manifest in manifests)
+          assert json.loads((root/'public-restart-proof.json').read_bytes())['new_pid1_same_kernel'] is True
+          killed=json.loads((root/'certificate-effect-killed.json').read_bytes())
+          assert killed=={'returncode':-9,'effect_process_killed':True,'cockpit_process_survived':True}
+          print('Exact-source Web/Gateway/ACME/cockpit and new PID 1: PASS')
+          PY
+      - name: Preserve evidence and remove disposable resources
+        if: always()
+        run: |
+          docker exec mariadb-target journalctl -b --no-pager -u 'hestia-*' > evidence/boot-final-journal.txt || true
+          for target in mariadb-target mariadb-browser mariadb-acquire; do
+            docker cp "$target:/evidence/." evidence/ || true
+            docker rm -f "$target" || true
+          done
+          docker logs public-acme > evidence/private-acme-log.txt 2>&1 || true
+          docker rm -f mariadb-acquire mariadb-seed public-acme || true
+          docker network rm hestia-public || true
+          if mountpoint -q "$RUNNER_TEMP/inode-fs"; then sudo umount "$RUNNER_TEMP/inode-fs"; fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: public-composed-${{ matrix.direction }}-debian13
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 14

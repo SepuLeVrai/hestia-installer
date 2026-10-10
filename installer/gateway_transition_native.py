@@ -19,6 +19,7 @@ from installer.session_cleaner import SessionCleaner
 
 class NativeTransition:
     def __init__(self, controller, parent, profile, credentials):
+        self.controller = controller
         self.profile = profile; self.lease_id = profile['lease_id']
         draft = controller.backup.application.read(); fresh = FreshProfile.from_draft(draft)
         self.http = fresh.http(draft['configuration'])
@@ -49,8 +50,16 @@ class NativeTransition:
         self.http._inspect_configuration()
         require(self.scope.observe() == {'state': 'MAINTENANCE_REQUIRED', 'instance': self.profile['instance'],
                                         'lease_id': self.lease_id}, ErrorCode.MANUAL_ACTION_REQUIRED)
-        with stage.fs._directory(self.http.spec.root.parent) as fd:
-            stage.fs._absent(fd, 'boot'); stage.fs._absent(fd, 'public')
+        if 'public_source' in self.profile:
+            from installer import gateway_public_generation as public
+            original = public.mobile.MobileBootRuntime(self.profile['public_source']['mobile'])
+            require(original.http.spec == self.http.spec, ErrorCode.INCOMPATIBLE_STATE)
+            public.source_configuration(original)
+            original.shared.web.certificate(minimum_lifetime=0)
+            original.shared.mobile.verify(minimum_lifetime=0)
+        else:
+            with stage.fs._directory(self.http.spec.root.parent) as fd:
+                stage.fs._absent(fd, 'boot'); stage.fs._absent(fd, 'public')
         self.runtime.stopped()
         # Exclude a previous transition or competing re-opening before approval.
         require(not (self.runtime.root / 'control' / publication.INTENT).exists()
@@ -77,9 +86,34 @@ class NativeTransition:
         if name == 'publication':
             return publication.publish(self.runtime, self.backups, self.lease_id,
                 action=self.action(publication.MARKER), **self.kwargs)
+        if name == 'public-transfer':
+            from installer import gateway_public_generation as public
+            generation = self.public_generation()
+            with self.scope.recover(self.lease_id, confirmed=True) as lease:
+                manager = public.systemd_manager(generation, lease)
+                record = self.controller._read('public-systemd.json')
+                if record is None:
+                    if manager.root.exists():
+                        with stage.fs._directory(manager.root) as fd:
+                            plan = public.fragments._optional(fd, 'plan.json')
+                        confirmation = public.sha(plan)
+                        with manager.slot(confirmation): pass
+                    else: confirmation = public.prepare_systemd(generation, lease, confirmed=True)['confirmation']
+                    record = {'generation_sha256': generation.digest, 'confirmation': confirmation}
+                    self.controller._write('public-systemd.json', record)
+                require(set(record) == {'generation_sha256', 'confirmation'}
+                    and record['generation_sha256'] == generation.digest, ErrorCode.SOURCE_DRIFT)
+                return public.transfer_systemd(generation, lease, record['confirmation'], confirmed=True)
         if name == 'admission':
             return successor.prepare(self.runtime, self.backups, self.lease_id,
                 action=self.action(authority.MARKER), **self.kwargs)
+        if name == 'public-open':
+            from installer.gateway_public_opening import Opening
+            selected = authority.selected_for_admission(self.http)
+            admitted = authority.Authority.load(selected, self.backups, self.lease_id)
+            opening = Opening(admitted)
+            if opening.generation._read('opening.json') is None: opening.prepare(confirmed=True)
+            return opening.apply(confirmed=True)
         require(name == 'activation', ErrorCode.INVALID_DATA)
         selected = authority.selected_for_admission(self.http)
         admitted = authority.Authority.load(selected, self.backups, self.lease_id)
@@ -91,9 +125,28 @@ class NativeTransition:
         selected = authority.selected_for_admission(self.http)
         admitted = authority.Authority.load(selected, self.backups, self.lease_id)
         require(admitted.read('consumed.json') is not None, ErrorCode.DEPENDENCY_BLOCKED)
+        if 'public_source' in self.profile:
+            from installer.gateway_public_opening import Opening
+            public = Opening(admitted).check()
+            return {'state': 'MOBILE_SERVICES_RUNNING_LOCAL_WEB_AVAILABLE', 'public': public,
+                    'local_web': public['local_web'],
+                    'target_commit': selected.profile.selected_release['commit']}
         confirmation = digest(read_private(self.backups / ('mobile-resume-' + self.lease_id), 'plan.json'))
-        with admitted.admitted():
+        with admitted.admitted(public_closed='public_source' not in self.profile):
             result = activation.continue_serving(self.http, self.backups, self.lease_id, confirmation,
                                                 action='check', confirmed=True)
         require(result['state'] == 'MOBILE_SERVICES_RUNNING_LOCAL_WEB_AVAILABLE', ErrorCode.VALIDATION_FAILED)
         return {**result, 'target_commit': selected.profile.selected_release['commit']}
+
+    def public_generation(self):
+        from installer import gateway_public_generation as public
+        require('public_source' in self.profile, ErrorCode.INCOMPATIBLE_STATE)
+        selected = authority.selected_for_admission(self.http)
+        source = self.profile['public_source']
+        value = public.selection(source['mobile']['shared'], source['mobile'], self.kwargs['target_commit'],
+            self.kwargs['direction'], authority.sha(selected._active_profile), self.lease_id)
+        require(value['code'] == source['successor_code'], ErrorCode.SOURCE_DRIFT)
+        previous = self.controller._read('public-generation.json')
+        if previous is None: self.controller._write('public-generation.json', value)
+        else: require(previous == value, ErrorCode.SOURCE_DRIFT)
+        return public.Generation(value)

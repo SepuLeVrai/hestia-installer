@@ -43,7 +43,7 @@ def done(result):
     return result
 
 
-def setup():
+def setup(*, dev_enabled=True, release_commit=None):
     public.setup()
     service = fixture.service()
     try:
@@ -57,8 +57,10 @@ def setup():
                 'choices': {'email': 'operator@example.test', 'access': 'allowlist', 'networks': ['172.30.85.10/32']}})['public_tls']['installation']
             done(service.execute('public-tls.apply', confirm(planned))['public_tls']['installation'])
         planned = service.execute('gateway.plan', {'web_plan_sha256': parent['plan_sha256'], 'public_origin': ORIGIN,
-            'dev_enabled': True, 'acquisition': 'package'})['gateway']['preparation']
-        raw = Path('/opt/gateway-package.zip').read_bytes()
+            'dev_enabled': dev_enabled, 'acquisition': 'package',
+            **({'release_commit': release_commit} if release_commit is not None else {})})['gateway']['preparation']
+        from installer.gateway_transition import FCM_COMMIT
+        raw = Path('/opt/gateway-target-package.zip' if release_commit == FCM_COMMIT else '/opt/gateway-package.zip').read_bytes()
         gateway = done(service.import_gateway_package(planned['plan_sha256'], io.BytesIO(raw), len(raw))['gateway']['preparation'])
         parents = {'web': parent['plan_sha256'], 'activation': service.activation.journal.read()['plan_sha256'], 'gateway': gateway['plan_sha256']}
         planned = service.execute('foundation.plan', {'parents': parents})['foundation']['installation']

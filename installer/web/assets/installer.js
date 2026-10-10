@@ -910,9 +910,13 @@
     content.append(card);
   }
   function transitionExecutionForm() {
+    const publicTransfer = transitionExecution.profile?.policy === "COCKPIT_GATEWAY_PUBLIC_TRANSITION_V1" ||
+      (!transitionExecution.profile && sharedPublic.installation?.state === "DONE" && mobileBoot.installation?.state === "DONE");
     const card = element("article", null, "wizard-card"); card.id = "gateway-transition-execution";
     card.append(element("h2", "Exécuter le changement de version Gateway"));
-    card.append(hint("Parcours MAIN privé, sans DEV ni Firebase, avant le HTTPS public et le démarrage automatique. La sauvegarde vérifiée reste liée à cette opération. Une nouvelle confirmation autorise la bascule puis la reprise locale des services."));
+    card.append(hint(publicTransfer ?
+      "Parcours MAIN déjà exposé, sans DEV ni Firebase. La confirmation autorise la bascule Gateway, le transfert du frontal et du démarrage automatique, puis la réouverture publique après contrôles. La sauvegarde vérifiée reste liée à cette opération." :
+      "Parcours MAIN privé, sans DEV ni Firebase, avant le HTTPS public et le démarrage automatique. La sauvegarde vérifiée reste liée à cette opération. Une nouvelle confirmation autorise la bascule puis la reprise locale des services."));
     if (transitionExecution.state === "NOT_PLANNED" || transitionExecution.state === "AWAITING_CONFIRMATION" && !transitionExecution.acquisition) {
       card.append(button("Préparer l'exécution de la transition", () => void run(async () => {
         transitionExecution = (await api("/api/gateway/transition/execution/plan", {
@@ -921,9 +925,10 @@
       }), "plan-transition-execution"));
     } else {
       const labels = {AWAITING_CONFIRMATION: "En attente du paquet et de votre confirmation", RESUME_REQUIRED: "Transition engagée, reprise explicite disponible", DONE: "Transition et activation locale enregistrées", UNAVAILABLE: "Journal indisponible, vérification manuelle requise"};
+      if (publicTransfer) labels.DONE = "Transition et réouverture publique enregistrées";
       const status = element("p", labels[transitionExecution.state]); status.id = "transition-execution-state";
       status.dataset.state = transitionExecution.state; status.setAttribute("aria-live", "polite"); card.append(status);
-      const stages = {binaries: "Vérification et préparation des binaires", cutover: "Bascule du binaire", publication: "Enregistrement de la version cible", admission: "Préparation de la reprise", activation: "Reprise locale des services"};
+      const stages = {binaries: "Vérification et préparation des binaires", cutover: "Bascule du binaire", publication: "Enregistrement de la version cible", "public-transfer": "Transfert du frontal et du démarrage automatique", admission: "Préparation de la reprise", activation: "Reprise locale des services", "public-open": "Réouverture du frontal public"};
       for (const step of transitionExecution.steps) card.append(hint(stages[step.stage] + " : " + (states[step.state] || step.state)));
       if (transitionExecution.state === "AWAITING_CONFIRMATION" && transitionExecution.acquisition?.state !== "DONE") {
         const file = element("input"); file.type = "file"; file.accept = ".zip,application/zip"; file.id = "transition-package";
@@ -956,15 +961,16 @@
             confirm: true, credentials, allow_global_read_lock: true}};
           consent.checked = false;
           $("operation-title").textContent = action === "apply" ? "Basculer Gateway et reprendre les services ?" : "Reprendre la transition interrompue ?";
-          $("operation-description").textContent = "Le journal conserve chaque étape. Les contrôles natifs restent obligatoires avant la réouverture. Les données SQLite sont conservées ; aucune restauration ancienne n'est effectuée. Le HTTPS public et le démarrage automatique ne font pas partie de ce parcours.";
+          $("operation-description").textContent = "Le journal conserve chaque étape. Les contrôles natifs restent obligatoires avant la réouverture. Les données SQLite sont conservées ; aucune restauration ancienne n'est effectuée. " +
+            (publicTransfer ? "Le frontal HTTPS et le démarrage automatique seront transférés vers la version cible. Une interruption peut nécessiter une reprise explicite." : "Le HTTPS public et le démarrage automatique ne font pas partie de ce parcours.");
           $("operation-dialog").returnValue = ""; $("operation-dialog").showModal();
         }, action + "-transition-execution", true));
       }
-      if (transitionExecution.state === "DONE") card.append(button("Vérifier la disponibilité locale", () => void run(async () => {
+      if (transitionExecution.state === "DONE") card.append(button(publicTransfer ? "Vérifier les services et le frontal" : "Vérifier la disponibilité locale", () => void run(async () => {
         transitionExecution = (await api("/api/gateway/transition/execution/check", {confirmation: transitionExecution.confirmation, confirm: true})).gateway_transition_execution;
         show(5);
       }), "check-transition-execution"));
-      if (transitionExecution.availability) card.append(hint("Vérification explicite : services actifs et Web local disponible."));
+      if (transitionExecution.availability) card.append(hint(publicTransfer ? "Vérification explicite : services locaux et frontal contrôlés." : "Vérification explicite : services actifs et Web local disponible."));
       if (transitionExecution.last_error_redacted) card.append(hint(errorMessage({code: transitionExecution.last_error_redacted})));
       card.append(hint("L'historique ne certifie pas la disponibilité actuelle. Actualiser la page ne relance aucune action."));
     }

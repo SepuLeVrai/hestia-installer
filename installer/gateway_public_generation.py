@@ -39,6 +39,24 @@ def selection(shared, mobile_profile, target_commit, direction, publication_sha2
     return value
 
 
+def source_configuration(original):
+    require(type(original) is mobile.MobileBootRuntime, ErrorCode.INVALID_DATA)
+    original.shared.boot.configuration(); original.shared.configuration(); original.configuration()
+    original.shared.completed('verify')
+    require(original.shared.ready(), ErrorCode.DEPENDENCY_BLOCKED)
+    for runtime in (original.shared.boot, original):
+        owner = runtime._read('enabled.json')
+        require(type(owner) is dict and owner == runtime._read('enable.attempt')
+                and set(owner) == {'version', 'installation_id', 'spec_sha256', 'profile_sha256'}
+                and type(owner['version']) is int and owner['version'] == 1
+                and owner['profile_sha256'] == sha(runtime.profile)
+                and type(owner['installation_id']) is str
+                and re.fullmatch('[a-f0-9-]{32,36}', owner['installation_id']), ErrorCode.SOURCE_DRIFT)
+        frozen.digest(owner['spec_sha256'])
+        with boot.fs._directory(runtime.link.parent) as fd:
+            runtime.exact_link(fd, runtime.link.name, '../' + runtime.target)
+
+
 class Generation:
     _read = PackagePlan._read
 
@@ -117,21 +135,7 @@ class Generation:
         return {name: (before[name], after[name]) for name in before}
 
     def source_configuration(self):
-        original = self.original
-        original.shared.boot.configuration(); original.shared.configuration(); original.configuration()
-        original.shared.completed('verify')
-        require(original.shared.ready(), ErrorCode.DEPENDENCY_BLOCKED)
-        for runtime in (original.shared.boot, original):
-            owner = runtime._read('enabled.json')
-            require(type(owner) is dict and owner == runtime._read('enable.attempt')
-                    and set(owner) == {'version', 'installation_id', 'spec_sha256', 'profile_sha256'}
-                    and type(owner['version']) is int and owner['version'] == 1
-                    and owner['profile_sha256'] == sha(runtime.profile)
-                    and type(owner['installation_id']) is str
-                    and re.fullmatch('[a-f0-9-]{32,36}', owner['installation_id']), ErrorCode.SOURCE_DRIFT)
-            frozen.digest(owner['spec_sha256'])
-            with boot.fs._directory(runtime.link.parent) as fd:
-                runtime.exact_link(fd, runtime.link.name, '../' + runtime.target)
+        source_configuration(self.original)
 
     def stage(self, lease, *, confirmed):
         require(confirmed is True and type(lease) is MaintenanceLease, ErrorCode.CONFIRMATION_REQUIRED)
@@ -234,7 +238,11 @@ class Generation:
         # renewal and a later boot also require the public opening boundary.
         # Its producer is deliberately separate from SQL admission.
         if role != 'backend':
-            require(self._read('opened.json') == owner, ErrorCode.DEPENDENCY_BLOCKED)
+            from installer.gateway_public_opening import worker_admitted
+            worker_admitted(self, role, authority)
+        if role in ('http', 'https', 'renew'):
+            scope = self.http._scope(self.layout.identity.account())
+            require(scope.observe()['state'] == 'SERVING', ErrorCode.MANUAL_ACTION_REQUIRED)
         web, shared, boot_mobile = self.readers()
         if role in ('sql', 'web'): web.boot(role); return None
         if role == 'mobile': boot_mobile.boot(); return None

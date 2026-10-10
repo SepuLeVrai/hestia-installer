@@ -14,16 +14,45 @@ from installer.transaction import StateJournal
 
 POLICY = 'COCKPIT_GATEWAY_PRIVATE_TRANSITION_V1'
 STAGES = ('binaries', 'cutover', 'publication', 'admission', 'activation')
+PUBLIC_POLICY = 'COCKPIT_GATEWAY_PUBLIC_TRANSITION_V1'
+PUBLIC_STAGES = ('binaries', 'cutover', 'publication', 'public-transfer', 'admission', 'activation', 'public-open')
 
 
 class GatewayTransitionExecution:
     _read, _write = PackagePlan._read, PackagePlan._write
 
-    def __init__(self, transition, backup):
+    def __init__(self, transition, backup, mobile_boot=None):
         self.transition, self.backup, self.parent = transition, backup, backup.parent
         self.root = transition.root / 'execution'
         self.journal = StateJournal(self.root / 'acquisition/state.json')
         self.last_error = self.availability = None
+        self.mobile_boot = mobile_boot
+
+    def public_source(self, parent, assessment):
+        if self.mobile_boot is None: return None
+        from installer import mobile_boot_runtime as boot, shared_public_runtime as shared
+        value = self.mobile_boot._read('profile.json')
+        if value is None: return None
+        # Read frozen profiles, never regenerate their code sets at this HEAD.
+        engine, runtime = boot.engine(self.mobile_boot.journal, value)
+        document = engine.report()
+        control = self.mobile_boot.shared_public
+        public_profile = control.profile()
+        public_engine, _ = shared.engine(control.journal, public_profile)
+        public_document = public_engine.report()
+        require(document is not None and document['state'] == 'DONE'
+            and public_document is not None and public_document['state'] == 'DONE'
+            and value['shared'] == public_profile and public_profile['version'] == 1
+            and public_profile['gateway_binding'] == assessment['source']
+            and value['parents'] == {'web': parent['plan_sha256'],
+                'shared_public': public_document['plan_sha256'], 'shared_journal': digest(public_document)},
+            ErrorCode.INCOMPATIBLE_STATE)
+        return {'mobile': value, 'successor_code': {n: boot.boot.f._sha(raw) for n, raw in boot.code_files().items()},
+                'mobile_journal_sha256': digest(document),
+                'shared_journal_sha256': digest(public_document)}
+
+    @staticmethod
+    def stages(profile): return PUBLIC_STAGES if profile['policy'] == PUBLIC_POLICY else STAGES
 
     def binding(self, parent):
         value = self.transition.profile()
@@ -34,20 +63,39 @@ class GatewayTransitionExecution:
         require('dev' not in assessment['source'] and 'push' not in assessment['source'], ErrorCode.UNSUPPORTED_MODULE)
         base = MobilePreparationPlan(self.backup).binding(parent)
         require(base['parents']['gateway_service'] == value['source_plan_sha256'], ErrorCode.INCOMPATIBLE_STATE)
-        return {**base, 'policy': POLICY, 'transition_sha256': digest(value)}
+        result = {**base, 'policy': POLICY, 'transition_sha256': digest(value)}
+        public = self.public_source(parent, assessment)
+        if public is not None:
+            require(public['mobile']['shared']['preparation']['instance'] == base['instance'], ErrorCode.INCOMPATIBLE_STATE)
+            result.update(policy=PUBLIC_POLICY, public_source=public)
+        return result
 
     def profile(self):
         value = self._read('profile.json')
         if value is not None:
             exact_keys(value, {'version', 'instance', 'parents', 'draft_sha256', 'policy', 'lease_id',
-                               'backup_profile_sha256', 'backup_receipt_sha256', 'transition_sha256'})
-            require(type(value['version']) is int and value['version'] == 1 and value['policy'] == POLICY, ErrorCode.INVALID_STATE)
+                               'backup_profile_sha256', 'backup_receipt_sha256', 'transition_sha256'} |
+                       ({'public_source'} if value.get('policy') == PUBLIC_POLICY else set()))
+            require(type(value['version']) is int and value['version'] == 1
+                and value['policy'] in (POLICY, PUBLIC_POLICY), ErrorCode.INVALID_STATE)
             exact_keys(value['parents'], PARENTS)
             for key in ('instance', 'lease_id'):
                 require(type(value[key]) is str and re.fullmatch('[a-f0-9]{32}', value[key]), ErrorCode.INVALID_STATE)
             require(all(type(x) is str and re.fullmatch('[a-f0-9]{64}', x) for x in [*value['parents'].values(),
                 value['draft_sha256'], value['backup_profile_sha256'], value['backup_receipt_sha256'], value['transition_sha256']]), ErrorCode.INVALID_STATE)
             require(digest(self.transition.profile()) == value['transition_sha256'], ErrorCode.INCOMPATIBLE_STATE)
+            if value['policy'] == PUBLIC_POLICY:
+                from installer.mobile_boot_runtime import MobileBootRuntime
+                source = value['public_source']
+                exact_keys(source, {'mobile', 'successor_code', 'mobile_journal_sha256', 'shared_journal_sha256'})
+                original = MobileBootRuntime(source['mobile'])
+                require(original.layout.instance == value['instance']
+                    and original.shared.value['version'] == 1
+                    and original.gateway.profile.binding() == self.transition.profile()['assessment']['source'],
+                    ErrorCode.INCOMPATIBLE_STATE)
+                MobileBootRuntime({**source['mobile'], 'code': source['successor_code']})
+                require(all(type(source[k]) is str and re.fullmatch('[a-f0-9]{64}', source[k])
+                    for k in ('mobile_journal_sha256', 'shared_journal_sha256')), ErrorCode.INVALID_STATE)
         return value
 
     def engine(self, profile, *, stream=None, length=None):
@@ -71,7 +119,7 @@ class GatewayTransitionExecution:
         confirmation = digest(profile); approved = self._read('approved.json')
         require(approved is None or approved == {'confirmation': confirmation}, ErrorCode.INVALID_STATE)
         previous = confirmation; pending = False; rows = []
-        for stage in STAGES:
+        for stage in self.stages(profile):
             intent = self._read(stage + '.intent.json'); done = self._read(stage + '.done.json')
             owner = {'confirmation': confirmation, 'stage': stage, 'previous_sha256': previous}
             require(not pending or intent is None and done is None, ErrorCode.INVALID_STATE)
