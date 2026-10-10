@@ -110,6 +110,29 @@ class MobileBackupPlan:
             result.update(state='UNAVAILABLE', backup=None, last_error_redacted='INVALID_STATE')
         return result
 
+    def check_previous(self, fresh, http):
+        from installer.gateway_public_selection import selected
+        from installer.gateway_public_generation import Generation
+        from installer.gateway_public_opening import Opening
+        from installer.gateway_resume_authority import Authority
+        reference = self.cycle['predecessor']
+        reader = object.__new__(Generation)
+        reader.root = fresh.root / ('public-successor-' + reference['lease_id'])
+        # A generation profile contains the complete frozen code manifests.
+        # Read it with its own bounded private-file contract, not the smaller
+        # backup-receipt reader. All profile grammar and native checks remain.
+        previous = Generation(reader._read('profile.json'))
+        require(previous.digest == reference['generation_sha256'], ErrorCode.SOURCE_DRIFT)
+        generation = selected(previous.original.shared)
+        require(generation.digest == previous.digest, ErrorCode.SOURCE_DRIFT)
+        runtime = generation.selected(http)
+        prior = {'instance': fresh.instance}
+        if 'predecessor' in previous.value:
+            prior['source_generation'] = {'predecessor': previous.value['predecessor']}
+        # The prior archive path follows the frozen predecessor; never adopt
+        # a destination taken from an arbitrary admission record.
+        Opening(Authority.load(runtime, self.backups(prior), reference['lease_id'])).check()
+
     def execute(self, action, payload):
         require(action in ('plan', 'apply', 'resume'))
         with self.parent.journal.locked(create=False) as locked:
@@ -145,19 +168,8 @@ class MobileBackupPlan:
                     # A gate created before our lease receipt is not adopted by inference.
                     require(observed['state'] == 'SERVING', ErrorCode.MANUAL_ACTION_REQUIRED)
                     if self.cycle is not None:
-                        from installer.gateway_public_selection import selected
-                        from installer.gateway_public_generation import Generation
-                        from installer.gateway_public_opening import Opening
-                        from installer.gateway_resume_authority import Authority
-                        reference = self.cycle['predecessor']
-                        previous = Generation(read_private(fresh.root / ('public-successor-' + reference['lease_id']), 'profile.json'))
-                        generation = selected(previous.original.shared)
-                        require(generation.digest == reference['generation_sha256'], ErrorCode.SOURCE_DRIFT)
-                        runtime = generation.selected(http)
                         # Recheck the current consumed admission before a new gate.
-                        raw = read_private(runtime.root / 'control' / ('resume-' + reference['lease_id']), 'plan.json')
-                        from pathlib import Path
-                        Opening(Authority.load(runtime, Path(raw['backup_root']), reference['lease_id'])).check()
+                        self.check_previous(fresh, http)
                     with _private_directory(backups, create=True) as fd:
                         require(not os.listdir(fd), ErrorCode.MANUAL_ACTION_REQUIRED)
                     if approved is None: self._write('approved.json', {'confirmation': digest(profile)})

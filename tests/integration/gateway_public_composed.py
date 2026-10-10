@@ -6,6 +6,7 @@ kills the coordinator after native effects, never substitutes observations.
 """
 import argparse
 from contextlib import contextmanager, closing
+import faulthandler
 import hashlib
 import io
 import json
@@ -40,6 +41,33 @@ def save(name, value): (EVIDENCE / name).write_bytes(quality.encode(value))
 def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def error_chain(error):
+    """Codes and code locations only: never exception text, arguments or locals."""
+    chain = []; current = error
+    while current is not None and len(chain) < 12:
+        code = str(current)
+        chain.append({'type': type(current).__name__,
+            'code': code if re.fullmatch('[A-Z][A-Z0-9_]{1,100}', code) else 'REDACTED',
+            'frames': [{'file': Path(row.filename).name, 'line': row.lineno, 'function': row.name}
+                       for row in traceback.extract_tb(current.__traceback__)]})
+        current = current.__context__
+    return chain
+
+
+class EvidenceResult(unittest.TextTestResult):
+    def record(self, test, err):
+        # The original test has already been marked failed. Diagnostics must
+        # neither mask that failure nor turn an unrecorded run into a PASS.
+        try: save('public-parent-failure.json', {'test': test.id(), 'chain': error_chain(err[1])})
+        except Exception: pass
+
+    def addError(self, test, err):
+        super().addError(test, err); self.record(test, err)
+
+    def addFailure(self, test, err):
+        super().addFailure(test, err); self.record(test, err)
+
+
 def identity(runtime):
     with closing(sqlite3.connect(runtime.profile.state.as_uri() + '/gateway.db?mode=ro', uri=True)) as db:
         db.execute('PRAGMA query_only=ON')
@@ -70,18 +98,14 @@ def kill(action, boundary):
     began = time.monotonic()
     pid = os.fork()
     if pid == 0:
+        trace = (EVIDENCE / ('public-watchdog-' + boundary + '.txt')).open('w')
+        faulthandler.register(signal.SIGUSR1, file=trace, all_threads=True)
         try: action()
         except BaseException as error:
-            chain = []; current = error
-            while current is not None and len(chain) < 12:
-                code = str(current)
-                chain.append({'type': type(current).__name__, 'code': code if re.fullmatch('[A-Z][A-Z0-9_]{1,100}', code) else 'REDACTED',
-                    'frames': [{'file': Path(row.filename).name, 'line': row.lineno, 'function': row.name}
-                               for row in traceback.extract_tb(current.__traceback__)]})
-                current = current.__context__
-            save('public-child-failure.json', chain); os._exit(98)
+            save('public-child-failure.json', error_chain(error)); os._exit(98)
         os._exit(97)
     deadline = time.monotonic() + 1800
+    traced = False
     while time.monotonic() < deadline:
         found, status = os.waitpid(pid, os.WNOHANG)
         if found:
@@ -89,6 +113,10 @@ def kill(action, boundary):
             rows[-1].update(status='SIGKILL_OBSERVED', seconds=time.monotonic() - began)
             save(progress.name, rows)
             return
+        if not traced and time.monotonic() >= deadline - 1:
+            try: os.kill(pid, signal.SIGUSR1)
+            except ProcessLookupError: pass
+            traced = True
         time.sleep(.1)
     os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0)
     raise AssertionError('Native public composition timeout')
@@ -231,7 +259,7 @@ if __name__ == '__main__':
             windows.append({'seconds': time.monotonic() - began})
             save(path.name, windows)
     with patch.object(activation.a.c.rf, 'acquire', timed):
-        result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Transfer if phase == 'transfer' else Restart))
+        result = unittest.TextTestRunner(verbosity=2, resultclass=EvidenceResult).run(unittest.defaultTestLoader.loadTestsFromTestCase(Transfer if phase == 'transfer' else Restart))
     stable = before == quality.snapshot(ROOT)
     passed = result.wasSuccessful() and result.testsRun == 1 and not result.skipped and stable
     save('public-composed-' + phase + '.json', {'status': 'PASS' if passed else 'FAIL', 'tests': result.testsRun,

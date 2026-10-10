@@ -63,5 +63,26 @@ de recette à trois cycles est de 150 minutes ; les deux jobs à un cycle garden
 leur limite de 100 minutes. Le watchdog d'une coupure reste à 1800 secondes.
 Les manifestes et résultats sont produits sur les sources exactes testées.
 
+La recette expose six étapes distinctes dans Actions : transfert puis
+redémarrage pour chacun des trois cycles. Le même conteneur et les mêmes
+volumes sont conservés entre ces étapes. Un échec conserve les preuves déjà
+produites et empêche l'exécution des cycles suivants.
+
+## Diagnostic intermédiaire
+
+Sur `20a5e75`, le premier cycle et son redémarrage sont PASS, avec deux
+renouvellements réels. Le deuxième cycle refuse sa sauvegarde préalable.
+Le lecteur de petits reçus y était utilisé pour un profil complet de génération
+qui dépasse sa limite de 64 Kio. La correction utilise le lecteur privé borné
+du profil de génération, conserve sa grammaire et son empreinte, puis vérifie
+l'ouverture courante avant toute acquisition du nouveau bail. Le chemin de
+l'archive précédente est déduit de son ascendance figée.
+
+Les tests couvrent le profil réel supérieur à 64 Kio, l'altération du profil,
+les permissions privées, l'archive distincte du troisième cycle et le refus
+avant toute nouvelle maintenance. Les exceptions natives produisent désormais
+une chaîne de codes et de positions, sans arguments ni données locales.
+Ces tests ne remplacent pas la recette native complète, qui reste à valider.
+
 Ce lot ne qualifie pas DEV/FCM, une restauration sur l'origine, un redémarrage
 du noyau ou la clôture globale de phase 6. #17 et #18 restent ouverts.

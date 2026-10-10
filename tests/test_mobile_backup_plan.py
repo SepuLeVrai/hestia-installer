@@ -93,6 +93,16 @@ class MobileBackupPlanTests(unittest.TestCase):
         with self.assertRaises(InstallerError): self.request()
         self.assertIsNone(self.control._read('approved.json')); self.scope.acquire.assert_not_called()
 
+    def test_failed_previous_cycle_check_never_approves_or_acquires_new_gate(self):
+        self.control.cycle = {'predecessor': {}}
+        with patch.object(self.control, 'backups', return_value=self.backups), \
+                patch.object(self.control, 'check_previous', side_effect=InstallerError('SOURCE_DRIFT')) as check:
+            self.prepare()
+            with self.assertRaisesRegex(InstallerError, '^MANUAL_ACTION_REQUIRED$'): self.request()
+        check.assert_called_once()
+        self.assertIsNone(self.control._read('approved.json'))
+        self.scope.acquire.assert_not_called(); self.factory.assert_not_called()
+
     def test_interrupted_backup_requires_explicit_resume_of_same_lease(self):
         self.prepare(); self.operation.create_and_verify.side_effect = RuntimeError('private-secret')
         with self.assertRaisesRegex(InstallerError, '^MANUAL_ACTION_REQUIRED$'): self.request()
@@ -172,3 +182,73 @@ class MobileBackupPlanTests(unittest.TestCase):
                          {'/api/mobile/backup/' + action for action in ('plan', 'apply', 'resume')})
         for action in ('retry', 'check', 'reopen'):
             with self.assertRaises(InstallerError): self.service.execute('mobile-backup.' + action, {})
+
+
+class CycleBackupProfileTests(unittest.TestCase):
+    """Real full-size private profiles; only current native observations mocked."""
+    def setUp(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from types import SimpleNamespace
+        from installer import gateway_public_generation as g, gateway_public_selection as selection
+        from installer import gateway_public_opening as opening, gateway_resume_authority as authority
+        from installer.gateway_public_ancestry import FIELDS
+        from installer.gateway_transition import FCM_COMMIT
+        from test_mobile_boot import profile
+        temporary = TemporaryDirectory(prefix='hestia-cycle-backup-', dir='/var/lib')
+        self.addCleanup(temporary.cleanup)
+        self.fresh = SimpleNamespace(root=Path(temporary.name), instance='a' * 32)
+        mobile = profile()
+        value = g.selection(mobile['shared'], mobile, FCM_COMMIT, 'upgrade', 'b' * 64, 'c' * 32)
+        self.generation = g.Generation(value)
+        self.control = object.__new__(plan.MobileBackupPlan)
+        self.reference = {key: 'd' * 64 for key in FIELDS}
+        self.reference.update(lease_id=value['lease_id'], generation_sha256=self.generation.digest)
+        self.control.cycle = {'predecessor': self.reference}
+        self.path = self.fresh.root / ('public-successor-' + value['lease_id']) / 'profile.json'
+        fixture.MobileActivationPlanTests.write(self.path, value)
+        self.pointer = self.enterContext(patch.object(selection, 'selected', return_value=self.generation))
+        self.runtime = Mock()
+        self.enterContext(patch.object(g.Generation, 'selected', return_value=self.runtime))
+        self.authority = self.enterContext(patch.object(authority.Authority, 'load'))
+        self.opening = self.enterContext(patch.object(opening, 'Opening'))
+        self.http = Mock()
+
+    def test_full_size_profile_uses_generation_reader_and_original_archive(self):
+        self.assertGreater(self.path.stat().st_size, 65536)
+        self.assertLessEqual(self.path.stat().st_size, 262144)
+        before = self.path.read_bytes()
+        self.control.check_previous(self.fresh, self.http)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.authority.assert_called_once_with(self.runtime,
+            plan.FreshProfile(self.fresh.instance).root / 'gateway-backup', self.reference['lease_id'])
+        self.opening.return_value.check.assert_called_once_with()
+
+    def test_changed_private_profile_is_not_adopted_from_current_pointer(self):
+        value = deepcopy(self.generation.value); value['publication_sha256'] = 'e' * 64
+        fixture.MobileActivationPlanTests.write(self.path, value)
+        with self.assertRaises(InstallerError): self.control.check_previous(self.fresh, self.http)
+        self.authority.assert_not_called(); self.opening.assert_not_called()
+
+    def test_unsafe_profile_permissions_fail_before_native_admission(self):
+        self.path.chmod(0o644)
+        with self.assertRaises(InstallerError): self.control.check_previous(self.fresh, self.http)
+        self.authority.assert_not_called(); self.opening.assert_not_called()
+
+    def test_third_cycle_rechecks_the_distinct_second_cycle_archive(self):
+        from installer import gateway_public_generation as g
+        from installer.gateway_transition import LEGACY_COMMIT
+        value = self.generation.value
+        previous = g.selection(value['shared'], value['mobile'], LEGACY_COMMIT, 'rollback', 'e' * 64,
+            'f' * 32, predecessor=self.reference, source_binding=value['target_binding'])
+        expected = self.reference['generation_sha256']
+        generation = g.Generation(previous)
+        self.control.cycle = {'predecessor': {**self.reference,
+            'lease_id': previous['lease_id'], 'generation_sha256': generation.digest}}
+        path = self.fresh.root / ('public-successor-' + previous['lease_id']) / 'profile.json'
+        fixture.MobileActivationPlanTests.write(path, previous)
+        self.pointer.return_value = generation
+        self.control.check_previous(self.fresh, self.http)
+        self.authority.assert_called_once_with(self.runtime,
+            plan.FreshProfile(self.fresh.instance).root / ('gateway-backup-' + expected), previous['lease_id'])
+        self.opening.return_value.check.assert_called_once_with()

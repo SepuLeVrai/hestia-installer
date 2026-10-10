@@ -201,23 +201,61 @@ jobs:
           test "$state" = running || test "$state" = degraded
           docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 -e HESTIA_TRANSITION_CASE=${{ matrix.direction == 'cycles' && 'upgrade' || matrix.direction }} mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_composed.py --phase restart 2>&1 | tee evidence/shared-restart.log
           docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report /evidence/source-pins-after-boot.json
-      - name: Three successive generations on one host with interruption and boot
+      - name: Cycle 1 of 3 - upgrade with real interruption and recovery
         if: matrix.direction == 'cycles'
         run: |
           set -Eeuo pipefail
           docker rm -f mariadb-browser
-          for cycle in 1 2 3; do
-            docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_cycles.py --phase transfer --cycle "$cycle" 2>&1 | tee "evidence/cycle-$cycle-transfer.log"
-            docker restart --timeout 90 mariadb-target
-            for attempt in $(seq 1 100); do
-              state=$(docker exec mariadb-target systemctl is-system-running 2>/dev/null || true)
-              if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
-              sleep 1
-            done
-            test "$state" = running || test "$state" = degraded
-            docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_cycles.py --phase restart --cycle "$cycle" 2>&1 | tee "evidence/cycle-$cycle-restart.log"
-            docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report "/evidence/source-pins-cycle-$cycle.json"
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_cycles.py --phase transfer --cycle 1 2>&1 | tee evidence/cycle-1-transfer.log
+      - name: Cycle 1 of 3 - restart and two real renewals
+        if: matrix.direction == 'cycles'
+        run: |
+          set -Eeuo pipefail
+          docker restart --timeout 90 mariadb-target
+          for attempt in $(seq 1 100); do
+            state=$(docker exec mariadb-target systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
+            sleep 1
           done
+          test "$state" = running || test "$state" = degraded
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_cycles.py --phase restart --cycle 1 2>&1 | tee evidence/cycle-1-restart.log
+          docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report /evidence/source-pins-cycle-1.json
+      - name: Cycle 2 of 3 - rollback with real interruption and recovery
+        if: matrix.direction == 'cycles'
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_cycles.py --phase transfer --cycle 2 2>&1 | tee evidence/cycle-2-transfer.log
+      - name: Cycle 2 of 3 - restart and two real renewals
+        if: matrix.direction == 'cycles'
+        run: |
+          set -Eeuo pipefail
+          docker restart --timeout 90 mariadb-target
+          for attempt in $(seq 1 100); do
+            state=$(docker exec mariadb-target systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
+            sleep 1
+          done
+          test "$state" = running || test "$state" = degraded
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_cycles.py --phase restart --cycle 2 2>&1 | tee evidence/cycle-2-restart.log
+          docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report /evidence/source-pins-cycle-2.json
+      - name: Cycle 3 of 3 - upgrade with real interruption and recovery
+        if: matrix.direction == 'cycles'
+        run: |
+          set -Eeuo pipefail
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_cycles.py --phase transfer --cycle 3 2>&1 | tee evidence/cycle-3-transfer.log
+      - name: Cycle 3 of 3 - restart and two real renewals
+        if: matrix.direction == 'cycles'
+        run: |
+          set -Eeuo pipefail
+          docker restart --timeout 90 mariadb-target
+          for attempt in $(seq 1 100); do
+            state=$(docker exec mariadb-target systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
+            sleep 1
+          done
+          test "$state" = running || test "$state" = degraded
+          docker exec -e HESTIA_PUBLIC_COMPOSED_TEST=1 mariadb-target python3 /opt/hestia-installer/tests/integration/gateway_public_cycles.py --phase restart --cycle 3 2>&1 | tee evidence/cycle-3-restart.log
+          docker exec mariadb-target python3 /opt/hestia-installer/tests/integration/source_pins.py --commit 2a27c7a1f9fe0a00289eb53278f75d5f230900b7 --web /opt/hestia-pinned-web --report /evidence/source-pins-cycle-3.json
       - name: Require exact-source proofs for all three generations
         if: matrix.direction == 'cycles'
         run: |

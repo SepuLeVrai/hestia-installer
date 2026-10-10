@@ -179,7 +179,7 @@ if __name__ == '__main__':
             windows = json.loads(path.read_bytes()) if path.exists() else []
             windows.append({'seconds': time.monotonic() - began}); base.save(path.name, windows)
     with patch.object(base.activation.a.c.rf, 'acquire', timed):
-        result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Transfer if args.phase == 'transfer' else Restart))
+        result = unittest.TextTestRunner(verbosity=2, resultclass=base.EvidenceResult).run(unittest.defaultTestLoader.loadTestsFromTestCase(Transfer if args.phase == 'transfer' else Restart))
     stable = before == base.quality.snapshot(base.ROOT)
     passed = result.wasSuccessful() and result.testsRun == 1 and not result.skipped and stable
     base.save(label + '.json', {'status': 'PASS' if passed else 'FAIL', 'tests': result.testsRun,
