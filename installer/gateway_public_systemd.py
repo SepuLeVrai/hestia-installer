@@ -35,6 +35,13 @@ def show(unit):
         require(sep and key in props and key not in values and len(value) <= 2048
                 and not any(ord(c) < 32 or ord(c) == 127 for c in value))
         values[key] = value
+    # systemctl's composite Exec printer emits no row for an empty array,
+    # including with --all (observed on the qualified Debian 13 manager).
+    # Only those two arrays have this representation; all scalar fields remain
+    # mandatory. loaded() still rejects an empty array when a command is bound.
+    missing = set(props) - set(values)
+    require(missing <= {'ExecStart', 'ExecStartPre'})
+    for field in missing: values[field] = ''
     require(set(values) == set(props) and values['Id'] == unit and values['LoadState'] == 'loaded'
         and values['Job'] == '' and values['NeedDaemonReload'] in ('yes', 'no')
         and values['FragmentPath'] == str(boot.h.drain.UNIT_ROOT / unit)
@@ -94,7 +101,10 @@ class Manager:
         if descriptions: require(value['Description'] == descriptions[-1])
         for field in ('ExecStart', 'ExecStartPre'):
             directives = [line.partition('=')[2] for line in lines if line.startswith(field + '=')]
-            if not directives: continue  # An overlay may inherit the base ExecStart.
+            if not directives:
+                if unit != self.apache and unit.endswith('.service'):
+                    require(value[field] == '', 'GATEWAY_PUBLIC_UNEXPECTED_LOADED_COMMAND')
+                continue  # An Apache overlay may inherit the base command.
             expected = []
             for directive in directives:
                 if not directive: expected.clear()

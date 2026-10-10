@@ -117,3 +117,10 @@ et la recette refuse les tests absents, skips et échecs attendus. Les commandes
 chargées sont comparées au résultat des générateurs, pas déduites du seul bit
 NeedDaemonReload. Référence de syntaxe : manuel officiel systemd/systemctl,
 option --all (https://github.com/systemd/systemd/blob/main/man/systemctl.xml).
+
+Le diagnostic réel (`38041418645`) confirme une exception de rendu des tableaux
+Exec : ExecStartPre vide n'a aucune ligne, même avec --all. Le lecteur traduit
+uniquement cette représentation des deux tableaux Exec en liste vide ; tous
+les champs scalaires restent obligatoires. Une commande exigée et absente reste
+refusée. Un dixième contrat natif vérifie ce refus et celui d'un garde différent,
+avec les propriétés réelles de PID 1, sans substituer le lecteur systemd.

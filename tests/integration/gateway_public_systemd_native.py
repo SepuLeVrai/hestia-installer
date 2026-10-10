@@ -84,6 +84,14 @@ class NativeSystemdTransferTests(unittest.TestCase):
 
     def apply(self): return self.manager.apply(self.confirmation, confirmed=True)
 
+    def test_missing_or_different_required_loaded_guard_is_refused(self):
+        first = next(iter(self.replacements))
+        self.manager.loaded(first, self.replacements[first][0])
+        with self.assertRaises(f.FragmentError):
+            self.manager.loaded(first, b'[Service]\nExecStartPre=/usr/bin/true required\n')
+        with self.assertRaises(f.FragmentError):
+            self.manager.loaded(self.apache, self.replacements[f.resources(self.instance)[-1]][1])
+
     def test_real_stops_fragments_reload_and_read_only_check(self):
         before = {r: s.show(self.manager.public[r])['InvocationID'] for r in ('http', 'https')}
         self.assertTrue(all(before.values()))
