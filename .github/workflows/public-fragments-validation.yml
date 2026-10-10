@@ -1,0 +1,42 @@
+name: Public fragment protocol validation
+
+on:
+  push:
+    branches: ['validation/phase6-public-fragments-20261010']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fragments:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    container:
+      image: debian:13-slim
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install disposable test dependencies
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends python3 nodejs git
+      - name: Check exact source and real filesystem protocol
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir -p /opt/hestia-fragments /evidence
+          git archive HEAD | tar -x -C /opt/hestia-fragments
+          git rev-parse HEAD > /evidence/commit.txt
+          cd /opt/hestia-fragments
+          python3 scripts/quality.py static 2>&1 | tee /evidence/static.log
+          python3 -m unittest discover -s tests -p test_gateway_public_fragments.py -v 2>&1 | tee /evidence/fragments.log
+      - name: Preserve results including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: public-fragments-protocol
+          path: /evidence
+          if-no-files-found: error
