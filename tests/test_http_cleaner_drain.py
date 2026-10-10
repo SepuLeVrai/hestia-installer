@@ -18,7 +18,8 @@ class HttpCleanerDrainTests(unittest.TestCase):
     def controller(self):
         with base.HttpDrainTests.controller(self) as state:
             files = {d.s.UNIT_ROOT / self.cleaner.unit: b'collector', d.s.UNIT_ROOT / self.cleaner.timer: b'timer'}
-            with patch.object(self.cleaner, '_inspect_configuration', return_value=(self.account, self.scope, files, b'cleaner-plan')) as inspect, \
+            with patch.object(self.cleaner, '_inspect_with_runtime', return_value=(
+                     self.runtime._inspect_configuration(), (self.account, self.scope, files, b'cleaner-plan'))) as inspect, \
                  patch.object(self.cleaner, '_timer_state') as timer, patch.object(self.cleaner, '_stop_timer') as stop:
                 self.drain = d.HttpDrain(self.runtime, cleaner=self.cleaner)
                 state.inspect, state.timer, state.timer_stop = inspect, timer, stop
@@ -81,7 +82,7 @@ class HttpCleanerDrainTests(unittest.TestCase):
         with self.controller() as state:
             with self.drain.acquire(confirmed=True) as lease:
                 original = state.inspect.return_value
-                state.inspect.return_value = (*original[:3], b'changed-plan')
+                state.inspect.return_value = (original[0], (*original[1][:3], b'changed-plan'))
                 with self.assertRaisesRegex(d.HttpDrainError, 'PROFILE_CHANGED'): lease.report()
                 state.inspect.return_value = original
                 state.timer.side_effect = c.SessionCleanerError('SESSION_CLEANER_REJECTED')

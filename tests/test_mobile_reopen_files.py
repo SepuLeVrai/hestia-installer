@@ -297,4 +297,97 @@ class ReopenFilesTests(unittest.TestCase):
         self.assert_done(self.execute('resume'))
 
 
+class ReopenJournalScopeTests(unittest.TestCase):
+    """Private journal routing only; immutable inode release remains Ext4 CI."""
+    def setUp(self):
+        from tempfile import TemporaryDirectory
+        self.temp = TemporaryDirectory(prefix='hestia-reopen-journals-', dir='/var/lib')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.scope = SimpleNamespace(directory=self.root, instance='a' * 32)
+        self.backups = self.root / 'backups'; self.backups.mkdir(mode=0o700)
+
+    def controller(self, lease_id):
+        lease = SimpleNamespace(scope=self.scope, lease_id=lease_id)
+        http = object()
+        barrier = object.__new__(r.hd.HttpDrainLease)
+        barrier._lease = lease; barrier._drain = SimpleNamespace(runtime=http)
+        data = object.__new__(r.da.DataAccessFence); data._lease = lease; data._runtime = http
+        external = object.__new__(r.ef.ExternalFence); external._lease = lease; external._raw = b'fixture'
+        configuration = object.__new__(r.cf.admission.ConfigurationLease)
+        configuration._external = (lease, external._raw)
+        gateway = object.__new__(r.GatewayServiceRuntime); gateway.web = http
+        return r.ReopenFilesPlan(barrier, data, configuration, external, gateway, self.backups)
+
+    def profile(self, lease_id):
+        return {'version': 1, 'instance': self.scope.instance, 'lease_id': lease_id,
+            'service_profile_sha256': 'b' * 64, 'gateway_release_sha256': 'c' * 64,
+            'backup_root': str(self.backups), 'web_backup': {},
+            'journals': {name: 'd' * 64 for name in (*r.ROLES, 'data-access', 'external')}}
+
+    def legacy(self, raw):
+        root = self.root / 'mobile-reopen-files'; root.mkdir(mode=0o700)
+        if raw is not None:
+            (root / 'profile.json').write_bytes(raw); (root / 'profile.json').chmod(0o600)
+        return root
+
+    def test_three_leases_have_distinct_private_journals_and_preserve_previous_bytes(self):
+        snapshots = {}
+        for lease_id in ('1' * 32, '2' * 32, '3' * 32):
+            control = self.controller(lease_id)
+            self.assertEqual(control.root.name, 'mobile-reopen-files-' + lease_id)
+            self.assertIsNone(control.profile()); self.assertIsNone(control.journal.read())
+            control._save('profile.json', canonical_bytes(self.profile(lease_id)))
+            planned = control.engine().plan(mode='upgrade')
+            self.assertTrue(all(row['state'] == 'PLANNED' for row in planned['steps']))
+            self.assertEqual(control.profile()['lease_id'], lease_id)
+            for path, raw in snapshots.items(): self.assertEqual(path.read_bytes(), raw)
+            snapshots.update({path: path.read_bytes() for path in control.root.rglob('*') if path.is_file()})
+            self.assertEqual(self.controller(lease_id).journal.read(), planned)
+
+    def test_original_legacy_lease_keeps_its_exact_path_without_rewriting(self):
+        lease_id = '1' * 32; raw = canonical_bytes(self.profile(lease_id)); legacy = self.legacy(raw)
+        control = self.controller(lease_id)
+        self.assertEqual(control.root, legacy); self.assertEqual(control.profile(), self.profile(lease_id))
+        self.assertEqual((legacy / 'profile.json').read_bytes(), raw)
+        self.assertFalse((self.root / ('mobile-reopen-files-' + lease_id)).exists())
+
+    def test_foreign_legacy_lease_is_retained_but_never_adopted_by_next_cycle(self):
+        raw = canonical_bytes(self.profile('1' * 32)); legacy = self.legacy(raw)
+        next_plan = self.controller('2' * 32)
+        self.assertNotEqual(next_plan.root, legacy); self.assertIsNone(next_plan.profile())
+        self.assertEqual((legacy / 'profile.json').read_bytes(), raw)
+
+    def test_partial_or_ambiguous_legacy_evidence_is_refused_without_new_journal(self):
+        legacy = self.legacy(None)
+        with self.assertRaises(InstallerError): self.controller('1' * 32)
+        profile = legacy / 'profile.json'; profile.write_bytes(canonical_bytes(self.profile('1' * 32))); profile.chmod(0o600)
+        scoped = self.root / ('mobile-reopen-files-' + '1' * 32); scoped.mkdir(mode=0o700)
+        with self.assertRaises(Exception): self.controller('1' * 32)
+        self.assertEqual(list(scoped.iterdir()), [])
+
+    def test_private_profile_permissions_and_foreign_instance_fail_closed(self):
+        legacy = self.legacy(canonical_bytes(self.profile('1' * 32)))
+        profile = legacy / 'profile.json'; profile.chmod(0o644)
+        with self.assertRaises(Exception): self.controller('2' * 32)
+        profile.chmod(0o600); value = self.profile('1' * 32); value['instance'] = 'f' * 32
+        profile.write_bytes(canonical_bytes(value))
+        with self.assertRaises(InstallerError): self.controller('2' * 32)
+        self.assertFalse((self.root / ('mobile-reopen-files-' + '2' * 32)).exists())
+
+    def test_current_profile_cannot_import_another_lease_or_backup_root(self):
+        control = self.controller('2' * 32)
+        for changes in ({'lease_id': '1' * 32}, {'backup_root': str(self.root / 'foreign')}):
+            value = {**self.profile('2' * 32), **changes}
+            control.root.mkdir(mode=0o700, exist_ok=True)
+            path = control.root / 'profile.json'; path.write_bytes(canonical_bytes(value)); path.chmod(0o600)
+            with self.subTest(changes=changes), self.assertRaises(InstallerError): control.profile()
+
+    def test_lease_path_grammar_rejects_traversal_before_creating_anything(self):
+        before = set(self.root.iterdir())
+        for value in ('../foreign', 'A' * 32, '1' * 31, None, True):
+            with self.subTest(value=value), self.assertRaises(InstallerError): self.controller(value)
+        self.assertEqual(set(self.root.iterdir()), before)
+
+
 if __name__ == '__main__': unittest.main()

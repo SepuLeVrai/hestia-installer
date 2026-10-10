@@ -173,13 +173,23 @@ WantedBy=timers.target
                 require(f._read(fd, path.name, account.pw_gid if path.parent == self.directory else 0,
                     mode=0o640 if path.parent == self.directory else 0o644) == data)
 
-    def _inspect_configuration(self):
-        """Private immutable proof, never a staging or running observation."""
-        account, _, runtime_plan, initial = self.runtime._inspect_configuration()
+    def _inspect_with_runtime(self):
+        """Fresh combined file audit; no reusable observation or native authority.
+
+        The collector plan binds this exact HTTP plan. Return both observations
+        to composition callers so they do not scan the same source twice before
+        auditing units. Every call reads all files again.
+        """
+        runtime = self.runtime._inspect_configuration()
+        account, _, runtime_plan, initial = runtime
         scope = self.runtime._scope(account)
         account, scope, files, plan = self._profile_inputs(account, scope, f._sha(runtime_plan))
         self._verify_configuration(account, files, plan, initial['lease_id'])
-        return account, scope, files, plan
+        return runtime, (account, scope, files, plan)
+
+    def _inspect_configuration(self):
+        """Private immutable proof, never a staging or running observation."""
+        return self._inspect_with_runtime()[1]
 
     def observe(self):
         try:

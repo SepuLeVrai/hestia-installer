@@ -3,9 +3,9 @@
 État : candidat implémenté, non qualifié nativement à ce stade. Aucun résultat
 de ce lot ne doit être déduit des preuves du premier transfert à `24a210d`.
 
-## Gel et résultats acquis
+## Dernier gel natif et résultats acquis
 
-Candidat : `dd4d89af9ee6d5ff62621ba77aba36f194c53b5d`, arbre
+Dernier gel natif : `dd4d89af9ee6d5ff62621ba77aba36f194c53b5d`, arbre
 `6739bfa15369c9ed18671da702f108dba70fe336`, 555 fichiers. Branche
 `validation/phase6-public-generations-20261010`. Appelant Web :
 `c826a48bbe62e9e0121a13ba654496a1416e2599`, épinglé sur le candidat exact.
@@ -18,9 +18,9 @@ Candidat : `dd4d89af9ee6d5ff62621ba77aba36f194c53b5d`, arbre
 | Quality finale | PASS | Run `38080884154`, source complète `11679889328` |
 | Protocole public | PASS, 109 tests | Run `38080884162`, artefact `11680761073` |
 | Contrats systemd natifs | PASS, 10 tests | Même run, artefact `11680073329` |
-| Upgrade indépendant | En cours, aucun verdict | Run `38080901195`, job `114297421605` |
+| Upgrade indépendant | Watchdog HTTP 1800 s | Run `38080901195`, job `114297421605`, artefact `11681289874` |
 | Rollback indépendant | Échec de préparation avant transfert | Même run, job `114297421526`, artefact `11680751576` |
-| Trois cycles sur le même hôte | Premier upgrade en cours | Même run, job `114297421437` |
+| Trois cycles sur le même hôte | Cycle 1 et boot PASS ; reprise du cycle 2 refusée | Même run, job `114297421437`, artefact `11681931422` |
 
 Les artefacts téléchargés sont comparés aux empreintes de GitHub. Les rapports
 acquis n'ont ni erreur, ni échec, ni test sauté. Les manifestes des 555 fichiers
@@ -32,7 +32,9 @@ Le rollback indépendant échoue dans `shared.public.handoff.prepare`, sur un
 contrôle strict de l'unité session-cleaner. Le journal montre son démarrage et
 sa fin réussie à 19:50:12 UTC, au même instant que le refus
 `SYSTEM_DRAIN_UNIT_REJECTED`. L'artefact est conservé. GitHub a refusé la
-relance ciblée tant que les autres jobs tournent ; aucune relance n'a démarré.
+relance ciblée tant que les autres jobs tournaient ; aucune relance n'a démarré.
+Le run est désormais terminé. Les nouveaux défauts ci-dessous sont corrigés
+avant une nouvelle recette complète ; ce gel dépassé n'est pas relancé.
 
 Le périmètre reste MAIN avec SharedPublic v1 et MobileBoot historiques, sans
 DEV ni FCM actif. Les deux paquets du catalogue restent les seules cibles.
@@ -126,3 +128,40 @@ Ces tests ne remplacent pas la recette native complète, qui reste à valider.
 
 Ce lot ne qualifie pas DEV/FCM, une restauration sur l'origine, un redémarrage
 du noyau ou la clôture globale de phase 6. #17 et #18 restent ouverts.
+
+## Correctif suivant : journaux par bail et audits HTTP composés
+
+Le run `38080901195` est terminé en échec. Le cycle 1 de `dd4d89a` et son
+redémarrage passent : six fenêtres SQL, maximum 134,266560 s, deux renouvellements
+ACME réels et nouveau PID 1 dans le même noyau. Au cycle 2, la sauvegarde passe
+avec le lecteur de profil corrigé ; l'interruption `public-transfer` est observée.
+La reprise refuse ensuite `mobile_reopen_files.execute` : l'emplacement commun
+`maintenance/mobile-reopen-files` retrouve le journal déjà terminé du cycle 1,
+alors que son ancien garde a été consommé. Le cycle 3 n'a pas été exécuté.
+L'artefact `11681931422` est authentifié, avec les 555 sources exactes.
+
+Le correctif crée `maintenance/mobile-reopen-files-<lease_id>` pour chaque
+nouveau bail. Tous les lecteurs de réouverture externe, données et bloqueurs,
+ainsi que l'enveloppe d'archives, utilisent ce même emplacement. Les anciens
+journaux restent intacts. Un journal historique à l'ancien chemin est lu
+uniquement pour son bail exact ; un historique partiel, ambigu, altéré ou
+d'une autre instance est refusé. Le profil est lié au bail et à la sauvegarde.
+
+L'upgrade indépendant de `dd4d89a` échoue au watchdog de 1800 s avant le reçu
+HTTP. Sa trace situe le processus dans une relecture d'intégrité HTTP via
+SessionCleaner et Foundation ; cinq fenêtres SQL terminées, maximum
+171,212366 s. L'artefact `11681289874` est authentifié, sources exactes.
+Une duplication démontrée est supprimée : l'audit composé lit la configuration
+HTTP une seule fois pour le HTTP et son nettoyeur, avant les observations natives.
+Il n'y a aucun cache entre appels, aucune observation native conservée et aucune
+limite modifiée. Une comparaison sur fixture de 2 Mio produit les mêmes résultats,
+avec 10 lectures complètes au lieu de 20 pour 10 audits. Elle ne qualifie pas
+les durées sur le véritable hôte ni la résolution du watchdog.
+
+Quatorze nouveaux tests vérifient notamment les trois journaux distincts,
+la compatibilité historique, le refus de mélange des baux/sauvegardes, les
+modifications de source et du nettoyeur, et le maintien des refus natifs.
+Le registre obligatoire inclut aussi les cinq tests du précédent correctif
+qui n'y figuraient pas encore : 2152 tests core attendus. Les campagnes Quality,
+Ext4/systemd et la recette complète du nouveau gel restent à recueillir.
+Aucun ancien PASS ne qualifie ce correctif.

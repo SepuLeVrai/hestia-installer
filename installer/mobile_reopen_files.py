@@ -7,6 +7,7 @@ old RELEASE-removed/MARKER-present cut; qualified low-level readers stay strict.
 from contextlib import contextmanager
 from pathlib import Path
 import os
+import re
 
 from installer import backup_files as files, configuration_fence as cf
 from installer import data_access as da, external_fence as ef, http_drain as hd
@@ -27,6 +28,44 @@ fs, f = inf.fs, inf.f
 def _optional(fd, name, limit):
     try: return files._read(fd, name, limit)
     except FileNotFoundError: return None
+
+
+def _profile_value(raw):
+    value = strict_json_loads(raw)
+    exact_keys(value, {'version', 'instance', 'lease_id', 'service_profile_sha256',
+                       'gateway_release_sha256', 'backup_root', 'web_backup', 'journals'})
+    require(raw == canonical_bytes(value) and type(value['version']) is int and value['version'] == 1,
+            ErrorCode.INVALID_STATE)
+    require(all(type(value[k]) is str and re.fullmatch('[a-f0-9]{32}', value[k])
+                for k in ('instance', 'lease_id')), ErrorCode.INVALID_STATE)
+    exact_keys(value['journals'], {*ROLES, 'data-access', 'external'})
+    require(all(type(v) is str and guard.SHA256.fullmatch(v) for v in value['journals'].values()),
+            ErrorCode.INVALID_STATE)
+    return value
+
+
+def journal_root(lease):
+    """Read-only location, never authority to reuse a previous lease's journal.
+
+    Preserve the historical unscoped directory for its exact original lease.
+    New plans use a distinct directory for every lease; no old file is moved,
+    reset or overwritten. Partial or malformed legacy evidence fails closed.
+    """
+    require(type(lease.lease_id) is str and re.fullmatch('[a-f0-9]{32}', lease.lease_id), ErrorCode.INVALID_DATA)
+    legacy = lease.scope.directory / 'mobile-reopen-files'
+    current = lease.scope.directory / ('mobile-reopen-files-' + lease.lease_id)
+    try:
+        with _private_directory(legacy, create=False) as fd:
+            files._private(fd, directory=True)
+            raw = _optional(fd, 'profile.json', 16384)
+            require(raw is not None, ErrorCode.MANUAL_ACTION_REQUIRED)
+            value = _profile_value(raw)
+    except FileNotFoundError:
+        return current
+    require(value['instance'] == lease.scope.instance, ErrorCode.INCOMPATIBLE_STATE)
+    if value['lease_id'] != lease.lease_id: return current
+    with fs._directory(lease.scope.directory) as fd: fs._absent(fd, current.name)
+    return legacy
 
 
 class FileRelease(Operation):
@@ -109,7 +148,7 @@ class ReopenFilesPlan:
                 and configuration._external == (self.lease, external._raw), ErrorCode.INCOMPATIBLE_STATE)
         require(isinstance(backup_root, Path) and backup_root.is_absolute(), ErrorCode.INVALID_DATA)
         self.gateway, self.backups = gateway_runtime, backup_root
-        self.root = self.lease.scope.directory / 'mobile-reopen-files'
+        self.root = journal_root(self.lease)
         self.journal = StateJournal(self.root / 'transaction/state.json')
         self._guard = None
 
@@ -133,14 +172,9 @@ class ReopenFilesPlan:
     def profile(self):
         raw = self._read('profile.json', 16384)
         if raw is None: return None
-        value = strict_json_loads(raw)
-        exact_keys(value, {'version', 'instance', 'lease_id', 'service_profile_sha256',
-                           'gateway_release_sha256', 'backup_root', 'web_backup', 'journals'})
-        require(raw == canonical_bytes(value) and type(value['version']) is int and value['version'] == 1,
-                ErrorCode.INVALID_STATE)
-        exact_keys(value['journals'], {*ROLES, 'data-access', 'external'})
-        require(all(type(v) is str and guard.SHA256.fullmatch(v) for v in value['journals'].values()),
-                ErrorCode.INVALID_STATE)
+        value = _profile_value(raw)
+        require(value['instance'] == self.lease.scope.instance and value['lease_id'] == self.lease.lease_id
+                and value['backup_root'] == str(self.backups), ErrorCode.INCOMPATIBLE_STATE)
         return value
 
     def _held(self):

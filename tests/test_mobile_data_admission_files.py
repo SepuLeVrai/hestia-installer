@@ -27,7 +27,7 @@ class DataAdmissionFilesTests(unittest.TestCase):
     def test_native_inventories_remain_exact_through_locked_reopen(self):
         plan = self.plan(); view = self.view(); before = m.e._parents(self.lease)
         view.engine(); removed, added = m.a._journal_changes(view, view.journal.read())
-        self.assertEqual(added['mobile-reopen-files/transaction/state.json'],
+        self.assertEqual(added[self.control.root.name + '/transaction/state.json'],
                          (self.control.root / 'transaction/state.json').read_bytes())
         with view.external._configuration() as locked:
             view.live(locked=locked)

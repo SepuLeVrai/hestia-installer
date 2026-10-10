@@ -26,7 +26,7 @@ class ExternalAdmissionFilesTests(unittest.TestCase):
         plan = self.plan(); view = self.view()
         document = view.journal.read(); view.engine()
         removed, added = b.a._journal_changes(view, document)
-        self.assertEqual(added['mobile-reopen-files/transaction/state.json'],
+        self.assertEqual(added[self.control.root.name + '/transaction/state.json'],
                          (self.control.root / 'transaction/state.json').read_bytes())
         with plan._configuration() as locked:
             view.live(locked=locked)

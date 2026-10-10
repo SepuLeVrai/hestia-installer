@@ -5,7 +5,7 @@
 Le chantier courant est la chaîne de générations publiques successives,
 implémentée mais pas encore qualifiée. Lire d'abord
 [GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md](GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md).
-Le candidat produit est `dd4d89af9ee6d5ff62621ba77aba36f194c53b5d`,
+Le dernier candidat testé nativement est `dd4d89af9ee6d5ff62621ba77aba36f194c53b5d`,
 arbre `6739bfa15369c9ed18671da702f108dba70fe336`, 555 fichiers.
 
 Branche technique Installer : `validation/phase6-public-generations-20261010`.
@@ -26,13 +26,15 @@ pour poursuivre les générations successives.
 - Quality `38080884154` PASS : 2138 tests sur chacun de Debian 12 et 13,
   38 bridge et 50 HTTPS ; sources exactes, aucune erreur ni aucun saut.
 - Protocole/systemd `38080884162` PASS : 109 et 10 tests respectivement.
-- Recette native `38080901195` : deux jobs continuent ; le rollback indépendant
-  a échoué en préparation, avant son transfert. Aucun PASS global natif.
+- Recette native `38080901195` terminée en échec : cycle 1 + boot PASS, cycle 2
+  refusé à la reprise sur le journal commun de réouverture ; cycle 3 non exécuté.
+  Upgrade indépendant au watchdog HTTP, rollback indépendant refusé en préparation.
+  Preuves authentifiées : `11681931422`, `11681289874`, `11680751576`.
 - Le workflow présente six étapes sur le même hôte : upgrade puis redémarrage,
   rollback puis redémarrage, upgrade puis redémarrage.
-- Une relance ciblée du rollback indépendant attend la fin du run. GitHub a
-  refusé la première demande car ce run tournait encore ; aucune relance n'a
-  été exécutée. Conserver l'artefact d'échec `11680751576`.
+- Aucune relance exécutée. Les corrections suivantes remplacent ce gel :
+  journaux de réouverture distincts par bail et audit HTTP/nettoyeur composé.
+  Le HEAD technique doit être qualifié à son propre SHA ; 2152 tests core attendus.
 
 Le code corrigé lit les profils de génération complets avec leur lecteur privé
 borné à 256 Kio. Le lecteur de petits reçus, limité à 64 Kio, refusait le profil
@@ -55,14 +57,14 @@ contrôles natifs avant nouveau bail restent obligatoires.
 
 ## Prochain travail
 
-1. Recueillir les résultats natifs de `38080901195`, avec les manifestes et
-   empreintes des artefacts. Examiner toute chaîne d'erreur ou trace du watchdog.
-   Le candidat reste non qualifié jusqu'aux trois transferts et trois boots.
-2. Relancer uniquement le job rollback indépendant si l'analyse de son échec
-   le justifie, sur le même SHA et après fin du run. Ne pas relancer en boucle.
-3. Corriger les défauts démontrés, puis qualifier le gel exact. Ne jamais
-   attribuer un PASS d'une ancienne source à la nouvelle. SQL 180 s et watchdog
-   1800 s restent inchangés.
+1. Qualifier le HEAD corrigé de la branche technique : journaux par bail et
+   factorisation des audits HTTP. Conserver les erreurs de `dd4d89a` ; ne pas
+   relancer ce gel dépassé. Les tests Ext4 exigent le véritable volume de CI.
+2. Épingler l'appelant Web sur le nouveau SHA exact, puis recueillir les trois
+   transferts, trois redémarrages et deux recettes indépendantes.
+3. Authentifier les artefacts et comparer toutes les sources. Ne jamais attribuer
+   un PASS d'une ancienne source à la nouvelle. SQL 180 s et watchdog 1800 s
+   restent inchangés ; aucun cache d'observations natives.
 4. Finaliser les documents et le ZIP de fichiers modifiés complets, vérifier
    avant/après extraction et par reconstruction depuis la base canonique.
 5. Étendre seulement ensuite aux variantes DEV/FCM compatibles. Un retour

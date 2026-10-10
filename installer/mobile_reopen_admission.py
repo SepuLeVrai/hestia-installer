@@ -133,22 +133,25 @@ def _journal_records(control, document, released, guard_raw):
     receipt = strict_json_loads(released)
     removed = {r.MODULES[role].MARKER: control._raw(role) for role in r.ROLES}
     removed[r.gateway.g.MARKER] = canonical_bytes(receipt['intent']['fence'])
+    prefix = control.root.relative_to(control.lease.scope.directory).as_posix()
+    require(prefix in ('mobile-reopen-files', 'mobile-reopen-files-' + control.lease.lease_id),
+            'MOBILE_ADMISSION_PARENT_CHANGED')
     added = {r.gateway.RELEASED: released, r.guard.MARKER: guard_raw,
-        'mobile-reopen-files': None, 'mobile-reopen-files/transaction': None,
-        'mobile-reopen-files/transaction/.transaction.lock': b'',
-        'mobile-reopen-files/transaction/state.json': canonical_bytes(document) + b'\n',
-        'mobile-reopen-files/profile.json': canonical_bytes(control.profile())}
+        prefix: None, prefix + '/transaction': None,
+        prefix + '/transaction/.transaction.lock': b'',
+        prefix + '/transaction/state.json': canonical_bytes(document) + b'\n',
+        prefix + '/profile.json': canonical_bytes(control.profile())}
     for role in (*r.ROLES, 'data-access', 'external'):
         raw = control._read(role + '-original.json', files.MAX_MANIFEST_BYTES)
         require(raw is not None and f._sha(raw) == control.profile()['journals'][role])
-        added['mobile-reopen-files/' + role + '-original.json'] = raw
+        added[prefix + '/' + role + '-original.json'] = raw
     engine = control.engine()
     for spec, row in zip(document['plan']['steps'], document['steps']):
         context = OperationContext(document['installation_id'], spec, row['evidence'], engine.secrets)
         operation = engine.registry.get(spec)
         raw = canonical_bytes(operation.owner(context))
         for suffix in ('-intent.json', '-released.json'):
-            added['mobile-reopen-files/' + operation.role + suffix] = raw
+            added[prefix + '/' + operation.role + suffix] = raw
     return removed, added
 
 

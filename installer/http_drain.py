@@ -150,15 +150,20 @@ class HttpDrain:
         return gateway_service_drain.quiet_binding(self.runtime, foundation)
 
     def _audit(self, *, stopped=False, expected=None, timer_stopped=False):
-        account, extension, plan, _ = self.runtime._inspect_configuration()
+        collector = None
+        if self.cleaner is None:
+            runtime = self.runtime._inspect_configuration()
+        else:
+            require(type(self.cleaner) is c.SessionCleaner and self.cleaner.runtime is self.runtime,
+                    'HTTP_DRAIN_COLLECTOR_MISMATCH')
+            runtime, collector = self.cleaner._inspect_with_runtime()
+        account, extension, plan, _ = runtime
         scope = self.runtime._scope(account)
         generated = self.runtime._files(account, extension)
         bindings = tuple(s.UnitBinding(role, f._sha(generated[s.UNIT_ROOT / self.runtime.unit(role)])) for role in ROLES)
         extra = {}
         if self.cleaner is not None:
-            require(type(self.cleaner) is c.SessionCleaner and self.cleaner.runtime is self.runtime,
-                    'HTTP_DRAIN_COLLECTOR_MISMATCH')
-            owner, gate, files, cleaner_plan = self.cleaner._inspect_configuration()
+            owner, gate, files, cleaner_plan = collector
             require((owner.pw_uid, owner.pw_gid, gate.instance, gate.directory) ==
                     (account.pw_uid, account.pw_gid, scope.instance, scope.directory), 'HTTP_DRAIN_COLLECTOR_MISMATCH')
             bindings += (s.UnitBinding('session-cleaner', f._sha(files[s.UNIT_ROOT / self.cleaner.unit])),)

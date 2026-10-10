@@ -24,12 +24,15 @@ class Activation:
         self.directory = runtime.spec.root.parent / 'attempts'
 
     def configuration(self):
-        account, extension, plan, initial = self.runtime._inspect_configuration()
+        require(type(self.cleaner) is app.cleaner.SessionCleaner and self.cleaner.runtime is self.runtime,
+                ErrorCode.INCOMPATIBLE_STATE)
+        runtime, collector = self.cleaner._inspect_with_runtime()
+        account, extension, plan, initial = runtime
         scope = self.runtime._scope(account)
         files = self.runtime._files(account, extension)
         for role in ('php', 'apache'):
             drain.audit_unit(scope, drain.UnitBinding(role, h.f._sha(files[drain.UNIT_ROOT / self.runtime.unit(role)])))
-        _, _, collector_files, _ = self.cleaner._inspect_configuration()
+        _, _, collector_files, _ = collector
         drain.audit_unit(scope, drain.UnitBinding('session-cleaner', h.f._sha(collector_files[drain.UNIT_ROOT / self.cleaner.unit])), running_collector=True)
         self.cleaner._timer_state(stopped=False)
         return scope, initial

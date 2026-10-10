@@ -90,7 +90,7 @@ class BlockerState:
         require(f._read(self.lease._directory, definitions[3][0], self.lease.scope.web_gid)
                 == self.originals[p.COPIES[3]])
         profile = strict_json_loads(self.originals[p.COPIES[3]])
-        source_root = self.lease.scope.directory / 'mobile-reopen-files'
+        source_root = r.journal_root(self.lease)
         parents = {name: f._sha(_read(source_root, name, limit)) for name, limit in e.SOURCE_FILES.items()}
         parents.update(mobile_guard=f._sha(self.originals[p.COPIES[1]]),
                        gateway_release=f._sha(self.originals[p.COPIES[2]]))

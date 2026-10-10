@@ -44,7 +44,7 @@ def _inputs(lease, backups, confirmed):
 
 
 def _parents(lease):
-    root = lease.scope.directory / 'mobile-reopen-files'
+    root = source.journal_root(lease)
     return {**{name: f._sha(_read_path(root, name, limit)) for name, limit in SOURCE_FILES.items()},
             'mobile_guard': f._sha(files._read(lease._directory, guard.MARKER, guard.MAX_BYTES)),
             'gateway_release': f._sha(files._read(lease._directory, source.gateway.RELEASED,
@@ -68,7 +68,7 @@ class ExternalReleasePlan:
     def __init__(self, lease, backups, raw):
         self.lease, self.backups, self._raw, self._pid = lease, backups, raw, os.getpid()
         self.root = backups / ('external-release-' + lease.lease_id)
-        self.source_root = lease.scope.directory / 'mobile-reopen-files'
+        self.source_root = source.journal_root(lease)
         self.value = strict_json_loads(raw)
         exact_keys(self.value, {'version', 'instance', 'lease_id', 'backup_root', 'backup_identity',
                                 'source_plan_sha256', 'parents', 'configuration'})

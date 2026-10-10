@@ -8,7 +8,7 @@
 | DEV distinct initial, #16 | Terminé, fermé et livré, `eaa2faf` | Ne qualifie pas une transition de version avec DEV/FCM |
 | Compatibilité et cockpit privé Gateway, #17 | Terminé dans son périmètre, `1028c05` | Première génération MAIN avant public/boot |
 | Premier transfert public/boot MAIN | Qualifié à `24a210d` ; preuves dans le document lié ci-dessous | Deux paquets catalogue, sans DEV/FCM actif |
-| Générations successives et aller-retour sur le même hôte | Implémenté, qualification native en cours sur `dd4d89a` | Pas de PASS global ; trois cycles et six étapes à prouver |
+| Générations successives et aller-retour sur le même hôte | Implémenté, défaut du journal commun corrigé après `dd4d89a` | Pas de PASS global ; trois cycles et six étapes à prouver |
 | Transitions avec DEV/FCM compatibles | À faire | Retour FCM 0.12.3 vers 0.12.2 incompatible |
 | Restauration sur l'instance originale | À faire | Autorité distincte, époque d'authentification et révocations |
 | Recette 6C et intégration, #18 | À faire | Qualifier les périmètres restants avant clôture de phase 6 |
@@ -23,7 +23,8 @@ issues composites ni l'ensemble de la phase 6.
 
 Le contrat de chaîne, la sélection publique successive, les archives distinctes,
 les liens de journaux et le cockpit sont implémentés. Le candidat `dd4d89a`
-passe Quality, protocole et systemd. La recette native complète reste ouverte.
+passe Quality, protocole et systemd, mais échoue à la reprise du deuxième cycle.
+Le correctif des journaux par bail et des audits composés attend sa propre qualification.
 Voir [le contrat et son diagnostic](GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md).
 
 Le prochain jalon exige upgrade/rollback/upgrade sur le même hôte, chaque fois

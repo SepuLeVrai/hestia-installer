@@ -2,7 +2,8 @@
 
 L'extension aux générations successives est décrite séparément dans
 [GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md](GATEWAY_SUCCESSIVE_GENERATIONS_20261010.md).
-Son candidat `dd4d89a` est en qualification native ; le présent document
+Le gel `dd4d89a` a échoué au deuxième cycle ; son correctif attend une nouvelle
+qualification native. Le présent document
 conserve le contrat acquis du premier transfert.
 
 ## Périmètre implémenté
