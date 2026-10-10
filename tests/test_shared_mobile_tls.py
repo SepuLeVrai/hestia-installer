@@ -105,3 +105,14 @@ class SharedMobileTLSContracts(unittest.TestCase):
              patch('socket.socket', side_effect=AssertionError('network')):
             candidate = s.SharedMobileTLS(web, gateway(), ('127.0.0.10/32',))
             self.assertFalse(candidate.manifest()['deployed'])
+
+    def test_manifest_validates_snapshot_once_without_cross_call_cache(self):
+        candidate = self.candidate(); before = candidate.manifest()
+        with patch.object(s, 'Profile', wraps=s.Profile) as constructor:
+            self.assertEqual(candidate.manifest(), before)
+            self.assertEqual(constructor.call_count, 1)
+        changed = json.loads(candidate._web); changed['choices']['email'] = 'new@example.test'
+        candidate._web = canonical_bytes(changed)
+        after = candidate.manifest()
+        self.assertNotEqual(after['web_profile_sha256'], before['web_profile_sha256'])
+        self.assertIn('new@example.test', after['commands']['issue'])

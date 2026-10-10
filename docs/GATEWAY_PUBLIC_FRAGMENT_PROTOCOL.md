@@ -208,3 +208,10 @@ dans l'époque en cours, car le timer Persistent peut le déclencher aussitôt.
 Une nouvelle époque exige le sceau complet et refuse les anciens reçus altérés.
 Les gardes SQL/Web de l'activation locale ont une permission distincte, liée
 à l'intention PHP et à l'époque d'activation ; ils ne rouvrent pas le frontal.
+
+Les lecteurs de réouverture des données et des gardes exigent aussi le contexte
+public vivant, le bail exact et son profil de drain conservé. Hors de ce
+contexte fermé, leurs refus historiques de `boot/public` restent applicables.
+La compilation pure du profil TLS réutilise une construction locale des mêmes
+octets immuables par manifeste ; il n'existe aucun cache d'observations natives.
+Les audits de fichiers, d'inodes, de services et les gardes SQL restent exécutés.

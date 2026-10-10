@@ -39,6 +39,9 @@ class SharedMobileTLS:
 
     def http_server(self, *, ready):
         require(type(ready) is bool)
+        return self._http_server(self.web, ready=ready)
+
+    def _http_server(self, web, *, ready):
         host = self.mobile.hostname
         authority = host.replace('.', '[.]')
         response = '308 https://' + host + '$request_uri' if ready else '503'
@@ -57,7 +60,7 @@ class SharedMobileTLS:
   if ($http_content_length !~ "^(0)?$") {{ return 400; }}
   location ^~ /.well-known/acme-challenge/ {{
     if ($request_uri !~ "^/\\.well-known/acme-challenge/[A-Za-z0-9_-]{{22,128}}$") {{ return 404; }}
-    root {self.public}/htdocs;
+    root {web.public / 'mobile'}/htdocs;
     default_type text/plain;
     try_files $uri =404;
   }}
@@ -67,11 +70,13 @@ class SharedMobileTLS:
 
     def nginx(self, role, *, mobile_ready):
         require(role in ('http', 'https') and type(mobile_ready) is bool)
-        web = self.web
+        return self._nginx(self.web, role, mobile_ready=mobile_ready)
+
+    def _nginx(self, web, role, *, mobile_ready):
         original = web.nginx(role)
         require(original.endswith(b'}\n'))
         if role == 'http':
-            extra = self.http_server(ready=mobile_ready)
+            extra = self._http_server(web, ready=mobile_ready)
         elif not mobile_ready:
             # The certificate is not available yet: no Mobile TLS server at all.
             return original
@@ -82,34 +87,41 @@ class SharedMobileTLS:
             require(original.count(anchor) == 1)
             guard = ('  if ($ssl_server_name != ' + web.hostname + ') { return 421; }\n').encode()
             original = original.replace(anchor, anchor + guard)
-            live = self.acme_root / 'live' / CERT_NAME
+            live = web.public / 'mobile/private/letsencrypt/live' / CERT_NAME
             extra = self.mobile.nginx_server(certificate=live / 'fullchain.pem', private_key=live / 'privkey.pem')
         return original[:-2] + extra.encode() + b'}\n'
 
     def certbot(self, *, renew=False, dry_run=False):
         require(type(renew) is bool and type(dry_run) is bool and (renew or not dry_run))
-        argv = ['/usr/bin/certbot', '--config', str(self.root / 'certbot.ini'),
-            '--config-dir', str(self.acme_root), '--work-dir', str(self.root / 'certbot-work'),
-            '--logs-dir', str(self.root / 'certbot-logs'), '--non-interactive',
+        return self._certbot(self.web, renew=renew, dry_run=dry_run)
+
+    def _certbot(self, web, *, renew=False, dry_run=False):
+        public = web.public / 'mobile'; root = public / 'private'
+        argv = ['/usr/bin/certbot', '--config', str(root / 'certbot.ini'),
+            '--config-dir', str(root / 'letsencrypt'), '--work-dir', str(root / 'certbot-work'),
+            '--logs-dir', str(root / 'certbot-logs'), '--non-interactive',
             '--no-directory-hooks', '--cert-name', CERT_NAME]
         if renew:
             argv += ['renew', '--no-random-sleep-on-renew']
             if dry_run: argv += ['--dry-run', '--server', STAGING]
         else:
-            argv += ['certonly', '--webroot', '-w', str(self.public / 'htdocs'), '-d', self.mobile.hostname,
-                '--email', self.web.value['choices']['email'], '--agree-tos', '--key-type', 'ecdsa',
+            argv += ['certonly', '--webroot', '-w', str(public / 'htdocs'), '-d', self.mobile.hostname,
+                '--email', web.value['choices']['email'], '--agree-tos', '--key-type', 'ecdsa',
                 '--elliptic-curve', 'secp256r1', '--server', PRODUCTION]
         return argv
 
     def manifest(self):
         """Non-secret deterministic candidate identity, never a live receipt."""
+        # One parse of the same immutable input bytes per compilation. This is
+        # not a cache of native observations: no filesystem audit is skipped.
+        web = self.web
         return {'version': 1, 'kind': 'shared-mobile-tls-candidate',
-            'web_profile_sha256': self.web.digest, 'gateway_profile_sha256': f._sha(self._gateway),
-            'mobile': self.mobile.contract(), 'mobile_public_root': str(self.public),
+            'web_profile_sha256': web.digest, 'gateway_profile_sha256': f._sha(self._gateway),
+            'mobile': self.mobile.contract(), 'mobile_public_root': str(web.public / 'mobile'),
             'certificate_name': CERT_NAME,
-            'original_web': {role: f._sha(self.web.nginx(role)) for role in ('http', 'https')},
-            'configurations': {stage: {role: f._sha(self.nginx(role, mobile_ready=ready))
+            'original_web': {role: f._sha(web.nginx(role)) for role in ('http', 'https')},
+            'configurations': {stage: {role: f._sha(self._nginx(web, role, mobile_ready=ready))
                 for role in ('http', 'https')} for stage, ready in (('challenge', False), ('ready', True))},
-            'commands': {stage: self.certbot(**options) for stage, options in
+            'commands': {stage: self._certbot(web, **options) for stage, options in
                 (('issue', {}), ('dry_run', {'renew': True, 'dry_run': True}), ('renew', {'renew': True}))},
             'deployed': False}

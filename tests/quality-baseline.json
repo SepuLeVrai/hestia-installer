@@ -1414,6 +1414,7 @@
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_http01_accepts_explicit_standard_port_but_refuses_other_authorities",
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_input_drafts_and_returned_profiles_cannot_mutate_candidate",
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_manifest_binds_parents_networks_stage_bytes_and_gateway_pin",
+      "test_shared_mobile_tls.SharedMobileTLSContracts.test_manifest_validates_snapshot_once_without_cross_call_cache",
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_mobile_http01_remains_public_and_canonical_with_closed_methods",
       "test_shared_mobile_tls.SharedMobileTLSContracts.test_ready_preserves_all_web_directives_except_added_sni_guard",
       "test_shared_public_http.SharedPublicHTTPTests.test_all_seven_routes_require_session_origin_and_csrf_before_dispatch",

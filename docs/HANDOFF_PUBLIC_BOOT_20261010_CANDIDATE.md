@@ -111,3 +111,22 @@ exact et le profil de drain natif conservé ; hors de ce contexte, l'absence
 de `boot/public` reste obligatoire. Aucun contrôle de données ou SQL n'est retiré.
 Trois contrats ciblés vérifient ces autorisations et refus. Les deux campagnes
 précédentes ne peuvent pas qualifier ce correctif.
+
+Le correctif `123db0e4a6c2da1362309b4cac8b3bede5a0ed6d`, arbre
+`1fe076160f7668964f0146f6a5a8a5fc126e133e`, a passé Quality `38047548649`
+et protocole/systemd `38047548692` : 2 101 tests core par Debian, 37 bridge,
+49 HTTPS natif, 87 contrats ciblés et 10 tests systemd. Le premier job Debian 12
+a refusé un chemin temporaire aléatoire du fixture historique avec
+`SECRET_REJECTED`, avant le test. Son artefact est conservé ; la relance de ce
+seul job au même SHA, puis le gate, réussissent. Les six archives retenues et
+leurs cinq manifestes correspondent à cet arbre. Recette native : `38047575225`.
+
+Le rollback du run antérieur `38045509282` a échoué dans l'admission externe
+sur `SQL_FENCE_TIMEOUT`. La limite de 180 secondes reste obligatoire. L'analyse
+locale identifie des constructions répétées du même profil TLS immuable dans
+le compilateur pur. Le candidat suivant valide une fois ces mêmes octets par
+calcul de manifeste, sans cache persistant et sans changer les audits natifs.
+Six variantes conservent exactement les sorties ; 56 contrats passent.
+Le microbenchmark local de 30 manifestes passe de 1,25 s à 0,08 s ; ce n'est
+pas une preuve du temps SQL natif. Les échecs utiles des campagnes précédentes
+restent conservés et ne sont pas assimilés à un PASS.
