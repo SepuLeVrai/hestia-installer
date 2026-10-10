@@ -26,23 +26,38 @@ sont conservés. Aucune modification SQL, aucun changement à schema.sql ou
 install.php n'est nécessaire. Les branches actives et la production restent
 inchangées.
 
-## Blocage de validation
+## Validation et autorisation
 
-La revue automatique a rejeté le push de la branche technique car elle ne
-considère pas la publication du code/workflow vers ce dépôt comme autorisée.
-Il faut l'autorisation explicite de publier ce candidat sur cette branche
-technique pour lancer la recette ciblée. Ne pas contourner le refus.
+L'utilisateur a autorisé la poursuite et la publication sur la branche technique
+`validation/phase6-public-fragments-20261010`. Le refus initial est levé.
+Les branches actives restent inchangées.
 
-Localement, seuls UID/GID 0 sont mappés. Les tests de fichiers échouent dès
-la préparation de maintenance (`fchown` vers GID 65534), avant d'exercer le
-protocole. Ne pas supprimer les contrôles, simuler chown, ni transformer ces
-échecs en skips pour afficher un PASS.
+La recette Debian 13 du protocole initial a réussi : run GitHub `38038107737`,
+commit `86a65998432a7c3aa7b1bda2d266d08c0869e042`, 25 tests et contrôles statiques.
+Deux essais antérieurs ont échoué dans la préparation du workflow (Git absent,
+puis modes d'extraction trop permissifs) ; ces défauts sont corrigés.
 
-## Reprise après autorisation
+Le candidat suivant ajoute un lecteur des huit inodes installés, utilisable
+après fermeture du bail, un compilateur de génération, les lecteurs successeurs
+Web/Mobile/public et un worker scellé. Les chemins des certificats, profils
+historiques, routes, dépendances et commandes de renouvellement sont conservés.
+Les contrôles natifs Gateway restent différés après Web au boot, comme dans le
+contrat acquis. Les contrôles précoces sont des lectures de fichiers.
 
-1. Vérifier le HEAD distant et l'absence de collision de branche technique.
-2. Publier le gel du candidat et lire la recette Debian ciblée ; corriger toute
-   erreur réelle avant d'intégrer cette primitive.
+Les 14 tests de compilation/bundle passent localement. Les 28 tests de fragments
+et les nouveaux contrats sont requis dans la baseline. Le workflow ciblé exécute
+les 42 tests ; Quality complète est aussi déclenchée sur la branche technique.
+Ces résultats à venir doivent être lus sur le SHA exact, sans extrapoler le
+succès précédent au code nouveau.
+
+Localement, seuls UID/GID 0 sont mappés. La maintenance utilisant GID 65534 ne
+peut pas être testée ici. Aucun contrôle chown n'est simulé ou supprimé.
+
+## Travaux restant obligatoires
+
+1. Lire les résultats du gel courant, ciblés et Quality complète.
+2. Qualifier la copie native du bundle, sa reprise et les lecteurs en conditions
+   systemd réelles avant toute intégration.
 3. Développer l'autorité et les bundles successeurs complets, avec arrêt et
    contrôle des workers publics. La primitive seule n'accorde aucune admission.
 4. Raccorder les admissions fermées dans `mobile_reopen_files.py`,

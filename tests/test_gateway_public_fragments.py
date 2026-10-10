@@ -264,5 +264,39 @@ class PublicFragmentsTests(unittest.TestCase):
         with patch.object(f.os, 'rename', side_effect=AssertionError('rename replay')):
             self.assertEqual(self.step()['fragments'][0]['state'], 'DONE')
 
+    def reader(self, **kwargs):
+        return f.CompletedFragments(**{'root': self.root, 'unit_root': self.units,
+            'instance': self.scope.instance, 'lease_id': self.lease_id,
+            'maintenance': self.scope.directory, 'references': self.refs,
+            'replacements': self.replacements, **kwargs})
+
+    def complete(self):
+        self.prepare()
+        for _ in self.replacements: self.step()
+
+    def test_completed_reader_after_lease_close_has_no_effect_or_mutation_api(self):
+        self.complete(); self.lease.close(); saved = self.snapshot(); reader = self.reader()
+        self.assertFalse(hasattr(reader, 'replace_next')); self.assertFalse(hasattr(reader, 'prepare'))
+        with patch('subprocess.run', side_effect=AssertionError('native command')):
+            self.assertEqual(reader.check(self.confirmation)['state'], 'FRAGMENTS_REPLACED')
+            reader.check(self.confirmation)
+        self.assertEqual(saved, self.snapshot())
+
+    def test_completed_reader_refuses_incomplete_and_lost_done_receipt(self):
+        self.prepare()
+        with self.assertRaises(f.FragmentError): self.reader().check(self.confirmation)
+        for _ in self.replacements: self.step()
+        (self.root / '7.done.json').unlink()
+        with self.assertRaises(f.FragmentError): self.reader().check(self.confirmation)
+
+    def test_completed_reader_rejects_same_bytes_foreign_inode_and_changed_reference(self):
+        self.complete()
+        with self.assertRaises(f.FragmentError):
+            self.reader(references={**self.refs, 'publication': 'f' * 64}).check(self.confirmation)
+        with self.assertRaises(f.FragmentError): self.reader().check('f' * 64)
+        path = self.first(); raw = path.read_bytes(); path.rename(path.with_suffix('.old'))
+        path.write_bytes(raw); path.chmod(0o644)
+        with self.assertRaises(f.FragmentError): self.reader().check(self.confirmation)
+
 
 if __name__ == '__main__': unittest.main()

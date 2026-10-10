@@ -175,7 +175,7 @@ class FragmentTransfer:
                 'slot': _identity(os.fstat(fd)), 'directories': directories, 'sources': sources}))
         return self.check()
 
-    def _temporary(self, leaf): return '.' + leaf + '.gateway-' + self.lease.lease_id
+    def _temporary(self, leaf): return '.' + leaf + '.gateway-' + self.binding['lease_id']
 
     def _observe(self, journal, plan, index, name):
         owner = {'plan_sha256': sha(canonical_bytes(plan)), 'index': index}
@@ -272,3 +272,47 @@ class FragmentTransfer:
                 _put(journal, str(index) + '.done.json', {'owner': owner,
                      'armed_sha256': sha(canonical_bytes(arm))})
         return self.check()
+
+
+class CompletedFragments:
+    """Read-only installed-inode proof, usable after the maintenance lease ends.
+
+    No mutation method is exposed. A complete receipt never excuses a changed
+    file, parent directory, generation reference, or transaction directory.
+    """
+    _slot = FragmentTransfer._slot
+    _parent = FragmentTransfer._parent
+    _temporary = FragmentTransfer._temporary
+    _observe = FragmentTransfer._observe
+    _rows = FragmentTransfer._rows
+
+    def __init__(self, root, unit_root, instance, lease_id, maintenance, references, replacements):
+        require(type(lease_id) is str and re.fullmatch('[a-f0-9]{32}', lease_id))
+        require(isinstance(root, Path) and root.is_absolute() and root.name == 'public-fragments-' + lease_id
+                and isinstance(unit_root, Path) and unit_root.is_absolute()
+                and isinstance(maintenance, Path) and maintenance.is_absolute())
+        require(type(references) is dict and set(references) == REFS)
+        for value in references.values(): _digest(value)
+        require(references['source_gateway'] != references['target_gateway'])
+        require(type(replacements) is dict and tuple(replacements) == resources(instance))
+        for pair in replacements.values():
+            require(type(pair) is tuple and len(pair) == 2
+                    and all(type(raw) is bytes and 0 < len(raw) <= LIMIT for raw in pair) and pair[0] != pair[1])
+        self.root, self.unit_root = root, unit_root
+        self.references, self.replacements = dict(references), dict(replacements)
+        self.binding = {'version': 1, 'policy': POLICY, 'instance': instance, 'lease_id': lease_id,
+                        'references': self.references, 'unit_root': str(unit_root), 'maintenance': str(maintenance),
+                        'fragments': {name: {'source': sha(pair[0]), 'target': sha(pair[1])}
+                                      for name, pair in self.replacements.items()}}
+        self.pid = os.getpid()
+
+    def _held(self):
+        require(os.getuid() == os.geteuid() == 0 and self.pid == os.getpid(), 'GATEWAY_PUBLIC_ROOT_REQUIRED')
+
+    def check(self, confirmation):
+        _digest(confirmation)
+        with self._slot() as (fd, plan):
+            require(sha(canonical_bytes(plan)) == confirmation, 'GATEWAY_PUBLIC_CONFIRMATION_REQUIRED')
+            rows = self._rows(fd, plan)
+            require(all(row['state'] == 'DONE' for row in rows), 'GATEWAY_PUBLIC_FRAGMENTS_INCOMPLETE')
+        return {'plan_sha256': confirmation, 'state': 'FRAGMENTS_REPLACED', 'historical_only': False}

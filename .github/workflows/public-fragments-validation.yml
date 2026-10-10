@@ -33,7 +33,7 @@ jobs:
           git rev-parse HEAD > /evidence/commit.txt
           cd /opt/hestia-fragments
           python3 scripts/quality.py static 2>&1 | tee /evidence/static.log
-          python3 -m unittest discover -s tests -p test_gateway_public_fragments.py -v 2>&1 | tee /evidence/fragments.log
+          python3 -m unittest discover -s tests -p 'test_gateway_public*.py' -v 2>&1 | tee /evidence/fragments.log
       - name: Preserve results including failures
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

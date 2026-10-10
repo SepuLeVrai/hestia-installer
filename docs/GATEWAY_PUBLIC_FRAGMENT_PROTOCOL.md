@@ -55,10 +55,23 @@ jetable pour contrôler les vrais propriétaires et verrous. Son résultat porte
 uniquement sur la primitive et les contrôles statiques, pas sur un service
 systemd ni sur la clôture du bloc public/boot.
 
-La publication de la branche technique a été refusée par la revue automatique
-d'autorisation : elle considère la publication du code et du workflow vers ce
-dépôt GitHub comme non autorisée. Aucun contournement ni nouvel essai de push.
-Le candidat reste local ; aucun résultat CI n'est disponible. Les deux tests
-de grammaire et de correspondance des noms avec les vrais générateurs passent
-localement. Les 23 tests de fichiers restent bloqués par le GID non mappé.
-Les 25 nouveaux contrats sont ajoutés à la baseline sans retrait historique.
+La publication technique a ensuite été autorisée par l'utilisateur. La recette
+`38038107737` a réussi sur `86a65998432a7c3aa7b1bda2d266d08c0869e042` :
+25 tests, statique PASS. Elle ne contient pas les ajouts suivants, dont les
+résultats doivent être vérifiés sur leur propre gel.
+
+## Génération successeur en développement
+
+`gateway_public_generation.py` compile les huit fragments et conserve les
+bundles parents à leurs chemins historiques. Le nouveau worker vérifie les
+empreintes du profil et du code privé avant import. Le lecteur
+`CompletedFragments` relit les inodes de la transaction terminée sans exposer
+une méthode de mutation. Il refuse une transaction partielle ou une substitution
+étrangère de contenu identique, même après fermeture du bail de maintenance.
+
+Le worker exige une admission consommée et un propriétaire d'activation lié
+aux fragments. Aucun producteur de ce propriétaire n'est encore raccordé.
+Le dépôt ne dispose donc toujours pas d'un transfert public/boot opérationnel.
+Le staging natif, les admissions, le rechargement systemd, la réouverture et
+le cockpit restent à développer et qualifier. Aucun succès unitaire ne vaut
+preuve de TLS courant, de renouvellement ACME ou de nouvelle époque PID 1.
