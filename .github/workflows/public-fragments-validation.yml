@@ -41,3 +41,49 @@ jobs:
           name: public-fragments-protocol
           path: /evidence
           if-no-files-found: error
+
+  systemd:
+    name: Native public fragment stops and reload / Debian 13
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Freeze source and build disposable manager
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 022
+          mkdir -p "$RUNNER_TEMP/public-source" evidence
+          git -c tar.umask=0022 archive HEAD | tar -x -C "$RUNNER_TEMP/public-source"
+          git rev-parse HEAD > evidence/commit.txt
+          git rev-parse HEAD^{tree} > evidence/tree.txt
+          docker build -f tests/integration/Dockerfile.public-systemd -t public-transfer "$RUNNER_TEMP/public-source"
+      - name: Real PID 1 without network
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run -d --name public-transfer --network none --privileged --cgroupns=private --tmpfs /run --tmpfs /run/lock --tmpfs /tmp public-transfer
+          for attempt in $(seq 1 60); do
+            state=$(docker exec public-transfer systemctl is-system-running 2>/dev/null || true)
+            if [ "$state" = running ] || [ "$state" = degraded ]; then break; fi
+            sleep 1
+          done
+          test "$state" = running || test "$state" = degraded
+          docker exec -e HESTIA_PUBLIC_SYSTEMD_TEST=1 public-transfer python3 /opt/hestia-installer/tests/integration/gateway_public_systemd_native.py 2>&1 | tee evidence/systemd.log
+      - name: Preserve native evidence and remove disposable resources
+        if: always()
+        shell: bash
+        run: |
+          docker exec public-transfer journalctl -b --no-pager > evidence/journal.log || true
+          docker inspect public-transfer > evidence/container.json || true
+          docker cp public-transfer:/evidence/. evidence/ || true
+          docker rm -f public-transfer || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: public-systemd-native
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 14

@@ -275,3 +275,40 @@ class SuccessorMobile(mobile.MobileBootRuntime):
     def attach_gateway(self):
         self.gateway = self.generation.target(self.http)
         self.foundation = self.gateway.foundation
+
+
+def systemd_manager(generation, lease):
+    """Closed adapter: all destinations come from the selected generation."""
+    from installer.gateway_public_systemd import Manager
+    require(type(generation) is Generation and type(lease) is MaintenanceLease, ErrorCode.INVALID_DATA)
+    require(lease.lease_id == generation.value['lease_id']
+        and lease.scope.instance == generation.layout.instance
+        and lease.scope.directory == generation.http.spec.maintenance_directory, ErrorCode.INCOMPATIBLE_STATE)
+    lease.assert_held()
+    transfer = fragments.FragmentTransfer(generation.original.gateway.root / 'control' /
+        ('public-fragments-' + lease.lease_id), boot.h.drain.UNIT_ROOT, lease,
+        generation.references(), generation.replacements())
+    return Manager(transfer, generation.original.shared.root / 'effect-lock.json')
+
+
+def prepare_systemd(generation, lease, *, confirmed):
+    require(confirmed is True, ErrorCode.CONFIRMATION_REQUIRED)
+    manager = systemd_manager(generation, lease)
+    generation.current_publication(); generation.source_configuration()
+    generation.selected().stopped()
+    return manager.prepare(confirmed=True)
+
+
+def transfer_systemd(generation, lease, confirmation, *, confirmed):
+    require(confirmed is True, ErrorCode.CONFIRMATION_REQUIRED)
+    manager = systemd_manager(generation, lease)
+    generation.current_publication()
+    if generation._read('staged.json') is None:
+        manager.stop_public(confirmation, confirmed=True)
+        generation.stage(lease, confirmed=True)
+    else:
+        require(generation._read('staged.json') == {'generation_sha256': generation.digest}, ErrorCode.SOURCE_DRIFT)
+        generation.bundle()
+    result = manager.apply(confirmation, confirmed=True)
+    generation.configuration(); generation.installed_fragments(result['plan_sha256'])
+    return result

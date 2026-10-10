@@ -75,3 +75,22 @@ Le dépôt ne dispose donc toujours pas d'un transfert public/boot opérationnel
 Le staging natif, les admissions, le rechargement systemd, la réouverture et
 le cockpit restent à développer et qualifier. Aucun succès unitaire ne vaut
 preuve de TLS courant, de renouvellement ACME ou de nouvelle époque PID 1.
+
+## Coordinateur systemd en cours de qualification
+
+`gateway_public_systemd.py` ajoute l'arrêt explicite du timer puis des listeners,
+le refus d'un renouvellement actif, les remplacements sous le verrou public,
+et le rechargement du manager. Le plan lie les inodes source et répertoires,
+la génération, le bail et l'époque PID 1. Un changement d'époque pendant une
+transaction incomplète est refusé ; aucun démarrage n'est exécuté ici.
+
+L'adaptateur `prepare_systemd` / `transfer_systemd` dérive tous les chemins du
+profil `Generation`, conserve les parents et stage le worker avant le transfert.
+Le contrôle final reste sous maintenance et ne produit aucune admission.
+
+Une recette Debian 13/PID 1 jetable est ajoutée au workflow ciblé : services de
+fixture réels, arrêts, refus d'un inode remplacé et d'un renouvellement actif,
+réponse perdue après stop, SIGKILL réel après daemon-reload. Ce n'est pas une
+recette NGINX/Gateway/TLS ni une nouvelle époque après réouverture. Ses résultats
+restent à lire sur le SHA publié. Les refus des admissions et du cockpit restent
+inchangés à ce stade.
