@@ -26,9 +26,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          umask 022
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           mkdir -p /opt/hestia-fragments /evidence
-          git archive HEAD | tar -x -C /opt/hestia-fragments
+          git -c tar.umask=0022 archive HEAD | tar -x -C /opt/hestia-fragments
           git rev-parse HEAD > /evidence/commit.txt
           cd /opt/hestia-fragments
           python3 scripts/quality.py static 2>&1 | tee /evidence/static.log
